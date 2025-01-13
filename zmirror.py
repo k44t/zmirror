@@ -58,8 +58,6 @@ def main():
                     on_scrubbed = zfs["on-scrubbed"]
                 if "on_resilvered" in zfs:
                     on_resilvered = zfs["on_resilvered"]
-                
-
             if "vgs" in dm_crypt:
                 vgs = dm_crypt["vgs"]
         elif type == "disk":
