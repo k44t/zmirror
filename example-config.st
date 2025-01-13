@@ -2,6 +2,8 @@
 log-env: yes
 
 
+# config is being read from $ZMIRROR_CONFIG or /etc/zmirror/config.yml
+
 dm-crypt
 
     eva-a-main: partition 

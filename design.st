@@ -1,55 +1,4 @@
 
-
-
-
-import os, stat, os.path
-import shutil
-import re
-import time
-import subprocess
-import yaml
-from natsort import natsorted
-from datetime import datetime, timedelta
-import logging
-import os
-
-
-
-
-log = logging.getLogger(__name__)
-
-def convert_dict_to_strutex(dictionary):
-    result_string = "env"
-    for key, value in dictionary.items():
-        result_string = result_string + f"\n\t{key}:: {value}"
-    return result_string
-
-def main():
-    logfile = '/var/run/zmirror/log.st'
-    parent_directory = os.path.dirname(logfile)
-    os.makedirs(parent_directory, exist_ok = True)
-    logging.basicConfig(filename=logfile, 
-                        level=logging.INFO, 
-                        format='%(asctime)s %(levelname)-8s %(message)s',    
-                        datefmt='%Y-%m-%d %H:%M:%S')
-    log.info("starting zmirror")
-    all_env_vars = dict(os.environ)
-    new_all_env_vars = dict()
-    for key, value in all_env_vars.items():
-        if key[0] != "_":
-            new_all_env_vars[key] = value
-    log.info(f"environment variables: {convert_dict_to_strutex(new_all_env_vars)}")
-    with open('filename.yaml') as f:
-        my_dict = yaml.safe_load(f)
-    
-if __name__ == "__main__":
-    main()
-
-
-"""
-
-# use the binary from the env variable ZPOOL when available or use zpool from PATH (which is available in udev)
-
 udev block
     remove
         disk
@@ -131,7 +80,3 @@ zed
             else
                 see scrub completed
             
-
-
-
-"""
