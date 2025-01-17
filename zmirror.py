@@ -17,6 +17,7 @@ import argparse
 import jsonpickle
 import dateparser
 import json
+import traceback
 
 
 log = logging.getLogger(__name__)
@@ -25,8 +26,11 @@ log = logging.getLogger(__name__)
 
 # Create the parser
 parser = argparse.ArgumentParser(description="zmirror worker")
-status_parser = parser.add_parser('status', parents=[], help='show status of zmirror')
+subparser = parser.add_subparsers(required=True)
+status_parser = subparser.add_parser('status', parents=[], help='show status of zmirror')
 
+
+command_list = []
 
 def convert_dict_to_strutex(dictionary):
   for key, value in dictionary.items():
@@ -38,6 +42,8 @@ class Content_Elements(object):
     self.content_elements = content_elements
   def add_content_element(self, content_element):
     self.content_elements.append(content_element)
+  def get_all_content_elements(self):
+    return self.content_elements
 
 class Content_Element(object):
   def __init__(self, tag):
@@ -46,21 +52,24 @@ class Content_Element(object):
 class Content_Element_with_Content_Elements(Content_Element):
   def __init__(self, tag, content_elements):
     super(Content_Element_with_Content_Elements, self).__init__(tag)
-    self.content_elements = Content_Elements(content_elements)
+    self.content_elements_object = Content_Elements(content_elements)
   def add_content_element(self, content_element):
-    self.content_elements.add_content_element(content_element)
+    self.content_elements_object.add_content_element(content_element)
+  def get_all_content_elements(self):
+    return self.content_elements_object.get_all_content_elements()
 
 
 class ZMirrorState(Content_Element_with_Content_Elements):
-  def __init__(self, content_elements):
+  def __init__(self, content_elements = []):
     super(ZMirrorState, self).__init__("zmirror_state", content_elements)
 
 class Config_Entry(Content_Element_with_Content_Elements):
-  def __init__(self, tag, content_elements):
+  def __init__(self, tag, content_elements = []):
     super(Config_Entry, self).__init__("partition", content_elements)
     self.tag = tag
 
 class Partition(Config_Entry):
+  # for some weird reason we it is not enough to give an empty list as content_elements, as content_elements will falsely be containing something in the second round (eva-b-main contained eva-a-main in content_elements even if this should have been an empty list then, therefore when calling for initializing a partition, give content_elements as empty list)
   def __init__(self, name, content_elements = []):
     super(Partition, self).__init__("partition", content_elements)
     self.name = name
@@ -88,11 +97,11 @@ class Volume(On_Offline_Content_Element):
 
 class Lvm_Volume_Group(On_Offline_Content_Element):
   def __init__(self, name, on_offline, content_elements = []):
-    super(Lvm_Volume_Group, self).__init__("lvm_volume_group", name, on_offline, content_elements)
+    super(Lvm_Volume_Group, self).__init__("lvm-volume-group", name, on_offline, content_elements)
 
 class Lvm_Volume(On_Offline_Content_Element):
   def __init__(self, name, on_offline, content_elements = []):
-    super(Lvm_Volume_Group, self).__init__("lvm_volume", name, on_offline, content_elements)
+    super(Lvm_Volume, self).__init__("lvm-volume", name, on_offline, content_elements)
 
 
 class Dm_Crypt_States(Enum):
@@ -101,8 +110,8 @@ class Dm_Crypt_States(Enum):
 
 class Dm_Crypt_State(object):
   def __init__(self, state = Dm_Crypt_States.DISCONNECTED):
-    if state not in Dm_Crypt_States.__members__:
-      log.error(f"Dm_Crypt_State `{state}` does not exist. Program will terminate.")
+    if state.name not in Dm_Crypt_States.__members__:
+      log.error(f"Dm-Crypt-State `{state}` does not exist. Program will terminate.")
       exit()
     else:
       self.state = Dm_Crypt_States(state)
@@ -119,13 +128,13 @@ class Scrubb_States(Enum):
 
 class Scrubb_State(object):
   def __init__(self, state = Scrubb_States.NOT_REQUESTED):
-    if state not in Scrubb_States.__members__:
-      log.error(f"Scrubb_State `{state}` does not exist. Program will terminate.")
+    if state.name not in Scrubb_States.__members__:
+      log.error(f"Scrubb-State `{state}` does not exist. Program will terminate.")
       exit()
     else:
       self.state = Scrubb_States(state)
     self.since = datetime.now()
-  def get_scrubb_state_name(self):
+  def get_scrubb_state_string(self):
     since = self.since.strftime("%Y-%m-%d %H:%M:%SZ")
     if self.state == Scrubb_States.NOT_REQUESTED:
       return f"not-requested since: {since}"
@@ -137,20 +146,21 @@ class Scrubb_State(object):
 
 class Dm_Crypt(Content_Element_with_Content_Elements):
   def __init__(self, name, key_file, content_elements = []):
-    super(Dm_Crypt, self).__init__("dm_crypt", content_elements)
+    super(Dm_Crypt, self).__init__("dm-crypt", content_elements)
     self.name = name
     self.key_file = key_file
     self.scrubb_state = Scrubb_State()
     self.dm_crypt_state = Dm_Crypt_State()
 
 class ZFS_States(Enum):
+  UNKNOWN = -2
   DISCONNECTED = -1
   PRESENT_BUT_OFFLINE = 0
   ONLINE = 1
 
 class ZFS_State(object):
   def __init__(self, state = ZFS_States.DISCONNECTED):
-    if state not in ZFS_States.__members__:
+    if state.name not in ZFS_States.__members__:
       log.error(f"ZFS_State `{state}` does not exist. Program will terminate.")
       exit()
     else:
@@ -162,6 +172,10 @@ class ZFS_State(object):
       return "present-but-offline"
     if self.state == ZFS_States.ONLINE:
       return "online"
+    if self.state == ZFS_States.UNKNOWN:
+      return "unknown"
+  def get_state(self):
+    return self.state
 
 class ZFS_Operations(Enum):
   NONE = 0
@@ -170,7 +184,7 @@ class ZFS_Operations(Enum):
 
 class ZFS_Operation(object):
   def __init__(self, state = ZFS_Operations.NONE):
-    if state not in ZFS_Operations.__members__:
+    if state.name not in ZFS_Operations.__members__:
       log.error(f"active_operation `{state}` does not exist. Program will terminate.")
       exit()
     else:
@@ -189,6 +203,7 @@ class ZFS_Operation(object):
 
 class ZFS(object):
   def __init__(self, pool, dev, on_scrubbed, on_resilvered, scrub_interval = "3 months"):
+    self.tag = "zfs"
     self.pool = pool
     self.dev = dev
     self.name = self.dev.split("/")[0]
@@ -200,6 +215,24 @@ class ZFS(object):
     self.last_resilvered = None
     self.last_scrubbed = None
     self.scrub_interval = scrub_interval
+  def get_last_resilvered_string(self):
+    if self.last_resilvered == None:
+      return "Never"
+    elif isinstance(self.last_resilvered, datetime):
+      return self.last_resilvered.strftime("%Y-%m-%d %H:%M:%SZ")
+    else:
+      error_message = "last resilvered is no datetime. terminating script now."
+      log.error(error_message)
+      exit(error_message)
+  def get_last_scrubbed_string(self):
+    if self.last_scrubbed == None:
+      return "Never"
+    elif isinstance(self.last_scrubbed, datetime):
+      return self.last_scrubbed.strftime("%Y-%m-%d %H:%M:%SZ")
+    else:
+      error_message = "last scrubbed is no datetime. terminating script now."
+      log.error(error_message)
+      exit(error_message)
 
 
 
@@ -291,54 +324,254 @@ def myexec(command):
     return process.returncode, formatted_output, formatted_response, formatted_error
 exec = myexec
 
+def print_status(parent_object):
+  try:
+    parent_object.tag = parent_object.tag
+  except Exception as e:
+    return
+  if parent_object.tag == "dm-crypt":
+    dm_crypt_element = parent_object
+    log_message = f"{dm_crypt_element.name} @{dm_crypt_element.tag}: {dm_crypt_element.scrubb_state.get_scrubb_state_string()}"
+    log.info(log_message)
+    print(log_message)
+  if parent_object.tag == "zfs":
+    zfs_element = parent_object
+    log_message = f"""
+    {zfs_element.dev} @ZFS: {zfs_element.state.get_state_name()}
+
+    operation: {zfs_element.current_operation.get_operation_string()}
+
+    last resilvered: '{zfs_element.get_last_resilvered_string()}'
+    last scrubbed: '{zfs_element.get_last_scrubbed_string()}'
+
+    scrub: {zfs_element.scrubb_state.get_scrubb_state_string()}
+    """
+    log.info(log_message)
+    print(log_message)
+  if isinstance(parent_object, Content_Element_with_Content_Elements):
+    for object in parent_object.get_all_content_elements():
+      print_status(object)
+
 def show_status(args):
   zmirror_state = main()
-  for zmirror_content_element in zmirror_state.content_elements:
-    for config_entry_element in zmirror_content_element.content_elements:
-      for dm_crypt_element in config_entry_element.content_elements:
-        log.info(f"{dm_crypt_element.name} @{dm_crypt_element.tag}: {dm_crypt_element.scrubb_state.get_scrubb_state_string()}")
-        for zpool_element in dm_crypt_element.content_elements:
-          for volume_element in zpool_element.content_elements:
-            for lvm_volume_group_element in volume_element.content_elements:
-              for lvm_volume_element in lvm_volume_group_element.content_elements:
-                for zfs_element in lvm_volume_element.content_elements:
-                  log_message = f"""
-                    {zfs_element.dev} @ZFS: {zfs_element.state.get_state_name()}
+  print_status(zmirror_state)
 
-                    operation: {zfs_element.current_operation.active_operation.get_operation_string()}
-
-                    last resilvered: '{zfs_element.last_resilvered.strftime("%Y-%m-%d %H:%M:%SZ")}'
-                    last scrubbed: '{zfs_element.last_resilvered.strftime("%Y-%m-%d %H:%M:%SZ")}'
-
-                    scrub: {zfs_element.scrubb_state.get_scrubb_state_string()}
-                  """
-                  log.info(log_message)
 
 def get_current_zfs_state(zfs_object, zpool_status):
   global env_vars
-  zevent_class = env_vars["ZEVENT_CLASS"]
-  if zevent_class == "sysevent.fs.zfs.scrub_finish":
-    regexp_pattern = rf'{zfs_object.name}\s+ONLINE\s+[0-9]\s+[0-9]\s+[0-9]\s*.*$'
+  if "ZEVENT_CLASS" in env_vars:
+    zevent_class = env_vars["ZEVENT_CLASS"]
+    if zevent_class == "sysevent.fs.zfs.scrub_finish":
+      regexp_pattern = rf'{zfs_object.name}\s+ONLINE\s+[0-9]\s+[0-9]\s+[0-9]\s*.*$'
+      regexp_searcher = re.compile(regexp_pattern)
+      dev_status = regexp_searcher.search(zpool_status).groups()[0]
+      if dev_status != "":
+        return ZFS_State(ZFS_States.ONLINE)
+      regexp_pattern = rf'{zfs_object.name}\s+OFFLINE\s+[0-9]\s+[0-9]\s+[0-9]\s*.*$'
+      regexp_searcher = re.compile(regexp_pattern)
+      dev_status = regexp_searcher.search(zpool_status).groups()[0]
+      if dev_status != "":
+        return ZFS_State(ZFS_States.PRESENT_BUT_OFFLINE)
+    if zevent_class == "resource.fs.zfs.statechange":
+      if zevent_class["ZEVENT_VDEV_STATE_STR"] == "OFFLINE":
+        return ZFS_State(ZFS_States.DISCONNECTED)
+    if zevent_class == "sysevent.fs.zfs.vdev_online":
+      return ZFS_State(ZFS_States.ONLINE)
+  else:
+    regexp_pattern = rf'.*{zfs_object.name}\s+ONLINE\s+[0-9]\s+[0-9]\s+[0-9]\s*.*$'
     regexp_searcher = re.compile(regexp_pattern)
-    dev_status = regexp_searcher.search(zpool_status).groups()[0]
-    if dev_status != "":
-      return ZFS_States.ONLINE
-    regexp_pattern = rf'{zfs_object.name}\s+OFFLINE\s+[0-9]\s+[0-9]\s+[0-9]\s*.*$'
-    regexp_searcher = re.compile(regexp_pattern)
-    dev_status = regexp_searcher.search(zpool_status).groups()[0]
-    if dev_status != "":
-      return ZFS_States.PRESENT_BUT_OFFLINE
-  if zevent_class == "resource.fs.zfs.statechange":
-    if zevent_class["ZEVENT_VDEV_STATE_STR"] == "OFFLINE":
-      return ZFS_States.DISCONNECTED
-  if zevent_class == "sysevent.fs.zfs.vdev_online":
-    return ZFS_States.ONLINE
+    results = list(filter(regexp_searcher.match, zpool_status))
+    #for line in zpool_status:
+    #  regexp_groups = regexp_searcher.match(line).groups()
+    #dev_status = regexp_groups[0]
+    if len(results) == 1:
+      return ZFS_State(ZFS_States.ONLINE)
+    else:
+      return ZFS_State(ZFS_States.UNKNOWN)
+
+def get_config_object(tag, parent_object, cache_object = None, config_entry_object = None, content_element = None, content_tag = None):
+  result_object = None
+  result_content = None
+  if tag == "dm-crypt":
+    dm_crypt = parent_object[tag]
+    dm_crypt_name = dm_crypt["name"]
+    dm_crypt_key_file = dm_crypt["key-file"]
+    dm_crypt_content = dm_crypt["content"]
+    dm_crypt_object = None
+    # config_entry_object is either a disk or a partition:
+    config_entry_object_content_elements = cache_object.get_all_content_elements()
+    for config_entry_object_content_element in config_entry_object_content_elements:
+      if config_entry_object_content_element.tag == tag:
+        if config_entry_object_content_element.name == dm_crypt_name:
+          if config_entry_object_content_element.key_file == dm_crypt_key_file:
+            dm_crypt_object = config_entry_object_content_element
+            break
+    if dm_crypt_object == None:
+      dm_crypt_object = Dm_Crypt(dm_crypt_name, dm_crypt_key_file, content_elements=[])
+    if ("DEVTYPE" in env_vars) \
+      and ( \
+        ( \
+          env_vars["DEVTYPE"] == "disk" \
+          and (("ID_SERIAL" in env_vars and env_vars["ID_SERIAL"] == config_entry_object.serial) \
+          or ("DM_NAME" in env_vars and config_entry_object.name in env_vars["DM_NAME"])) \
+        ) \
+        or ( \
+          env_vars["DEVTYPE"] == "partition" \
+          and env_vars["PARTNAME"] == config_entry_object.name
+        ) \
+      ): #alexTODO: prüfen ob das mit dem partname eh so passt mit config_entry_object.name
+        if env_vars["ACTION"] == "add":
+          dm_crypt_object.dm_crypt_state.state = Dm_Crypt_States.ONLINE
+        if env_vars["ACTION"] == "remove":
+          dm_crypt_object.dm_crypt_state.state = Dm_Crypt_States.DISCONNECTED
+    result_object = dm_crypt_object
+    result_content = dm_crypt_content
+  elif (tag in ["volume", "zpool", "lvm-volume-group", "lvm-volume"]):
+    on_offline_element = parent_object[tag]
+    on_offline_element_name = on_offline_element["name"]
+    on_offline_element_on_offline = on_offline_element["on-offline"]
+    on_offline_element_content = None
+    if "content" in on_offline_element:
+      on_offline_element_content = on_offline_element["content"]
+    on_offline_element_object = None
+    object_content_elements = cache_object.get_all_content_elements()
+    for object_content_element in object_content_elements:
+      if object_content_element.tag == content_tag:
+        if object_content_element.name == on_offline_element_name:
+          if object_content_element.on_offline == on_offline_element_on_offline:
+            on_offline_element_object = object_content_element
+            break
+    if on_offline_element_object == None :
+      if tag == "volume":
+        on_offline_element_object = Volume(on_offline_element_name, on_offline_element_on_offline, content_elements=[])
+      elif  tag == "zpool":
+        on_offline_element_object = ZPool(on_offline_element_name, on_offline_element_on_offline, content_elements=[])
+      elif  tag == "lvm-volume-group":
+        on_offline_element_object = Lvm_Volume_Group(on_offline_element_name, on_offline_element_on_offline, content_elements=[])
+      elif  tag == "lvm-volume":
+        on_offline_element_object = Lvm_Volume(on_offline_element_name, on_offline_element_on_offline, content_elements=[])
+    result_object = on_offline_element_object
+    result_content = on_offline_element_content
+
+  elif (tag == "disk"):
+    disk = parent_object[tag]
+    disk_serial = disk["serial"]
+    config_entry_content = disk["content"]
+    config_entry_object = None
+    zmirror_content_elements = cache_object.get_all_content_elements()
+    for zmirror_content_element in zmirror_content_elements:
+      if zmirror_content_element.tag == content_tag:
+        zmirror_disk_object = zmirror_content_element
+        if zmirror_disk_object.name == disk_serial:
+          config_entry_object = zmirror_disk_object
+          break
+    if config_entry_object == None:
+      config_entry_object = Disk(disk_serial, content_elements=[])
+    result_object = config_entry_object
+    result_content = config_entry_content
+  elif (tag == "partition"):
+    partition = parent_object[tag]
+    partition_name = partition["name"]
+    partition_content = partition["content"]
+    partition_object = None
+    partition_content_elements = cache_object.get_all_content_elements()
+    for partition_content_element in partition_content_elements:
+      if partition_content_element.tag == tag:
+        partition_partition_object = partition_content_element
+        if partition_partition_object.name == partition_name:
+          partition_object = partition_partition_object
+          break
+    if partition_object == None:
+      # for some weird reason we need to give an empty list as content_elements, as otherwise content_elements will falsely be containing something in the second round (eva-b-main contained eva-a-main in content_elements even if this should have been an empty list then)
+      partition_object = Partition(partition_name, content_elements = [])
+    result_object = partition_object
+    result_content = partition_content
+  elif (tag == "zfs"):
+    zfs = parent_object[tag]
+    zfs_pool = zfs["pool"]
+    zfs_dev = zfs["dev"]
+    zfs_on_scrubbed = None
+    if "on-scrubbed" in zfs:
+      zfs_on_scrubbed = zfs["on-scrubbed"]
+    zfs_on_resilvered = None
+    if "on-resilvered" in zfs:
+      zfs_on_resilvered = zfs["on-resilvered"]
+    zfs_scrub_interval = None
+    if "scrub-interval" in zfs:
+      zfs_scrub_interval = zfs["scrub-interval"]
+    zfs_object = None
+    lvm_volume_object_content_elements = cache_object.get_all_content_elements()
+    for lvm_volume_object_content_element in lvm_volume_object_content_elements:
+      if lvm_volume_object_content_element.pool == zfs_pool:
+        if lvm_volume_object_content_element.dev == zfs_dev:
+          if lvm_volume_object_content_element.on_scrubbed == zfs_on_scrubbed:
+            if lvm_volume_object_content_element.on_resilvered == zfs_on_resilvered:
+              zfs_object = lvm_volume_object_content_element
+              break
+    if zfs_object == None:
+      zfs_object = ZFS(zfs_pool, zfs_dev, zfs_on_scrubbed, zfs_on_resilvered, zfs_scrub_interval)
+    if ";" in zfs_object.pool or "," in zfs_object.pool:
+      error_message = f", or ; in pool name not allowed, was '{zfs_object.pool}'"
+      log.error(error_message)
+      exit(error_message)
+    returncode, formatted_output, formatted_response, formatted_error = exec(f"zpool list -H -o name {zfs_object.pool}")
+    if len(formatted_response) == 0:
+      error_message = f"a zpool with name '{zfs_object.pool}' does not exist."
+      log.error(error_message)
+      print(error_message)
+      return
+    zpool_name = formatted_response[0]
+    returncode, zpool_status, formatted_response, formatted_error = exec(f"zpool status {zpool_name}")
+    zfs_current_state = get_current_zfs_state(zfs_object, zpool_status)
+    zfs_object.state = zfs_current_state
+
+    if zfs_object.state.get_state() == ZFS_States.ONLINE:
+      zfs_last_scrubbed = zfs_object.last_scrubbed
+      if "ZEVENT_CLASS" in env_vars:
+        zevent_class = env_vars["ZEVENT_CLASS"]
+        if zevent_class == "sysevent.fs.zfs.scrub_finish" and env_vars["ZEVENT_POOL"] == zfs_object.pool:
+          zfs_last_scrubbed = datetime.now()
+          zfs_object.current_operation.state = ZFS_Operations.NONE
+      if zfs_scrub_interval == None:
+        zfs_scrub_interval = "3 months"
+      for schedule_delta in zfs_scrub_interval.split(","):
+        # parsing the schedule delta will result in a timestamp calculated from now
+        allowed_delta = dateparser.parse(schedule_delta)
+        if (zfs_last_scrubbed == None or allowed_delta > zfs_last_scrubbed):
+            log.info(f"zfs pool '{zpool_name}' dev '{zfs_dev}' must be scrubbed")
+            if zfs_object.current_operation.state == ZFS_Operations.NONE:
+              command = f"zpool scrub {zpool_name}"
+              global command_list
+              if command not in command_list:
+                command_list.append(command)
+        else:
+            log.info(f"zfs pool '{zpool_name}' dev '{zfs_dev}' must not be scrubbed")
+      
+      zfs_object.last_scrubbed = zfs_last_scrubbed
+      if "ZEVENT_POOL" in env_vars and env_vars["ZEVENT_POOL"] == zfs_object.pool:
+        if zevent_class == "sysevent.fs.zfs.scrub_start":
+          zfs_object.current_operation.state = ZFS_Operations.SCRUBBING
+        if zevent_class == "sysevent.fs.zfs.resilver_start":
+          zfs_object.current_operation.state = ZFS_Operations.RESILVERING
+        if zevent_class == "sysevent.fs.zfs.resilver_finish":
+          zfs_object.last_resilvered = datetime.now()
+          zfs_object.current_operation.state = ZFS_Operations.NONE
+    result_object = zfs_object
+    result_content = None
+  if result_content != None:
+    for result_content_element in result_content:
+      for result_content_element_key in result_content_element:
+        return_object = get_config_object(result_content_element_key, result_content_element, cache_object = result_object)
+        result_object.add_content_element(return_object)
+        
+  return result_object
+
+
 
 def main():
   logfile_path = '/var/run/zmirror/log.st'
   config_file_path = "/etc/zmirror/config.yml"
   cache_file_path = "/var/lib/zmirror/cache.json"
-  command_list = []
   logfile_parent_directory = os.path.dirname(logfile_path)
   os.makedirs(logfile_parent_directory, exist_ok = True)
   cachefile_parent_directory = os.path.dirname(cache_file_path)
@@ -361,10 +594,12 @@ def main():
     result_string = "env" + convert_dict_to_strutex(env_vars)
     log.info(f"environment variables: {result_string}")
   config_entries = config_dict["entries"]
-  cache_file = open(cache_file_path, "r")
-  frozen_json = json.load(cache_file)
-  cache_file.close()
-  thawed_json = jsonpickle.decode(frozen_json)
+  thawed_json = None
+  if os.path.isfile(cache_file_path):
+    cache_file = open(cache_file_path, "r")
+    frozen_json = json.load(cache_file)
+    cache_file.close()
+    thawed_json = jsonpickle.decode(frozen_json)
   if thawed_json != None:
     zmirror_state = thawed_json
   else:
@@ -372,242 +607,50 @@ def main():
   updated_zmirror_state = ZMirrorState()
   for config_entry in config_entries:
     for config_key in config_entry:
-      config_entry_object = None
-      if config_key == "partition":
-        partition = config_entry[config_key]
-        partition_name = partition["name"]
-        content = partition["content"]
-        zmirror_content_elements = zmirror_state.content_elements
-        for zmirror_content_element in zmirror_content_elements:
-          if zmirror_content_element.tag == config_key:
-            zmirror_partition_object = zmirror_content_element
-            if zmirror_partition_object.name == partition_name:
-              config_entry_object = zmirror_partition_object
-              break
-        if config_entry_object == None:
-          config_entry_object = Partition(partition_name)
-      if config_key == "disk":
-        disk = config_entry[config_key]
-        disk_serial = disk["serial"]
-        content = disk["content"]
-        zmirror_content_elements = zmirror_state.content_elements
-        for zmirror_content_element in zmirror_content_elements:
-          if zmirror_content_element.tag == config_key:
-            zmirror_disk_object = zmirror_content_element
-            if zmirror_disk_object.name == disk_serial:
-              config_entry_object = zmirror_disk_object
-              break
-        if config_entry_object == None:
-          config_entry_object = Disk(disk_serial)
-      
-      dm_crypt = content["dm-crypt"]
-      dm_crypt_name = dm_crypt["name"]
-      dm_crypt_key_file = dm_crypt["key-file"]
-      dm_crypt_content = dm_crypt["content"]
-      # config_entry_object is either a disk or a partition:
-      config_entry_object_content_elements = config_entry_object.content_elements
-      for config_entry_object_content_element in config_entry_object_content_elements:
-        if config_entry_object_content_element.tag == "dm_crypt":
-          if config_entry_object_content_element.name == dm_crypt_name:
-            if config_entry_object_content_element.key_file == dm_crypt_key_file:
-              dm_crypt_object = config_entry_object_content_element
-              break
-      if dm_crypt_object == None:
-        dm_crypt_object = Dm_Crypt(dm_crypt_name, dm_crypt_key_file)
-      if ("DEVTYPE" in env_vars) \
-        and (env_vars["DEVTYPE"] == "disk" \
-          and (("ID_SERIAL" in env_vars and env_vars["ID_SERIAL"] == config_entry_object.serial) \
-          or ("DM_NAME" in env_vars and config_entry_object.name in env_vars["DM_NAME"]))) \
-        or (env_vars["DEVTYPE"] == "partition" \
-          and env_vars["PARTNAME"] == config_entry_object.name): #alexTODO: prüfen ob das mit dem partname eh so passt mit config_entry_object.name
-          if env_vars["ACTION"] == "add":
-            dm_crypt_object.dm_crypt_state.state = Dm_Crypt_States.ONLINE
-          if env_vars["ACTION"] == "remove":
-            dm_crypt_object.dm_crypt_state.state = Dm_Crypt_States.DISCONNECTED
-
-      for dm_crypt_content_element in dm_crypt_content:
-        for dm_crypt_content_tag in dm_crypt_content_element:
-          if dm_crypt_content_tag == "zpool":
-            zpool = dm_crypt_content_element[dm_crypt_content_tag]
-            zpool_name = zpool["name"]
-            zpool_on_offline = zpool["on-offline"]
-            zpool_content = zpool["content"]
-            dm_crypt_object_content_elements = dm_crypt_object.content_elements
-            for dm_crypt_object_content_element in dm_crypt_object_content_elements:
-              if dm_crypt_object_content_element.tag == dm_crypt_content_tag:
-                if dm_crypt_object_content_element.name == dm_crypt_name:
-                  if dm_crypt_object_content_element.on_offline == zpool_on_offline:
-                    zpool_object = dm_crypt_object_content_element
-                    break
-            if zpool_object == None:
-              zpool_object = ZPool(zpool_name, zpool_on_offline)
-            
-            returncode, zpool_status, formatted_response, formatted_error = exec(f"zpool status {zpool_object.name}")
-            for zpool_content_element in zpool_content:
-              for zpool_content_key in zpool_content_element:
-                if zpool_content_key == "volume":
-                  volume = zpool_content_element[zpool_content_key]
-                  volume_name = volume["name"]
-                  volume_on_offline = volume["on-offline"]
-                  volume_content = volume["content"]
-                  zpool_object_content_elements = zpool_object.content_elements
-                  for zpool_object_content_element in zpool_object_content_elements:
-                    if zpool_object_content_element.tag == dm_crypt_content_tag:
-                      if zpool_object_content_element.name == dm_crypt_name:
-                        if zpool_object_content_element.on_offline == zpool_on_offline:
-                          volume_object = zpool_object_content_element
-                          break
-                  if volume_object == None:
-                    volume_object = Volume(volume_name, volume_on_offline)
-                  for volume_content_element in volume_content:
-                    for volume_content_key in volume_content_element:
-                      if volume_content_key == "lvm-volume-group":
-                        lvm_volume_group = volume_content_element[volume_content_key]
-                        lvm_volume_group_name = lvm_volume_group["name"]
-                        lvm_volume_group_on_offline = lvm_volume_group["on-offline"]
-                        lvm_volume_group_content = lvm_volume_group["content"]
-                        volume_object_content_elements = volume_object.content_elements
-                        for volume_object_content_element in volume_object_content_elements:
-                          if volume_object_content_element.tag == dm_crypt_content_tag:
-                            if volume_object_content_element.name == dm_crypt_name:
-                              if volume_object_content_element.on_offline == zpool_on_offline:
-                                lvm_volume_group_object = volume_object_content_element
-                                break
-                        if lvm_volume_group_object == None:
-                          lvm_volume_group_object = Lvm_Volume_Group(lvm_volume_group_name, lvm_volume_group_on_offline)
-                        for lvm_volume_group_content_element in lvm_volume_group_content:
-                          for lvm_volume_group_content_key in lvm_volume_group_content_element:
-                            if lvm_volume_group_content_key == "lvm-volume":
-                              lvm_volume = lvm_volume_group_content_element[lvm_volume_group_content_key]
-                              lvm_volume_name = lvm_volume["name"]
-                              lvm_volume_on_offline = lvm_volume["on-offline"]
-                              lvm_volume_content = lvm_volume["content"]
-                              lvm_volume_group_object_content_elements = lvm_volume_group_object.content_elements
-                              for lvm_volume_group_object_content_element in lvm_volume_group_object_content_elements:
-                                if lvm_volume_group_object_content_element.tag == dm_crypt_content_tag:
-                                  if lvm_volume_group_object_content_element.name == dm_crypt_name:
-                                    if lvm_volume_group_object_content_element.on_offline == zpool_on_offline:
-                                      lvm_volume_object = lvm_volume_group_object_content_element
-                                      break
-                              if lvm_volume_object == None:
-                                lvm_volume_object = Lvm_Volume(lvm_volume_name, lvm_volume_on_offline)
-                              for lvm_volume_content_element in lvm_volume_content:
-                                for lvm_volume_content_key in lvm_volume_content_element:
-                                  if lvm_volume_content_key == "lvm-volume":
-                                    zfs = lvm_volume_content_element[lvm_volume_content_key]
-                                    zfs_pool = zfs["pool"]
-                                    zfs_dev = zfs["dev"]
-                                    if "on-scrubbed" in zfs:
-                                      zfs_on_scrubbed = zfs["on-scrubbed"]
-                                    if "on-resilvered" in zfs:
-                                      zfs_on_resilvered = zfs["on-resilvered"]
-                                    if "scrub-interval" in zfs:
-                                      zfs_scrub_interval = zfs["scrub-interval"]
-                                    lvm_volume_object_content_elements = lvm_volume_object.content_elements
-                                    for lvm_volume_object_content_element in lvm_volume_object_content_elements:
-                                      if lvm_volume_object_content_element.pool == zfs_pool:
-                                        if lvm_volume_object_content_element.dev == zfs_dev:
-                                          if lvm_volume_object_content_element.on_scrubbed == zfs_on_scrubbed:
-                                            if lvm_volume_object_content_element.on_resilvered == zfs_on_resilvered:
-                                              zfs_object = lvm_volume_object_content_element
-                                              break
-                                    if zfs_object == None:
-                                      zfs_object = ZFS(zfs_pool, zfs_dev, zfs_on_scrubbed, zfs_on_resilvered, zfs_scrub_interval)
-
-                                    zfs_current_state = get_current_zfs_state(zfs_object, zpool_status)
-                                    zfs_object.state = zfs_current_state
-
-                                    if zfs_object.state == ZFS_States.ONLINE:
-                                      zfs_last_scrubbed = zfs_object.last_scrubbed
-                                      zevent_class = env_vars["ZEVENT_CLASS"]
-                                      if zevent_class == "sysevent.fs.zfs.scrub_finish" and env_vars["ZEVENT_POOL"] == zfs_object.pool:
-                                        zfs_last_scrubbed = datetime.now()
-                                        zfs_object.current_operation.state = ZFS_Operations.NONE
-                                      for schedule_delta in zfs_scrub_interval.split(","):
-                                        # parsing the schedule delta will result in a timestamp calculated from now
-                                        allowed_delta = dateparser.parse(schedule_delta)
-                                        if (allowed_delta > zfs_last_scrubbed):
-                                            log.info(f"zfs pool '{zfs_pool}' dev '{zfs_dev}' must be scrubbed")
-                                            if zfs_object.current_operation.active_operation == ZFS_Operations.NONE:
-                                              command = f"zpool scrub {zfs_pool}"
-                                              if command not in command_list:
-                                                command_list.append(command)
-                                        else:
-                                            log.info(f"zfs pool '{zfs_pool}' dev '{zfs_dev}' must not be scrubbed")
-                                      
-                                      zfs_object.last_scrubbed = zfs_last_scrubbed
-                                      if env_vars["ZEVENT_POOL"] == zfs_object.pool:
-                                        if zevent_class == "sysevent.fs.zfs.scrub_start":
-                                          zfs_object.current_operation.state = ZFS_Operations.SCRUBBING
-                                        if zevent_class == "sysevent.fs.zfs.resilver_start":
-                                          zfs_object.current_operation.state = ZFS_Operations.RESILVERING
-                                        if zevent_class == "sysevent.fs.zfs.resilver_finish":
-                                          zfs_object.last_resilvered = datetime.now()
-                                          zfs_object.current_operation.state = ZFS_Operations.NONE
-                                    lvm_volume_object.add_content_element(zfs_object)
-                              lvm_volume_group_object.add_content_element(lvm_volume_object)
-                        volume_object.add_content_element(lvm_volume_group_object)
-                  zpool_object.add_content_element(volume_object)
-            dm_crypt_object.add_content_element(zpool_object)
-      config_entry_object.add_content_element(dm_crypt_object)
+      config_entry_object = get_config_object(config_key, config_entry, cache_object = zmirror_state)
       updated_zmirror_state.add_content_element(config_entry_object)
-      frozen_json = jsonpickle.encode(updated_zmirror_state)
-      cache_file = open(cache_file_path, "w")
-      json.dump(frozen_json, cache_file, indent = 6)
-      cache_file.close()
-      apply_commands = False
-      if apply_commands:
-        for command in command_list:
-          returncode, formatted_output, formatted_response, formatted_error = exec(command)
-          if returncode != 0:
-            error_message = f"something went wrong while executing command {command}, terminating script now"
-            log.error(error_message)
-            exit(error_message)
-          log.info(formatted_output)
-      else:
-        log.warning("applying commands is currently turned off! will not scrub")
-      return updated_zmirror_state
-
-            
-
-
+  frozen_json = jsonpickle.encode(updated_zmirror_state)
+  cache_file = open(cache_file_path, "w")
+  json.dump(frozen_json, cache_file, indent = 6)
+  cache_file.close()
+  return updated_zmirror_state
   
 status_parser.set_defaults(func=show_status)
-
-"""
-ACTION:: remove
-
-ACTION:: add
-
-DEVTYPE:: disk
-ID_SERIAL:: TOSHIBA_MG09ACA18TE_71L0A33JFQDH
-
-DEVTYPE:: disk
-DM_VG_NAME:: vg-eva-bak-gamma
-DM_LV_NAME:: lv-eva-bak-gamma
-ID_FS_LABEL:: eva
-DM_NAME:: vg--eva--bak--gamma-lv--eva--bak--gamma
-
-DEVTYPE:: partition
-PARTNAME:: eva-b-swap
-
-
-ZEVENT_CLASS:: sysevent.fs.zfs.resilver_start
-
-ZEVENT_CLASS:: sysevent.fs.zfs.resilver_finish
-
-
-ZEVENT_CLASS:: sysevent.fs.zfs.vdev_online
-
-ZEVENT_CLASS:: resource.fs.zfs.statechange
-ZEVENT_VDEV_STATE_STR:: OFFLINE
-
-ZEVENT_CLASS:: sysevent.fs.zfs.scrub_start
-
-ZEVENT_CLASS:: sysevent.fs.zfs.scrub_finish
-
-zpool status eva
-
-[^\s]
-f"{name}\s+ONLINE\s+[0-9]\s+[0-9]\s+[0-9]\s*.*$"
-"""
+args = parser.parse_args()
+returncode, formatted_output, formatted_response, formatted_error = exec("whoami")
+try:
+  if formatted_output[0] != "root":
+    error_message = "You must be root!"
+    log.error(error_message)
+    raise BaseException(error_message)
+  args.func(args)
+except Exception as exception:
+  traceback.print_exc()
+  error_message = str(exception)
+  log.error(error_message)
+  print(error_message)
+  exit(error_message)
+apply_commands = True
+if apply_commands:
+  for command in command_list:
+    print(f"executing command: {command}")
+    returncode, formatted_output, formatted_response, formatted_error = exec(command)
+    if returncode != 0:
+      currently_scrubbing = False
+      for line in formatted_output:
+        if "currently scrubbing" in line:
+          info_message = line
+          log.info(info_message)
+          print(info_message)
+          currently_scrubbing = True
+      if not currently_scrubbing:
+        error_message = f"something went wrong while executing command {command}, terminating script now"
+        log.error(error_message)
+        exit(error_message)
+    log.info(formatted_output)
+else:
+  warning_message = "applying commands is currently turned off! will not scrub"
+  log.warning(warning_message)
+  print(warning_message)
+log.info("zmirror finished!")
+print("zmirror finished!")
