@@ -2,9 +2,11 @@
 
 
 
+import numbers
 import os, stat, os.path
 import shutil
 import re
+import sys
 import time
 import subprocess
 import yaml
@@ -18,7 +20,24 @@ import jsonpickle
 import dateparser
 import json
 import traceback
+from io import StringIO
 
+from dataclasses import dataclass
+
+
+
+class StringBuilder:
+     _file_str = None
+
+     def __init__(self):
+         self._file_str = StringIO()
+
+     def append(self, str):
+         self._file_str.write(str)
+         return self
+
+     def __str__(self):
+         return self._file_str.getvalue()
 
 log = logging.getLogger(__name__)
 
@@ -37,21 +56,231 @@ def convert_dict_to_strutex(dictionary):
     result_string = result_string + f"\n\t{key}:: {value}"
   return result_string
 
-class Content_Elements(object):
-  def __init__(self, content_elements = []):
+
+
+
+def ki_to_bool(v):
+  if isinstance(v, bool):
+    return v
+  elif v == "yes":
+    return True
+  elif v == "no":
+    return False
+  else:
+    raise BaseException("not a ki boolean")
+
+
+def escape_ki_string(delim, string):
+  index = 0
+  l = len(string) - 1
+  result = StringBuilder()
+  fn = escape_ki_string_normal
+  extra = ""
+  while True:
+    if index > l:
+      if False and len(extra) > 0:
+        if extra[0] == "\"":
+          result.append("\\")
+          result.append(extra)
+        else:
+          result.append(extra)
+          result.append(extra[0])
+      break
+    fn, index, extra = fn(result, string, index, delim, extra)
+  return str(result)
+
+def escape_ki_string_backslash(result, string, index, delim, backslashes):
+  if string[index] == "\\":
+    return escape_ki_string_backslash,  index + 1, backslashes.append("\\")
+  else:
+    result.append("\\")
+    result.append(str(backslashes))
+    return escape_ki_string_normal,  index, StringBuilder()
+
+
+def escape_ki_string_dollar(result, string, index, delim, dollars):
+  if string[index] == "$":
+    return escape_ki_string_dollar,  index + 1, dollars.append("$")
+  else:
+    result.append("\\")
+    result.append(str(dollars))
+
+    return escape_ki_string_normal, index, StringBuilder()
+  
+def escape_ki_string_delim(result, string, index, delim, quotes):
+  if string[index] == delim:
+    return escape_ki_string_delim, index + 1, quotes.append("\"")
+  else:
+    result.append("\\")
+    result.append(str(quotes))
+
+    return escape_ki_string_normal,   index, StringBuilder()
+
+
+def escape_ki_string_normal(result, string, index, delim, ignoreme):
+  # print("startresult: ", result)
+  c = string[index]
+  if c == "\\":
+    return escape_ki_string_backslash,   index + 1, StringBuilder().append(c)
+  elif c == "$":
+    return escape_ki_string_dollar,  index + 1, StringBuilder().append(c)
+  elif c == "\"":
+    return escape_ki_string_delim, index + 1, StringBuilder().append(c)
+  else:
+    result.append(c)
+    return escape_ki_string_normal, index + 1, StringBuilder()
+    
+
+
+#sys.stdout.write("escaped: '")
+#sys.stdout.write(escape_ki_string('"', 'hello \\\\\\\\ $$$$ """" World!'))
+#sys.stdout.write("'")
+#exit()
+
+
+class Kd_Stream(): 
+  def __init__(self, stream, indents = 0, level = -1):
+    self.indents = indents
+    self.stream = stream
+    self.level = level
+
+
+  def indent(self):
+    self.indents = self.indents + 1
+
+  def dedent(self):
+    self.indents = self.indents - 1
+
+  def newline(self):
+    self.stream.write("\n")
+    for i in range(0, self.indents):
+        self.stream.write("  ")
+  
+      
+        
+        
+
+
+
+
+  def print_obj(self, obj):
+    if self.level == 0:
+      self.stream.write("...")
+      return
+    self.level = self.level - 1
+    if isinstance(obj, str):
+      self.stream.write("\"")
+      for i, line in enumerate(obj.split('\n')):
+        if i > 0:
+          self.newline()
+        self.stream.write(escape_ki_string('"', line))
+        # self.stream.write(line)
+      self.stream.write("\"")
+    elif isinstance(obj, numbers.Number):
+      self.stream.write(str(obj))
+    elif isinstance(obj, bool):
+      if obj:
+        self.stream.write("yes")
+      else:
+        self.stream.write("no")
+    elif isinstance(obj, list):
+      self.stream.write("[:")
+      self.indent()
+      for i, element in enumerate(obj):
+        # self.stream.write("||")
+        self.newline()
+        # self.stream.write(">>")
+        self.print_obj(element)
+        # self.stream.write("<<")
+      self.dedent()
+    elif isinstance(obj, dict):
+      self.stream.write("{:")
+      self.indent()
+      for i, (key, value) in enumerate(obj.items()):
+        self.newline()
+        self.print_obj(key)
+        self.stream.write(":")
+        self.indent()
+        self.print_obj(value)
+        self.dedent()
+      self.dedent()
+    elif obj == None:
+      self.stream.write("nil")
+    elif hasattr(obj, "__to_kd__") and callable(obj.__to_kd__):
+      obj.__to_kd__(self)
+    else:
+      self.print_python_obj(obj)
+
+    self.level = self.level + 1
+
+      
+  def begin(self):
+    self.stream.write('\n')
+    self.stream.write(''.join([char*self.indents for char in " "]))
+    
+  def print_python_obj(self, obj):
+    attrs = vars(obj)
+    nattrs = []
+    for attr in attrs:
+      if not (attr.startswith("_") and callable(obj[attr])):
+        nattrs.append(attr)
+    self.print_partial_obj(obj, attrs)
+
+  def print_partial_obj(self, obj, props):
+    if self.level == 0:
+      self.stream.write("...")
+      return
+    self.stream.write(obj.__class__.__name__)
+    self.indent()
+    if len(props) > 0:
+      for prop in props:
+
+        if hasattr(obj, prop):
+          # self.stream.write("..nl>")
+          self.newline()
+          # self.stream.write("..<nl")
+
+          # self.stream.write("..>>")
+          self.stream.write(prop)
+          self.stream.write(": ")
+          if callable(getattr(obj, prop)):
+            self.stream.write("fn ...")
+          else:
+            # self.stream.write("|||")
+            self.print_obj(getattr(obj, prop))
+            # self.stream.write("<<..")
+    else:
+      self.stream.write("!")
+    self.dedent()
+
+class Content_Elements(yaml.YAMLObject):
+  yaml_tag = u"!content-elements"
+  def __init__(self, content_elements = dict()):
     self.content_elements = content_elements
   def add_content_element(self, content_element):
-    self.content_elements.append(content_element)
+    try:
+      content_element_hash = content_element.get_hash()
+    except Exception as e:
+      pass
+    self.content_elements[content_element_hash] = content_element
   def get_all_content_elements(self):
-    return self.content_elements
+    return_list = []
+    for key, value in self.content_elements.items():
+      return_list.append(value)
+    return return_list
 
-class Content_Element(object):
-  def __init__(self, tag):
-    self.tag = tag
+class Content_Element(yaml.YAMLObject):
+  yaml_tag = u"!content-element"
+  def __init__(self, yaml_tag):
+    self.yaml_tag = yaml_tag
+  def get_hash(self):
+    return hash(self.yaml_tag)
 
+# Content_Element_with_Content_Elements myContentElement has multiple Content_Elements and one Content_Element can be of type Disk, Partition, ZFS...
 class Content_Element_with_Content_Elements(Content_Element):
-  def __init__(self, tag, content_elements):
-    super(Content_Element_with_Content_Elements, self).__init__(tag)
+  yaml_tag = u"!content-element-with-content-elements"
+  def __init__(self, content_elements):
+    super(Content_Element_with_Content_Elements, self).__init__(self.yaml_tag)
     self.content_elements_object = Content_Elements(content_elements)
   def add_content_element(self, content_element):
     self.content_elements_object.add_content_element(content_element)
@@ -60,49 +289,78 @@ class Content_Element_with_Content_Elements(Content_Element):
 
 
 class ZMirrorState(Content_Element_with_Content_Elements):
-  def __init__(self, content_elements = []):
-    super(ZMirrorState, self).__init__("zmirror_state", content_elements)
+  yaml_tag = u"!zmirror-state"
+  def __init__(self, content_elements = dict()):
+    super(ZMirrorState, self).__init__(self.yaml_tag, content_elements)
 
 class Config_Entry(Content_Element_with_Content_Elements):
-  def __init__(self, tag, content_elements = []):
-    super(Config_Entry, self).__init__("partition", content_elements)
-    self.tag = tag
-
-class Partition(Config_Entry):
-  # for some weird reason we it is not enough to give an empty list as content_elements, as content_elements will falsely be containing something in the second round (eva-b-main contained eva-a-main in content_elements even if this should have been an empty list then, therefore when calling for initializing a partition, give content_elements as empty list)
-  def __init__(self, name, content_elements = []):
-    super(Partition, self).__init__("partition", content_elements)
-    self.name = name
-
-class Disk(Config_Entry):
-  def __init__(self, serial, content_elements = []):
-    super(Disk, self).__init__("disk", content_elements)
-    self.serial = serial
+  yaml_tag = u"!config-entry"
+  def __init__(self, content_elements = dict()):
+    super(Config_Entry, self).__init__(self.yaml_tag, content_elements)
 
 
-class On_Offline_Content_Element(Content_Element_with_Content_Elements):
-  def __init__(self, tag, name, on_offline, content_elements = []):
-    super(On_Offline_Content_Element, self).__init__(tag, content_elements)
+class ZMirror(yaml.YAMLObject):
+  yaml_tag = u"!zmirror"
+  def __init__(self, entries, log_env):
+    self.entries = entries
+    self.log_env = ki_to_bool(log_env)
+
+
+@dataclass
+class Partition(yaml.YAMLObject):
+  name: str
+  content: str
+  
+  yaml_tag = u'!partition'
+  def __to_kd__(self, kd_stream):
+    kd_stream.print_partial_obj(self, ["name", "udev", "content"])
+  def get_hash(self):
+    return hash((super().get_hash(), self.name))
+
+@dataclass
+class Disk(yaml.YAMLObject):
+  content: list
+  serial: str
+  on_offline: str
+
+  yaml_tag = u"!disk"
+
+
+  def __to_kd__(self, kd_stream):
+    kd_stream.print_partial_obj(self, ["serial", "content"])
+  def get_hash(self):
+    return hash((super().get_hash(), self.name))
+
+class On_Offline_Content_Element(Content_Element):
+  def __init__(self, yaml_tag):
+    super().__init__(yaml_tag)
     self.name = name
     self.on_offline = on_offline
-   
 
 class ZPool(On_Offline_Content_Element):
-  def __init__(self, name, on_offline, content_elements = []):
-    super(ZPool, self).__init__("zpool", name, on_offline, content_elements)
+  yaml_tag = u"!zpool"
+  def __init__(self, name, on_offline, content_elements = dict()):
+    super().__init__(self.yaml_tag, name, on_offline, content_elements)
 
 class Volume(On_Offline_Content_Element):
-  def __init__(self, name, on_offline, content_elements = []):
-    super(Volume, self).__init__("volume", name, on_offline, content_elements)
+  yaml_tag = u"!volume"
+  def __init__(self, name, on_offline, content):
+    super().__init__(self.yaml_tag, name, on_offline, content)
 
 class Lvm_Volume_Group(On_Offline_Content_Element):
-  def __init__(self, name, on_offline, content_elements = []):
-    super(Lvm_Volume_Group, self).__init__("lvm-volume-group", name, on_offline, content_elements)
+  yaml_tag = u"!lvm-volume-group"
+  def __init__(self, name, on_offline, content):
+    super().__init__(self.yaml_tag, name, on_offline, content)
 
-class Lvm_Volume(On_Offline_Content_Element):
-  def __init__(self, name, on_offline, content_elements = []):
-    super(Lvm_Volume, self).__init__("lvm-volume", name, on_offline, content_elements)
+class Lvm_Logical_Volume(On_Offline_Content_Element):
+  yaml_tag = u"!lvm-logical-volume"
+  def __init__(self, name, on_offline, content):
+    super().__init__(self.yaml_tag, name, on_offline, content)
 
+class Lvm_Physical_Volume(On_Offline_Content_Element):
+  yaml_tag = u"!lvm-physical-volume"
+  def __init__(self, name, on_offline, content):
+    super().__init__(self.yaml_tag, name, on_offline, content)
 
 class Dm_Crypt_States(Enum):
   DISCONNECTED = -1
@@ -145,12 +403,17 @@ class Scrubb_State(object):
 
 
 class Dm_Crypt(Content_Element_with_Content_Elements):
-  def __init__(self, name, key_file, content_elements = []):
-    super(Dm_Crypt, self).__init__("dm-crypt", content_elements)
+  yaml_tag = u"!dm-crypt"
+  def __init__(self, name, key_file, content_elements = dict()):
+    super(Dm_Crypt, self).__init__(self.yaml_tag, content_elements)
     self.name = name
     self.key_file = key_file
     self.scrubb_state = Scrubb_State()
     self.dm_crypt_state = Dm_Crypt_State()
+  def __to_kd__(self, kd_stream):
+    kd_stream.print_partial_obj(self, ["name", "key_file", "scrubb_state", "dm_crypt_state"])
+  def get_hash(self):
+    return hash((super().get_hash(), self.name))
 
 class ZFS_States(Enum):
   UNKNOWN = -2
@@ -201,9 +464,10 @@ class ZFS_Operation(object):
 
 
 
-class ZFS(object):
+class ZFS(Content_Element):
+  yaml_tag = u"!zfs"
   def __init__(self, pool, dev, on_scrubbed, on_resilvered, scrub_interval = "3 months"):
-    self.tag = "zfs"
+    super(ZFS, self).__init__(self.yaml_tag)
     self.pool = pool
     self.dev = dev
     self.name = self.dev.split("/")[0]
@@ -233,6 +497,10 @@ class ZFS(object):
       error_message = "last scrubbed is no datetime. terminating script now."
       log.error(error_message)
       exit(error_message)
+  def __to_kd__(self, kd_stream):
+    kd_stream.print_partial_obj(self, ["pool", "dev", "name", "on_scrubbed", "on_resilvered", "current_operation", "state", "scrubb_state", "last_resilvered", "last_scrubbed", "scrub_interval"])
+  def get_hash(self):
+    return hash((super().get_hash(), self.dev))
 
 
 
@@ -389,7 +657,85 @@ def get_current_zfs_state(zfs_object, zpool_status):
     else:
       return ZFS_State(ZFS_States.UNKNOWN)
 
+'''
+def read_list(yml_list):
+  result = []
+  for yml in yml_list:
+    r = read_tag(yml)
+    result.add(r)
+  return result
+
+def read_properties(yml, obj, props):
+  for prop in props:
+    if yaml_is_list(yml[prop]):
+      v = read_list(yml[prop])
+    else:
+      v = yml[prop]
+    setattr(obj, prop, v) 
+
+
+
+def read_object(constructor):
+  dict = read_properties(yml, obj, ["name", "key-file", "content"])
+  python_run_function_with_dict(constructor, dict)
+
+# und jetzt ist das ganze echt kompakt... und damit leicht zu warten. zwar immer noch if else, aber zusammengefasst, und weils python is etwa gleich schnell
+def read_tag(yml):
+  tag = yml.tag
+  if tag == "dm-crypt":
+    read_object(Dm_Crypt, yml, ["name", "key-file", "content"])
+  elif tag == "zfs":
+    read_object(ZFS, yml, ["..."])
+  elif tag == "volume":
+    read_object(Volume, yml, ["..."])
+  elif tag == "zpool":
+    read_object(ZPool, yml, ["..."])
+  elif tag == "lvm-volume-group":
+    read_object(Lvm_Volume_Group, yml, ["..."])
+  elif tag == "lvm-volume":
+    read_object(Lvm_Volume, yml, ["..."])
+  elif tag == "disk":
+    read_object(Disk, yml, ["..."])
+  elif tag == "partition":
+    read_object(Partition, yml, ["..."])
+ 
+https://pyyaml.org/wiki/PyYAMLDocumentation
+
+>>> class Monster(yaml.YAMLObject):
+...     yaml_tag = u'!Monster'
+...     def __init__(self, name, hp, ac, attacks):
+...         self.name = name
+...         self.hp = hp
+...         self.ac = ac
+...         self.attacks = attacks
+...     def __repr__(self):
+...         return "%s(name=%r, hp=%r, ac=%r, attacks=%r)" % (
+...             self.__class__.__name__, self.name, self.hp, self.ac, self.attacks)
+
+The above definition is enough to automatically load and dump Monster objects:
+
+>>> yaml.load("""
+... --- !Monster
+... name: Cave spider
+... hp: [2,6]    # 2d6
+... ac: 16
+... attacks: [BITE, HURT]
+... """)
+
+Monster(name='Cave spider', hp=[2, 6], ac=16, attacks=['BITE', 'HURT'])
+
+>>> print yaml.dump(Monster(
+...     name='Cave lizard', hp=[3,6], ac=16, attacks=['BITE','HURT']))
+
+
+'''
+
+
+
+
 def get_config_object(tag, parent_object, cache_object = None, config_entry_object = None, content_element = None, content_tag = None):
+  
+
   result_object = None
   result_content = None
   if tag == "dm-crypt":
@@ -407,7 +753,7 @@ def get_config_object(tag, parent_object, cache_object = None, config_entry_obje
             dm_crypt_object = config_entry_object_content_element
             break
     if dm_crypt_object == None:
-      dm_crypt_object = Dm_Crypt(dm_crypt_name, dm_crypt_key_file, content_elements=[])
+      dm_crypt_object = Dm_Crypt(dm_crypt_name, dm_crypt_key_file)
     if ("DEVTYPE" in env_vars) \
       and ( \
         ( \
@@ -443,13 +789,13 @@ def get_config_object(tag, parent_object, cache_object = None, config_entry_obje
             break
     if on_offline_element_object == None :
       if tag == "volume":
-        on_offline_element_object = Volume(on_offline_element_name, on_offline_element_on_offline, content_elements=[])
+        on_offline_element_object = Volume(on_offline_element_name, on_offline_element_on_offline)
       elif  tag == "zpool":
-        on_offline_element_object = ZPool(on_offline_element_name, on_offline_element_on_offline, content_elements=[])
+        on_offline_element_object = ZPool(on_offline_element_name, on_offline_element_on_offline)
       elif  tag == "lvm-volume-group":
-        on_offline_element_object = Lvm_Volume_Group(on_offline_element_name, on_offline_element_on_offline, content_elements=[])
+        on_offline_element_object = Lvm_Volume_Group(on_offline_element_name, on_offline_element_on_offline)
       elif  tag == "lvm-volume":
-        on_offline_element_object = Lvm_Volume(on_offline_element_name, on_offline_element_on_offline, content_elements=[])
+        on_offline_element_object = Lvm_Volume(on_offline_element_name, on_offline_element_on_offline)
     result_object = on_offline_element_object
     result_content = on_offline_element_content
 
@@ -466,7 +812,7 @@ def get_config_object(tag, parent_object, cache_object = None, config_entry_obje
           config_entry_object = zmirror_disk_object
           break
     if config_entry_object == None:
-      config_entry_object = Disk(disk_serial, content_elements=[])
+      config_entry_object = Disk(disk_serial)
     result_object = config_entry_object
     result_content = config_entry_content
   elif (tag == "partition"):
@@ -477,13 +823,13 @@ def get_config_object(tag, parent_object, cache_object = None, config_entry_obje
     partition_content_elements = cache_object.get_all_content_elements()
     for partition_content_element in partition_content_elements:
       if partition_content_element.tag == tag:
-        partition_partition_object = partition_content_element
-        if partition_partition_object.name == partition_name:
-          partition_object = partition_partition_object
+        partition_content_object = partition_content_element
+        if partition_content_object.name == partition_name:
+          partition_object = partition_content_object
           break
     if partition_object == None:
       # for some weird reason we need to give an empty list as content_elements, as otherwise content_elements will falsely be containing something in the second round (eva-b-main contained eva-a-main in content_elements even if this should have been an empty list then)
-      partition_object = Partition(partition_name, content_elements = [])
+      partition_object = Partition(partition_name)
     result_object = partition_object
     result_content = partition_content
   elif (tag == "zfs"):
@@ -562,6 +908,8 @@ def get_config_object(tag, parent_object, cache_object = None, config_entry_obje
     for result_content_element in result_content:
       for result_content_element_key in result_content_element:
         return_object = get_config_object(result_content_element_key, result_content_element, cache_object = result_object)
+        if return_object == None:
+          pass
         result_object.add_content_element(return_object)
         
   return result_object
@@ -572,15 +920,20 @@ def main():
   logfile_path = '/var/run/zmirror/log.st'
   config_file_path = "/etc/zmirror/config.yml"
   cache_file_path = "/var/lib/zmirror/cache.json"
+  #
   logfile_parent_directory = os.path.dirname(logfile_path)
   os.makedirs(logfile_parent_directory, exist_ok = True)
+  #
   cachefile_parent_directory = os.path.dirname(cache_file_path)
   os.makedirs(cachefile_parent_directory, exist_ok = True)
+  #
   logging.basicConfig(filename=logfile_path, 
             level=logging.INFO, 
             format='%(asctime)s %(levelname)-8s %(message)s',  
             datefmt='%Y-%m-%d %H:%M:%S')
+  #
   log.info("starting zmirror")
+  #
   global env_vars
   env_vars = dict(os.environ)
   new_all_env_vars = dict()
@@ -588,8 +941,20 @@ def main():
     if config_key[0] != "_":
       new_all_env_vars[config_key] = value
   env_vars = new_all_env_vars
+  #
   with open(config_file_path) as config_file:
-    config_dict = yaml.safe_load(config_file)
+    # config_dict = yaml.safe_load(config_file)
+
+    config = yaml.full_load(config_file)
+    
+    
+
+    stream = Kd_Stream(sys.stdout)
+    
+    stream.print_obj(config)
+  
+
+  return
   if config_dict["log-env"] == "yes":
     result_string = "env" + convert_dict_to_strutex(env_vars)
     log.info(f"environment variables: {result_string}")
@@ -622,7 +987,7 @@ try:
   if formatted_output[0] != "root":
     error_message = "You must be root!"
     log.error(error_message)
-    raise BaseException(error_message)
+    # raise BaseException(error_message)
   args.func(args)
 except Exception as exception:
   traceback.print_exc()
@@ -630,7 +995,7 @@ except Exception as exception:
   log.error(error_message)
   print(error_message)
   exit(error_message)
-apply_commands = True
+apply_commands = False
 if apply_commands:
   for command in command_list:
     print(f"executing command: {command}")

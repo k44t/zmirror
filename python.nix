@@ -3,4 +3,7 @@
         dateutil
         natsort
         datetime
-]))
+        pyyaml
+        jsonpickle
+        dateparser
+      ]))
