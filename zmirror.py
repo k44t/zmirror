@@ -138,6 +138,14 @@ def escape_ki_string_normal(result, string, index, delim, ignoreme):
 #exit()
 
 
+
+
+class Ki_Enum(Enum):
+
+  def __to_kd__(self, ki_stream):
+    ki_stream.print("#" + self.name.lower().replace("_", "-"))
+
+
 class Kd_Stream(): 
   def __init__(self, stream, indents = 0, level = -1):
     self.indents = indents
@@ -156,19 +164,20 @@ class Kd_Stream():
     for i in range(0, self.indents):
         self.stream.write("  ")
   
-      
+  def print(self, string):
+    self.stream.write(string)
         
-        
-
-
-
-
   def print_obj(self, obj):
     if self.level == 0:
       self.stream.write("...")
       return
     self.level = self.level - 1
-    if isinstance(obj, str):
+    if isinstance(obj, bool):
+      if obj:
+        self.stream.write("yes")
+      else:
+        self.stream.write("no")
+    elif isinstance(obj, str):
       self.stream.write("\"")
       for i, line in enumerate(obj.split('\n')):
         if i > 0:
@@ -178,11 +187,8 @@ class Kd_Stream():
       self.stream.write("\"")
     elif isinstance(obj, numbers.Number):
       self.stream.write(str(obj))
-    elif isinstance(obj, bool):
-      if obj:
-        self.stream.write("yes")
-      else:
-        self.stream.write("no")
+    elif isinstance(obj, datetime):
+      self.stream.write(obj.strftime("%Y-%m-%d'%H:%M:%S.%f"))
     elif isinstance(obj, list):
       self.stream.write("[:")
       self.indent()
@@ -219,12 +225,12 @@ class Kd_Stream():
     self.stream.write(''.join([char*self.indents for char in " "]))
     
   def print_python_obj(self, obj):
-    attrs = vars(obj)
+    attrs = dir(obj)
     nattrs = []
     for attr in attrs:
-      if not (attr.startswith("_") and callable(obj[attr])):
+      if not (attr.startswith("_") or callable(getattr(obj, attr))):
         nattrs.append(attr)
-    self.print_partial_obj(obj, attrs)
+    self.print_partial_obj(obj, nattrs)
 
   def print_partial_obj(self, obj, props):
     if self.level == 0:
@@ -234,7 +240,6 @@ class Kd_Stream():
     self.indent()
     if len(props) > 0:
       for prop in props:
-
         if hasattr(obj, prop):
           # self.stream.write("..nl>")
           self.newline()
@@ -253,138 +258,283 @@ class Kd_Stream():
       self.stream.write("!")
     self.dedent()
 
-class Content_Elements(yaml.YAMLObject):
-  yaml_tag = u"!content-elements"
-  def __init__(self, content_elements = dict()):
-    self.content_elements = content_elements
-  def add_content_element(self, content_element):
-    try:
-      content_element_hash = content_element.get_hash()
-    except Exception as e:
-      pass
-    self.content_elements[content_element_hash] = content_element
-  def get_all_content_elements(self):
-    return_list = []
-    for key, value in self.content_elements.items():
-      return_list.append(value)
-    return return_list
-
-class Content_Element(yaml.YAMLObject):
-  yaml_tag = u"!content-element"
-  def __init__(self, yaml_tag):
-    self.yaml_tag = yaml_tag
-  def get_hash(self):
-    return hash(self.yaml_tag)
-
-# Content_Element_with_Content_Elements myContentElement has multiple Content_Elements and one Content_Element can be of type Disk, Partition, ZFS...
-class Content_Element_with_Content_Elements(Content_Element):
-  yaml_tag = u"!content-element-with-content-elements"
-  def __init__(self, content_elements):
-    super(Content_Element_with_Content_Elements, self).__init__(self.yaml_tag)
-    self.content_elements_object = Content_Elements(content_elements)
-  def add_content_element(self, content_element):
-    self.content_elements_object.add_content_element(content_element)
-  def get_all_content_elements(self):
-    return self.content_elements_object.get_all_content_elements()
 
 
-class ZMirrorState(Content_Element_with_Content_Elements):
-  yaml_tag = u"!zmirror-state"
-  def __init__(self, content_elements = dict()):
-    super(ZMirrorState, self).__init__(self.yaml_tag, content_elements)
-
-class Config_Entry(Content_Element_with_Content_Elements):
-  yaml_tag = u"!config-entry"
-  def __init__(self, content_elements = dict()):
-    super(Config_Entry, self).__init__(self.yaml_tag, content_elements)
 
 
-class ZMirror(yaml.YAMLObject):
-  yaml_tag = u"!zmirror"
-  def __init__(self, entries, log_env):
-    self.entries = entries
-    self.log_env = ki_to_bool(log_env)
+def yaml_data(cls):                                                                                                                                                                                     
+  # Perform operations using the class name                                                                                                                                                                      
+  # print(f"Decorating class: {cls.__name__}")                                                                                                                                                                     
+                                                                                                                                                                                                                    
+  # You can add attributes or methods to the class if needed                                                                                                                                                     
+  # cls.decorated = True                                                                                                                                                                                           
+
+  def the_constr(loader, node):
+    # https://github.com/yaml/pyyaml/blob/main/lib/yaml/constructor.py
+    return loader.construct_yaml_object(node, cls)
+
+  yaml.add_constructor(u"!" + cls.__name__, the_constr)
 
 
-@dataclass
-class Partition(yaml.YAMLObject):
-  name: str
-  content: str
+#  def the_repr(dumper, data):
+  # https://github.com/yaml/pyyaml/blob/main/lib/yaml/representer.py
+ #   return dumper.(node, cls)
+
+
+  return dataclass(cls)
+                                                                                                                                                                                                                    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@yaml_data
+class ZMirror:
   
-  yaml_tag = u'!partition'
-  def __to_kd__(self, kd_stream):
-    kd_stream.print_partial_obj(self, ["name", "udev", "content"])
-  def get_hash(self):
-    return hash((super().get_hash(), self.name))
-
-@dataclass
-class Disk(yaml.YAMLObject):
+  log_env: bool
   content: list
-  serial: str
-  on_offline: str
-
-  yaml_tag = u"!disk"
 
 
-  def __to_kd__(self, kd_stream):
-    kd_stream.print_partial_obj(self, ["serial", "content"])
+@yaml_data
+class Partition:
+
+  name: str
+  content: list
+  
+  
   def get_hash(self):
     return hash((super().get_hash(), self.name))
 
-class On_Offline_Content_Element(Content_Element):
-  def __init__(self, yaml_tag):
-    super().__init__(yaml_tag)
-    self.name = name
-    self.on_offline = on_offline
 
-class ZPool(On_Offline_Content_Element):
-  yaml_tag = u"!zpool"
-  def __init__(self, name, on_offline, content_elements = dict()):
-    super().__init__(self.yaml_tag, name, on_offline, content_elements)
+def my_constructor(loader, node):
+  return loader.construct_yaml_object(node, Partition)
 
-class Volume(On_Offline_Content_Element):
-  yaml_tag = u"!volume"
-  def __init__(self, name, on_offline, content):
-    super().__init__(self.yaml_tag, name, on_offline, content)
 
-class Lvm_Volume_Group(On_Offline_Content_Element):
-  yaml_tag = u"!lvm-volume-group"
-  def __init__(self, name, on_offline, content):
-    super().__init__(self.yaml_tag, name, on_offline, content)
 
-class Lvm_Logical_Volume(On_Offline_Content_Element):
-  yaml_tag = u"!lvm-logical-volume"
-  def __init__(self, name, on_offline, content):
-    super().__init__(self.yaml_tag, name, on_offline, content)
+@yaml_data
+class Disk:
 
-class Lvm_Physical_Volume(On_Offline_Content_Element):
-  yaml_tag = u"!lvm-physical-volume"
-  def __init__(self, name, on_offline, content):
-    super().__init__(self.yaml_tag, name, on_offline, content)
+  content: list
+  on_offline: str
+  serial: str
 
-class Dm_Crypt_States(Enum):
-  DISCONNECTED = -1
-  ONLINE = 1
+  def get_hash(self):
+    return hash((super().get_hash(), self.name))
 
-class Dm_Crypt_State(object):
-  def __init__(self, state = Dm_Crypt_States.DISCONNECTED):
-    if state.name not in Dm_Crypt_States.__members__:
-      log.error(f"Dm-Crypt-State `{state}` does not exist. Program will terminate.")
-      exit()
-    else:
-      self.state = Dm_Crypt_States(state)
-  def get_state_name(self):
-    if self.state == Dm_Crypt_States.DISCONNECTED:
-      return "disconnected"
-    if self.state == Dm_Crypt_States.ONLINE:
-      return "online"
 
-class Scrubb_States(Enum):
+@yaml_data
+class ZPool:
+
+  name: str
+  on_offline: str
+  content: list
+
+
+
+@yaml_data
+class Volume:
+
+  name: str
+  on_offline: str
+  content: list
+
+
+@yaml_data
+class LVM_Volume_Group:
+
+  name: str
+  on_offline: str
+  content: list
+
+@yaml_data
+class LVM_Logical_Volume:
+
+  name: str
+  on_offline: str
+  content: list
+
+
+
+@yaml_data
+class LVM_Physical_Volume:
+  
+  on_offline: str
+  lvm_volume_group: str
+
+
+
+@yaml_data
+class DM_Crypt:
+
+  name: str
+  key_file: str
+  scrubb_state: object
+  dm_crypt_state: object
+
+  content: dict "poolname|devname" -> obj
+  
+  on_offline: str
+  
+  def get_key(self):
+    return self.__cls__.name + ":" + self.name
+
+# objects from config
+# objects from cache
+# for o in config
+#    if exists cache obj
+#        take data from cache and copy to config
+
+
+# {:
+#   "DM_Crypt:eva-a-main": DM_Crypt
+#     ohne content
+#     ohne name
+#     last-online: 2024...
+#     
+
+# event
+#   which object is concerned?
+# for event in config
+#    
+#    find event in cache
+#    
+
+
+action = None
+
+def handle():
+  if env.ZEVENT_CLASS != null:
+    if env.ZEVENT_CLASS == "sys.zfs.Resilvered":
+      pool = env.ZPOOL
+      dev = env.ZDEV
+      obj = find_config_and_cache_object(zmirror, ZFS, pool = pool, dev = dev)
+      obj.resilvered = datetime.now()
+      yaml.dump(zmirror)
+  elif env.UDEV_ENV_VAR != None:
+    if env.UDEV_ENV_VAR == "attach":
+      if dev.TYPE == "Partition":
+        name = env.PARTITION
+        conf = find_config_object(zmirror, Partition, name = name)
+        cache = find_cache_object(cache_dict, Partition, name = name)
+        # nicht copy_to_cache(conf, cache)
+        cache.attached = datetime.now()
+        def offline_parent():
+          exec("cryptsetup close {name}")
+        action = offline_parent
+  
+  yaml.dump(cache_dict)
+  action()
+
+
+
+# zmirror trim-cache
+        
+def copy_to_cache(conf, cache)
+  for prop in dir(conf):
+    setattr(cache, prop, getattr(conf, prop))
+
+
+
+
+
+class Scrubb_States(Ki_Enum):
   NOT_REQUESTED = 0
   PENDING = 1
   OVERDUE = 2
 
-class Scrubb_State(object):
+
+@yaml_data
+class ZFS:
+  
+  pool: str
+  dev: str
+  name: str
+  on_scrubbed: str
+  on_resilvered: str
+  current_operation: object
+  state: object
+  scrubb_state: object
+  last_resilvered: str
+  last_scrubbed: str
+  scrub_interval: str
+
+
+
+
+  
+  def get_last_resilvered_string(self):
+    if self.last_resilvered == None:
+      return "Never"
+    elif isinstance(self.last_resilvered, datetime):
+      return self.last_resilvered.strftime("%Y-%m-%d %H:%M:%SZ")
+    else:
+      error_message = "last resilvered is no datetime. terminating script now."
+      log.error(error_message)
+      exit(error_message)
+  def get_last_scrubbed_string(self):
+    if self.last_scrubbed == None:
+      return "Never"
+    elif isinstance(self.last_scrubbed, datetime):
+      return self.last_scrubbed.strftime("%Y-%m-%d %H:%M:%SZ")
+    else:
+      error_message = "last scrubbed is no datetime. terminating script now."
+      log.error(error_message)
+      exit(error_message)
+  def get_hash(self):
+    return hash((super().get_hash(), self.dev))
+
+
+
+
+
+
+# yaml.dump(config)
+
+
+
+
+
+
+
+
+class DM_Crypt_States(Ki_Enum):
+  DISCONNECTED = -1
+  ONLINE = 1
+
+class DM_Crypt_State(object):
+  def __init__(self, state = DM_Crypt_States.DISCONNECTED):
+    if state.name not in DM_Crypt_States.__members__:
+      log.error(f"Dm-Crypt-State `{state}` does not exist. Program will terminate.")
+      exit()
+    else:
+      self.state = DM_Crypt_States(state)
+  def get_state_name(self):
+    if self.state == DM_Crypt_States.DISCONNECTED:
+      return "disconnected"
+    if self.state == DM_Crypt_States.ONLINE:
+      return "online"
+
+class Scrubb_States(Ki_Enum):
+  NOT_REQUESTED = 0
+  PENDING = 1
+  OVERDUE = 2
+
+@yaml_data
+class Scrubb_State:
+
+  state: object
+  since: datetime
+
   def __init__(self, state = Scrubb_States.NOT_REQUESTED):
     if state.name not in Scrubb_States.__members__:
       log.error(f"Scrubb-State `{state}` does not exist. Program will terminate.")
@@ -402,20 +552,7 @@ class Scrubb_State(object):
       return f"overdue since: {since}"
 
 
-class Dm_Crypt(Content_Element_with_Content_Elements):
-  yaml_tag = u"!dm-crypt"
-  def __init__(self, name, key_file, content_elements = dict()):
-    super(Dm_Crypt, self).__init__(self.yaml_tag, content_elements)
-    self.name = name
-    self.key_file = key_file
-    self.scrubb_state = Scrubb_State()
-    self.dm_crypt_state = Dm_Crypt_State()
-  def __to_kd__(self, kd_stream):
-    kd_stream.print_partial_obj(self, ["name", "key_file", "scrubb_state", "dm_crypt_state"])
-  def get_hash(self):
-    return hash((super().get_hash(), self.name))
-
-class ZFS_States(Enum):
+class ZFS_States(Ki_Enum):
   UNKNOWN = -2
   DISCONNECTED = -1
   PRESENT_BUT_OFFLINE = 0
@@ -440,7 +577,7 @@ class ZFS_State(object):
   def get_state(self):
     return self.state
 
-class ZFS_Operations(Enum):
+class ZFS_Operations(Ki_Enum):
   NONE = 0
   SCRUBBING = 1
   RESILVERING = 2
@@ -464,49 +601,7 @@ class ZFS_Operation(object):
 
 
 
-class ZFS(Content_Element):
-  yaml_tag = u"!zfs"
-  def __init__(self, pool, dev, on_scrubbed, on_resilvered, scrub_interval = "3 months"):
-    super(ZFS, self).__init__(self.yaml_tag)
-    self.pool = pool
-    self.dev = dev
-    self.name = self.dev.split("/")[0]
-    self.on_scrubbed = on_scrubbed
-    self.on_resilvered = on_resilvered
-    self.current_operation = ZFS_Operation()
-    self.state = ZFS_State()
-    self.scrubb_state = Scrubb_State()
-    self.last_resilvered = None
-    self.last_scrubbed = None
-    self.scrub_interval = scrub_interval
-  def get_last_resilvered_string(self):
-    if self.last_resilvered == None:
-      return "Never"
-    elif isinstance(self.last_resilvered, datetime):
-      return self.last_resilvered.strftime("%Y-%m-%d %H:%M:%SZ")
-    else:
-      error_message = "last resilvered is no datetime. terminating script now."
-      log.error(error_message)
-      exit(error_message)
-  def get_last_scrubbed_string(self):
-    if self.last_scrubbed == None:
-      return "Never"
-    elif isinstance(self.last_scrubbed, datetime):
-      return self.last_scrubbed.strftime("%Y-%m-%d %H:%M:%SZ")
-    else:
-      error_message = "last scrubbed is no datetime. terminating script now."
-      log.error(error_message)
-      exit(error_message)
-  def __to_kd__(self, kd_stream):
-    kd_stream.print_partial_obj(self, ["pool", "dev", "name", "on_scrubbed", "on_resilvered", "current_operation", "state", "scrubb_state", "last_resilvered", "last_scrubbed", "scrub_interval"])
-  def get_hash(self):
-    return hash((super().get_hash(), self.dev))
-
-
-
 # we are overriding python's internal exec, which would execute python code dynamically, because we don't need nor like it
-
-
 def myexec(command):
     log.info(f"Executing command: {command}")
     process = subprocess.Popen(command,
@@ -952,6 +1047,8 @@ def main():
     stream = Kd_Stream(sys.stdout)
     
     stream.print_obj(config)
+
+    print()
   
 
   return
