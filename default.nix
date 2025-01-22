@@ -1,4 +1,4 @@
-{ python3
+/*{ python3
 , stdenv
 , callPackage
  }:
@@ -15,4 +15,16 @@ stdenv.mkDerivation rec {
   ];
   dontUnpack = true;
   installPhase = "install -Dm755 ${./zmirror.py} $out/bin/$name";
-}
+}*/
+
+{
+  writeShellScriptBin
+, callPackage
+, zfs}: 
+
+writeShellScriptBin "zmirror" ''
+  #!/usr/bin/env bash
+  export PATH=${callPackage ./python.nix {}}/bin:${zfs}/bin
+  python -Xfrozen_modules=off -m debugpy --wait-for-client --listen localhost:8888 /#/zion/zmirror/zmirror.py "$@"
+''
+

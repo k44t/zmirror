@@ -13,16 +13,17 @@ import yaml
 from natsort import natsorted
 from datetime import datetime, timedelta
 import logging
+import logging.handlers
 import os
 from enum import Enum
 import argparse
 import jsonpickle
 import dateparser
-import json
+import yaml
 import traceback
 from io import StringIO
 from types import SimpleNamespace
-
+from typing import List
 from dataclasses import dataclass
 
 logfile_path = '/var/run/zmirror/log.st'
@@ -37,7 +38,7 @@ except ImportError:
 
 # Configure the root logger
 logging.basicConfig(
-  level=logging.INFO,
+  level=logging.DEBUG,
   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
   handlers=[
     logging.FileHandler(logfile_path + datetime.now().strftime("%d-%m-%Y_%H:%M:%S.%f") ),  # File handler
@@ -54,21 +55,28 @@ if use_journal:
   journal_handler.setLevel(logging.INFO)
   logging.getLogger().addHandler(journal_handler)
 else:
-  logging.getLogger().addHandler(logging.RotatingFileHandler(logfile_path, maxBytes=65535))
+  logging.getLogger().addHandler(logging.handlers.RotatingFileHandler(logfile_path, maxBytes=65535))
   log.warning("systemd log not available")
 
 log.info("starting zmirror")
 
 config_file_path = "/etc/zmirror/config.yml"
-cache_file_path = "/var/lib/zmirror/cache.json"
+cache_file_path = "/var/lib/zmirror/cache.yml"
 os.makedirs(os.path.dirname(cache_file_path), exist_ok = True)
 
 
 
-cache_dict = yaml.full_load(cache_file_path)
-if not isinstance(cache_dict, dict):
-  cache_dict = dict()
- 
+def load_cache():
+  global cache_dict
+  try:
+    with open(cache_file_path) as stream:
+        cache_dict = yaml.full_load(stream)
+        if not isinstance(cache_dict, dict):
+          cache_dict = dict()
+  except BaseException as exception:
+    log.error(exception)
+    cache_dict = dict()
+
 
 class StringBuilder:
      _file_str = None
@@ -180,14 +188,13 @@ def escape_ki_string_normal(result, string, index, delim, ignoreme):
 class Ki_Enum(Enum):
 
   def __to_kd__(self, ki_stream):
-    ki_stream.print_raw("#" + self.name.lower().replace("_", "-"))
+    ki_stream.stream.print_raw("#" + self.name.lower().replace("_", "-"))
 
 
 class Tabbed_Shiftex_Stream():
-  def __init__(self, stream, indents = 0, level = -1):
+  def __init__(self, stream, indents = 0):
     self.indents = indents
     self.stream = stream
-    self.level = level
 
   def indent(self):
     self.indents = self.indents + 1
@@ -218,9 +225,9 @@ class Tabbed_Shiftex_Stream():
 
 
 class Kd_Stream:
-  level = 0
-  def __init__(self, stream):
+  def __init__(self, stream, level = -1):
     self.stream = stream
+    self.level = level
 
 
 
@@ -251,22 +258,22 @@ class Kd_Stream:
       self.stream.indent()
       for i, element in enumerate(obj):
         # self.stream.print_raw("||")
-        self.newline()
+        self.stream.newline()
         # self.stream.print_raw(">>")
         self.print_obj(element)
         # self.stream.print_raw("<<")
-      self.dedent()
+      self.stream.dedent()
     elif isinstance(obj, dict):
       self.stream.print_raw("{:")
       self.stream.indent()
       for i, (key, value) in enumerate(obj.items()):
-        self.newline()
+        self.stream.newline()
         self.print_obj(key)
         self.stream.print_raw(":")
         self.stream.indent()
         self.print_obj(value)
-        self.dedent()
-      self.dedent()
+        self.stream.dedent()
+      self.stream.dedent()
     elif obj == None:
       self.stream.print_raw("nil")
     elif hasattr(obj, "__to_kd__") and callable(obj.__to_kd__):
@@ -286,7 +293,7 @@ class Kd_Stream:
         nattrs.append(attr)
     self.print_partial_obj(obj, nattrs)
 
-  def print_partial_obj(self, obj, props):
+  def print_partial_obj(self, obj, props: List[str]):
     if self.level == 0:
       self.stream.print_raw("...")
       return
@@ -296,7 +303,7 @@ class Kd_Stream:
       for prop in props:
         if hasattr(obj, prop):
           # self.stream.print_raw("..nl>")
-          self.newline()
+          self.stream.newline()
           # self.stream.print_raw("..<nl")
 
           # self.stream.print_raw("..>>")
@@ -310,10 +317,40 @@ class Kd_Stream:
             # self.stream.print_raw("<<..")
     else:
       self.stream.print_raw("!")
-    self.dedent()
+    self.stream.dedent()
 
 
+def to_ki_enum(data: Enum):
+  return "#" + data.name.lower().replace("_", "-")
 
+def from_ki_enum(cls, string: str):
+  fixed = string.removeprefix("#").upper().replace("-", "_")
+  r = cls[fixed]
+  if r == None:
+    raise BaseException(f"`{string}` (`{fixed}`) is not an instance of {cls.__class__.__name__}")
+  return r
+
+
+def yaml_enum(cls):
+  # Perform operations using the class name
+  # print(f"Decorating class: {cls.__name__}")
+
+  # You can add attributes or methods to the class if needed
+  # cls.decorated = True
+
+  tag = u"!" + cls.__name__
+
+  def the_constr(loader, node):
+    # https://github.com/yaml/pyyaml/blob/main/lib/yaml/constructor.py
+    r = from_ki_enum(cls, node.value)
+    return r
+  def the_repr(dumper, data):
+    return dumper.represent_scalar(tag, to_ki_enum(data))
+
+  yaml.add_constructor(tag, the_constr)
+  yaml.add_representer(cls, the_repr )
+
+  return cls
 
 
 def yaml_data(cls):
@@ -323,11 +360,16 @@ def yaml_data(cls):
   # You can add attributes or methods to the class if needed
   # cls.decorated = True
 
+  tag = u"!" + cls.__name__
+
   def the_constr(loader, node):
     # https://github.com/yaml/pyyaml/blob/main/lib/yaml/constructor.py
     return loader.construct_yaml_object(node, cls)
+  def the_repr(dumper, data):
+    return dumper.represent_yaml_object(tag, data, cls)
 
-  yaml.add_constructor(u"!" + cls.__name__, the_constr)
+  yaml.add_constructor(tag, the_constr)
+  yaml.add_representer(cls, the_repr )
 
 
 #  def the_repr(dumper, data):
@@ -427,6 +469,11 @@ class LVM_Physical_Volume:
   on_offline: str = None
 
 
+@yaml_enum
+class DM_Crypt_State(Ki_Enum):
+  UNKNOWN = 0
+  DISCONNECTED = 1
+  ONLINE = 2
 
 @yaml_data
 class DM_Crypt:
@@ -434,7 +481,7 @@ class DM_Crypt:
   name: str
   key_file: str
 
-  state: object
+  state = DM_Crypt_State.UNKNOWN
 
   content = []
 
@@ -445,25 +492,31 @@ class DM_Crypt:
 
 
 
-# zmirror scrub
-class DM_Crypt_States(Ki_Enum):
-  DISCONNECTED = -1
-  ONLINE = 1
-
 @yaml_data
-class Dated_State:
-  state: object
+class Since:
+  what: object
   since: datetime
 
-class ZFS_States(Ki_Enum):
-  ERROR = -2
-  DISCONNECTED = -1
-  ONLINE = 1
+  def __to_kd__(self, kd_stream: Kd_Stream): 
+    if self.since != None:
+      kd_stream.stream.print_raw(self.__class__.__name__)
+      kd_stream.stream.print_raw(" ")
+      kd_stream.print_obj(self.since)
+      kd_stream.stream.print_raw(" ")
+    kd_stream.print_obj(self.what)
 
-class ZFS_Operation_States(Ki_Enum):
-  NONE = 0
-  SCRUBBING = 1
-  RESILVERING = 2
+@yaml_enum
+class ZFS_State(Ki_Enum):
+  UNKNOWN = 0
+  DISCONNECTED = 1
+  ONLINE = 2
+
+@yaml_enum
+class ZFS_Operation_State(Ki_Enum):
+  UNKNOWN = 0
+  NONE = 1
+  SCRUBBING = 2
+  RESILVERING = 3
 
 
 @yaml_data
@@ -471,8 +524,8 @@ class ZFS_Blockdev_Cache:
   pool: str
   dev: str
 
-  state = Dated_State(ZFS_States.ERROR, None)
-  operation = Dated_State(ZFS_Operation_States.NONE, None)
+  state = Since(ZFS_State.UNKNOWN, None)
+  operation = Since(ZFS_Operation_State.UNKNOWN, None)
   last_resilvered: datetime = None
   last_scrubbed: datetime = None
 
@@ -487,6 +540,11 @@ class ZFS_Blockdev:
   on_scrubbed: str = None
   on_resilvered: str = None
   scrub_interval: str = None
+
+@yaml_data
+class ZFS_Blockdev_Output(ZFS_Blockdev, ZFS_Blockdev_Cache):
+  def __to_kd__(self, kd_stream: Kd_Stream):
+    kd_stream.print_partial_obj(self, ["pool", "dev", "state", "operation", "last_resilvered", "last_scrubbed"])
 
 
 
@@ -513,7 +571,9 @@ class ZFS_Blockdev:
 #
 
 
-def get_zpool_status():
+commands = []
+
+def get_zpool_status(zpool_name):
   returncode, zpool_status, formatted_response, formatted_error = exec(f"zpool status {zpool_name}")
   return zpool_status
 
@@ -527,7 +587,6 @@ def find_or_create_cache(type, create_args=dict(), **kwargs):
     id = id + "|" + value
 
   cache = None
-  global cache_dict
   if id in cache_dict:
     cache = cache_dict[id]
 
@@ -540,9 +599,10 @@ def find_or_create_cache(type, create_args=dict(), **kwargs):
 
 def find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path):
   vdev_name = vdev_path.removeprefix("/dev/mapper/").removeprefix("/dev/")
-  return find_or_create_cache(ZFS_Blockdev_Cache, zpool=zpool, dev=vdev_name)
+  return find_or_create_cache(ZFS_Blockdev_Cache, pool=zpool, dev=vdev_name)
 
 def handle(args):
+  load_cache()
   log.info("handling udev and zfs events by interpreting environment variables")
   global env
 
@@ -551,10 +611,10 @@ def handle(args):
     zevent = env["ZEVENT_SUBCLASS"]
     log.info(f"handling zfs event: {zevent}")
     zpool = env["ZEVENT_POOL"]
-    zpool_status = get_zpool_status(zpool)
 
     # zpool event
     if zevent in ["scrub_finish", "scrub_start"]:
+      zpool_status = get_zpool_status(zpool)
 
       regex = re.compile(rf'^\s+([a-zA-Z0-9_]+)\s+(ONLINE)\s+[0-9]\s+[0-9]\s+[0-9]\s*.*$')
 
@@ -562,11 +622,11 @@ def handle(args):
         dev = match.group(1)
 
         cache = find_or_create_cache(ZFS_Blockdev_Cache, pool=zpool, dev=dev)
-        cache.operation = Dated_State(ZFS_Operation_States.NONE, now)
+        cache.operation = Since(ZFS_Operation_State.NONE, now)
         if zevent == "scrub_finish":
           cache.last_scrubbed = now
         elif zevent == "scrub_start":
-          cache.operation.state = ZFS_Operation_States.SCRUBBING
+          cache.operation.state = ZFS_Operation_State.SCRUBBING
     # TODO: add to docs that the admin must ensure that zpool import uses /dev/mapper (dm) and /dev/vg/lv (lvm) and /dev/disk/by-partlabel (partition)
       # zpool import -d /dev/mapper -d /dev/vg/lv -d /dev/disk/by-partlabel
       # zpool create my-pool mirror /dev/vg-my-vg/my-lv /dev/disk/by-partlabel/my-partition /dev/mapper/my-dm-crypt
@@ -580,25 +640,27 @@ def handle(args):
         # ZEVENT:: /dev/{sda3}
         # ZEVENT:: /dev/disk/by-partlabel/mypartlabel
       vdev_path = env["ZEVENT_VDEV_PATH"]
-      cache = find_or_create_zfs_cache_by_vdev_path(vdev_path)
+      cache = find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path)
       if zevent == "vdev_online":
-        cache.state = Dated_State(ZFS_States.ONLINE, now)
+        log.info(f"zdev {cache.pool}:{cache.dev} went online")
+        cache.state = Since(ZFS_State.ONLINE, now)
       elif zevent == "statechange":
         if env["ZEVENT_VDEV_STATE_STR"] == "OFFLINE":
-          cache.state = Dated_State(ZFS_States.DISCONNECTED, now)
+          log.info(f"zdev {cache.pool}:{cache.dev} went offline")
+          cache.state = Since(ZFS_State.DISCONNECTED, now)
         else:
           log.warning(f"(potential bug) unknown statechange event: {env["ZEVENT_VDEV_STATE_STR"]}")
-          cache.state = Dated_State(ZFS_States.ERROR, now)
+          cache.state = Since(ZFS_State.UNKNOWN, now)
 
     # zool-vdev event
     elif zevent in ["resilver_start", "resilver_finish"]:
       vdev_path = env["ZEVENT_VDEV_PATH"]
       cache = find_or_create_zfs_cache_by_vdev_path(vdev_path)
-      cache.operation = Dated_State(ZFS_Operation_States.NONE, now)
+      cache.operation = Since(ZFS_Operation_State.NONE, now)
       if zevent == "resilver_start":
-        cache.operation = Dated_State(ZFS_Operation_States.RESILVERING, now)
+        cache.operation = Since(ZFS_Operation_State.RESILVERING, now)
       elif zevent == "resilver_finish":
-        cache.operation = Dated_State(ZFS_Operation_States.NONE, now)
+        cache.operation = Since(ZFS_Operation_State.NONE, now)
         cache.last_resilvered = now
 
   elif ("DEVTYPE" in env):
@@ -614,9 +676,9 @@ def handle(args):
       cache = find_or_create_cache(Partition, name=env["PARTNAME"])
     if cache != None:
       if action == "add":
-        cache.state = Dated_State(DM_Crypt_States.ONLINE, now)
+        cache.state = Since(DM_Crypt_State.ONLINE, now)
       elif action == "remove":
-        cache.state = Dated_State(DM_Crypt_States.DISCONNECTED, now)
+        cache.state = Since(DM_Crypt_State.DISCONNECTED, now)
 
   save_cache()
 
@@ -624,17 +686,12 @@ def handle(args):
 
 # zmirror trim-cache
 
-def copy_to_cache(conf, cache):
-  for prop in dir(conf):
-    setattr(cache, prop, getattr(conf, prop))
-
 
 
 
 
 
 # yaml.dump(config)
-
 
 
 
@@ -754,6 +811,7 @@ def iterate_content_tree(o, fn):
 
 # zmirror scrub
 def scrub(args):
+  load_cache()
   log.info("starting zfs scrubs if necessary")
   def possibly_scrub(dev):
     if isinstance(dev, ZFS_Blockdev):
@@ -763,13 +821,23 @@ def scrub(args):
         allowed_delta = dateparser.parse(dev.scrub_interval)
         if (cache.last_scrubbed == None or allowed_delta > cache.last_scrubbed):
           log.info(f"zfs pool '{dev.pool}' dev '{dev.dev}' must be scrubbed")
-          if cache.operation != None and cache.operation.state == ZFS_Operation_States.NONE:
-            execute_command(f"zpool scrub {dev.pool}")
+          if cache.operation != None and cache.operation.state == ZFS_Operation_State.NONE:
+            commands.append(f"zpool scrub {dev.pool}")
         else:
           log.info(f"zfs pool '{dev.pool}' dev '{dev.dev}' does not have to be scrubbed")
   zmirror = load_config()
   iterate_content_tree(zmirror, possibly_scrub)
+  execute_commands()
 
+
+# das haste gut gemacht @g
+def execute_commands():
+
+  seen = set()                                                    
+  cmds = [x for x in commands if not (x in seen or seen.add(x))]
+
+  for cmd in cmds:
+    execute_command(cmd)
 
 
 
@@ -817,7 +885,9 @@ def load_config():
     # config_dict = yaml.safe_load(config_file)
 
     config = yaml.full_load(config_file)
+    return config
 
+def print_config():
     stream = Kd_Stream(outs)
 
     outs.newlines(3)
@@ -826,24 +896,51 @@ def load_config():
     outs.newlines(2)
 
     stream.print_obj(config)
-    return config
 
 
 
 
-def clear_cache():
+def clear_cache(args):
   global cache_file_path
-  os.remove(cache_file_path)
+  log.info(f"removing {cache_file_path}")
+  try:
+    os.remove(cache_file_path)
+  except Exception as exception:
+    log.error(f"failed to remove {cache_file_path}. " + str(exception))
+
+
 
 
 
 
 
 def save_cache():
-  yaml.dump(cache_dict, cache_file_path)
+  log.info("writing cache")
+  with open(cache_file_path, 'w') as stream:
+    yaml.dump(cache_dict, stream)
 
-#
 
+
+
+def copy_attrs(lft, rgt):
+  for prop in dir(lft):
+    if not prop.startswith("_"):
+      setattr(rgt, prop, getattr(lft, prop))
+
+def show_status(args):
+  load_cache()
+  stream = Kd_Stream(outs)
+  # log.info("starting zfs scrubs if necessary")
+  def possibly_scrub(dev):
+    if isinstance(dev, ZFS_Blockdev):
+      cache = find_or_create_cache(ZFS_Blockdev_Cache, pool=dev.pool, dev=dev.dev)
+      out = ZFS_Blockdev_Output(pool=dev.pool, dev=dev.dev)
+      copy_attrs(cache, out)
+      copy_attrs(dev, out)
+      stream.print_obj(out)
+      stream.stream.newlines(3)
+  zmirror = load_config()
+  iterate_content_tree(zmirror, possibly_scrub)
 
 env = dict(os.environ)
 #
@@ -851,7 +948,7 @@ env = dict(os.environ)
 
 # Create the parser
 parser = argparse.ArgumentParser(description="zmirror")
-subparser = parser.add_subparsers(required=True)
+subparser = parser.add_subparsers()
 
 
 # nice to have, maybe?: zmirror trigger        # simulates events or something...
@@ -865,8 +962,8 @@ clear_cache_parser = subparser.add_parser('clear-cache', parents=[], help= 'clea
 clear_cache_parser.set_defaults(func=clear_cache)
 
 # zmirror status   # called by user
-#status_parser = subparser.add_parser('status', parents=[], help='show status of zmirror')
-#status_parser.set_defaults(func=show_status)
+status_parser = subparser.add_parser('status', parents=[], help='show status of zmirror')
+status_parser.set_defaults(func=show_status)
 
 
 # zmirror scrub   # called by systemd.timer
