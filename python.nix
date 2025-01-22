@@ -6,4 +6,5 @@
         pyyaml
         jsonpickle
         dateparser
+        systemd
       ]))
