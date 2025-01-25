@@ -6,6 +6,9 @@ import yaml
 from io import StringIO
 from enum import Enum
 
+from zmirror_logging import ZMirror_Logger
+zmirror_logger = ZMirror_Logger()
+log = zmirror_logger.get_Logger()
 
 def convert_dict_to_strutex(dictionary):
   for key, value in dictionary.items():
@@ -84,17 +87,26 @@ def escape_ki_string_normal(result, string, index, delim, ignoreme):
     return escape_ki_string_normal, index + 1, StringBuilder()
   
 class StringBuilder:
-     _file_str = None
+  _file_str = None
 
-     def __init__(self):
-         self._file_str = StringIO()
+  def __init__(self):
+    self._file_str = StringIO()
+    self.string = ""
 
-     def append(self, str):
-         self._file_str.write(str)
-         return self
+  def append(self, str):
+    self._file_str.write(str)
+    return self
 
-     def __str__(self):
-         return self._file_str.getvalue()
+  def __str__(self):
+    return self._file_str.getvalue()
+
+  def write(self, text):
+    self.string = self.string + text
+  
+  def get_string(self):
+    return_string = self.string
+    self.string = ""
+    return return_string
 
 
 
@@ -121,6 +133,7 @@ class Ki_Enum(Enum):
 
   def __to_kd__(self, ki_stream):
     ki_stream.stream.print_raw("#" + self.name.lower().replace("_", "-"))
+
 
 
 class Tabbed_Shiftex_Stream():
@@ -155,13 +168,10 @@ class Tabbed_Shiftex_Stream():
   def print_raw(self, string):
     self.stream.write(string)
 
-
 class Kd_Stream:
   def __init__(self, stream, level = -1):
     self.stream = stream
     self.level = level
-
-
 
   def print_obj(self, obj):
     if self.level == 0:
@@ -250,6 +260,67 @@ class Kd_Stream:
     else:
       self.stream.print_raw("!")
     self.stream.dedent()
+
+  def get_string_from_object(self, obj):
+    if isinstance(self.stream, StringBuilder):
+      self.print_obj(obj)
+      return self.stream.stream.get_string()
+    else:
+      error_message = "get_string_from_object is not implemented for anything other than a stream of type StringBuilder"
+      log.error(error_message)
+      raise NotImplementedError(error_message)
+
+  def get_object_from_string(self, string):
+    if self.level == 0:
+      self.stream.print_raw("...\n")
+      return
+    self.level = self.level - 1
+    if isinstance(obj, bool):
+      if obj:
+        self.stream.print_raw("yes")
+      else:
+        self.stream.print_raw("no")
+    elif isinstance(obj, str):
+      self.stream.print_raw("\"")
+      for i, line in enumerate(obj.split('\n')):
+        if i > 0:
+          self.newline()
+        self.stream.print_raw(escape_ki_string('"', line))
+        # self.stream.print_raw(line)
+      self.stream.print_raw("\"")
+    elif isinstance(obj, numbers.Number):
+      self.stream.print_raw(str(obj))
+    elif isinstance(obj, datetime):
+      self.stream.print_raw(obj.strftime("%Y-%m-%d'%H:%M:%S.%f"))
+    elif isinstance(obj, list):
+      self.stream.print_raw("[:")
+      self.stream.indent()
+      for i, element in enumerate(obj):
+        # self.stream.print_raw("||")
+        self.stream.newline()
+        # self.stream.print_raw(">>")
+        self.print_obj(element)
+        # self.stream.print_raw("<<")
+      self.stream.dedent()
+    elif isinstance(obj, dict):
+      self.stream.print_raw("{:")
+      self.stream.indent()
+      for i, (key, value) in enumerate(obj.items()):
+        self.stream.newline()
+        self.print_obj(key)
+        self.stream.print_raw(":")
+        self.stream.indent()
+        self.print_obj(value)
+        self.stream.dedent()
+      self.stream.dedent()
+    elif obj == None:
+      self.stream.print_raw("nil")
+    elif hasattr(obj, "__to_kd__") and callable(obj.__to_kd__):
+      obj.__to_kd__(self)
+    else:
+      self.print_python_obj(obj)
+
+    self.level = self.level + 1
 
 
 def to_ki_enum(data: Enum):
