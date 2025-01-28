@@ -15,6 +15,6 @@ pkgs.mkShell {
   
   
   buildInputs = with pkgs; [ 
-    (pkgs.callPackage ./. {}) 
+    (pkgs.callPackage ./package.nix {}) 
   ];
 }

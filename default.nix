@@ -4,17 +4,14 @@ zmirror = pkgs.writeShellScriptBin "zmirror" ''
   #!/usr/bin/env bash
   export PATH=${pkgs.callPackage ./python.nix {}}/bin:${pkgs.zfs}/bin
   
-  python /#/zion/zmirror/zmirror.py "$@"
+  python /#/zion/zmirror/src/zmirror.py "$@"
 '';
 
 
 # for debugging would be:
 # python -Xfrozen_modules=off -m debugpy --wait-for-client --listen localhost:8888 /#/zion/zmirror/zmirror_trigger.py "$@"
 
-zmirror-trigger = pkgs.writeShellScript "zmirror-trigger" ''
-  #!/usr/bin/env bash
-  ${pkgs.callPackage ./python.nix {}}/bin/python /#/zion/zmirror/zmirror_trigger.py
-'';
+zmirror-trigger = "${pkgs.callPackage ./python.nix {}}/bin/python /#/zion/zmirror/src/zmirror_trigger.py";
 
 in {
 
@@ -33,15 +30,15 @@ in {
       enable = false;
       serviceConfig = {
         Type = "oneshot";
-        ExecStart = "${zmirror} scrub";
+        ExecStart = "${zmirror}/bin/zmirror scrub";
       };
     };
 
-    "zmirror-socket" = {
+    "zmirror-daemon" = {
       enable = false;
       serviceConfig = {
         Type = "oneshot";
-        ExecStart = "${zmirror} daemon";
+        ExecStart = "${zmirror}/bin/zmirror daemon";
       };
     };
   };

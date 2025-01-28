@@ -11,5 +11,6 @@
   dateparser
   systemd
   debugpy
+  pytest
 ]))
 

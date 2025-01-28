@@ -22,21 +22,11 @@ stdenv.mkDerivation rec {
 , callPackage
 , zfs}: 
 
+
 writeShellScriptBin "zmirror" ''
   #!/usr/bin/env bash
   export PATH=${callPackage ./python.nix {}}/bin:${zfs}/bin
-  python -Xfrozen_modules=off -m debugpy --wait-for-client --listen localhost:8888 /#/zion/zmirror/zmirror_zed.py
-''
-
-
-writeShellScriptBin "zmirror-scrub" ''
-  #!/usr/bin/env bash
-  export PATH=${callPackage ./python.nix {}}/bin:${zfs}/bin
-  python -Xfrozen_modules=off -m debugpy --wait-for-client --listen localhost:8888 /#/zion/zmirror/zmirror.py "$@"
-''
-writeShellScriptBin "zmirror-socket" ''
-  #!/usr/bin/env bash
-  export PATH=${callPackage ./python.nix {}}/bin:${zfs}/bin
-  python -Xfrozen_modules=off -m debugpy --wait-for-client --listen localhost:8888 /#/zion/zmirror/zmirror_socket.py
+  python /#/zion/zmirror/src/zmirror.py "$@"
+  # python -Xfrozen_modules=off -m debugpy --wait-for-client --listen localhost:8888 /#/zion/zmirror/src/zmirror.py "$@"
 ''
 

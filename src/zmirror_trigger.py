@@ -29,18 +29,8 @@ try:
     message = json.dumps(env, indent=4)
     print(f"Sending: {message}")
     client.sendall(message.encode('utf-8'))
-
-    # Look for the response
-    amount_received = 0
-    amount_expected = len(message)
-    received_message = ""
-    while amount_received < amount_expected:
-        data = client.recv(16)
-        amount_received += len(data)
-        received_message = received_message + data.decode('utf-8')
-    if received_message != message:
-        log.error("something went wrong on server side, we did not receive back the message that we sent.")
-
+except Exception as ex:
+    log.error("error while sending data to zmirror-daemon: ", ex)
 finally:
     print("Closing client")
     client.close()

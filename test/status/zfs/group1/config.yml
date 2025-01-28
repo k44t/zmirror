@@ -1,0 +1,11 @@
+--- !ZMirror
+content:
+    - !Partition
+        name: partition-a
+        content:
+          - !ZFS_Blockdev
+              pool: zpool-a
+              dev: pooldev-a
+    - !ZPool 
+        name: zpool-a
+

@@ -5,7 +5,17 @@ import os
 from datetime import datetime
 import sys
 
+def Log_func_start():
+    frame = sys._getframe().f_back
+    function_qualifier_name = frame.f_code.co_qualname
+    message = function_qualifier_name + " start"
+    log.info(message)
 
+def Log_func_end():
+    frame = sys._getframe().f_back
+    function_qualifier_name = frame.f_code.co_qualname
+    message = function_qualifier_name + " end"
+    log.info(message)
 
 def __init__():
   logfile_path = '/var/run/zmirror/log.st'
@@ -42,3 +52,5 @@ def __init__():
 
 
 log = __init__()
+log.func_start = Log_func_start
+log.func_end = Log_func_end

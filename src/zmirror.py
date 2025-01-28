@@ -10,13 +10,13 @@ import argparse
 import dateparser
 import traceback
 from dataclasses import dataclass
-from zmirror_logging import ZMirror_Logger
+from zmirror_logging import log
 from ki_utils import *
 from zmirror_dataclasses import *
 from pyutils import *
 from zmirror_utils import *
-from zmirror_socket import *
-
+import zmirror_utils
+from zmirror_daemon import *
 
 from zmirror_logging import log
 
@@ -113,9 +113,11 @@ def clear_cache(args):
   remove_cache(cache_file_path)
 
 
+
+
 def show_status(args):
   global cache_dict
-  cache_dict = load_yaml_cache()
+  cache_dict = load_yaml_cache(cache_file_path)
   stream = Kd_Stream(outs)
   # log.info("starting zfs scrubs if necessary")
   def possibly_scrub(dev):
@@ -130,72 +132,68 @@ def show_status(args):
   iterate_content_tree(zmirror, possibly_scrub)
 
 
-#
+
+def run_command(args):
+
+  parser = argparse.ArgumentParser(description="zmirror")
+  subparser = parser.add_subparsers(required=True)
 
 
-# Create the parser
-parser = argparse.ArgumentParser(description="zmirror")
-subparser = parser.add_subparsers()
+  # nice to have, maybe?: zmirror trigger        # simulates events or something...
 
 
-# nice to have, maybe?: zmirror trigger        # simulates events or something...
+  # nice to have: zmirror prune-cache    # called by user
+  # prune_parser = subparser.add_parser('prune-cache', parents=[], help='remove cache entries that are not also present in config')
+  # prune_parser.set_defaults(func=prune_cache)
 
 
-# nice to have: zmirror prune-cache    # called by user
-# prune_parser = subparser.add_parser('prune-cache', parents=[], help='remove cache entries that are not also present in config')
-# prune_parser.set_defaults(func=prune_cache)
 
-clear_cache_parser = subparser.add_parser('clear-cache', parents=[], help= 'clear cache')
-clear_cache_parser.set_defaults(func=clear_cache)
-
-
-daemon_parser = subparser.add_parser('daemon', help="starts the zmirror daemon")
-daemon_parser.set_defaults(func=daemon)
+  shared_parser = argparse.ArgumentParser(add_help=False)
+  shared_parser.add_argument("--config-file", type=str, help="the path to the config file", default= "/etc/zmirror/config.yml")
+  shared_parser.add_argument("--state-dir", type=str, help="the path to the state directory", default= "/var/lib/zmirror")
+  # shared_parser.add_argument("runtime-dir", type=str, help="the path to the runtime directory", default= "/var/run/zmirror")
 
 
-# starts a daemon, or rather a service, or maybe it should be called simply a server, a listening loop that listens to whatever is being sent on a unix socket: /var/run/zmirror/zmirror.socket, to which zmirror-udev and zmirror-zed send their event streams. 
-# these scripts connect to it, send a set of environment variables and then disconnect.
-# this service then reads those environment variables
-# and creates event objects 
-# inside a list that is thread safe (only one thread ever changes the list)
-# the code doing all the above should be in zmirror-server.py
-def start_daemon(args):
-  pass
-# on the other side, in a different thread (another loop)
-# this daemon simply removes the events from the list in order (FIFO)
-#
-# the code for this should be largely will lay in zmirror-handler.py:
-# and handles the events
-# and by handling we mean for now, that they simply get logged
-# so this is just a description for the next milestone
+  clear_cache_parser = subparser.add_parser('clear-cache', parents=[shared_parser], help= 'clear cache')
+  clear_cache_parser.set_defaults(func=clear_cache)
 
 
-# zmirror status   # called by user
-status_parser = subparser.add_parser('status', parents=[], help='show status of zmirror')
-status_parser.set_defaults(func=show_status)
+  daemon_parser = subparser.add_parser('daemon', parents=[shared_parser], help="starts the zmirror daemon")
+  daemon_parser.set_defaults(func=daemon)
 
 
-# zmirror scrub   # called by systemd.timer
-scrub_parser = subparser.add_parser('scrub', help='start pending scrubs')
-scrub_parser.set_defaults(func=scrub)
 
-# zmirror    # without args
-parser.set_defaults(func=handle)
 
-args = parser.parse_args()
+  # zmirror status   # called by user
+  status_parser = subparser.add_parser('status', parents=[shared_parser], help='show status of zmirror')
+  status_parser.set_defaults(func=show_status)
 
-try:
-  args.func(args)
-except Exception as exception:
-  traceback.print_exc()
-  error_message = str(exception)
-  log.error(error_message)
 
-  outs.newlines(3)
-  outs.print("error")
-  outs.print("################")
-  outs.newlines(2)
-  outs.print(error_message)
-  exit(error_message)
+  # zmirror scrub   # called by systemd.timer
+  scrub_parser = subparser.add_parser('scrub', parents=[shared_parser], help='start pending scrubs')
+  scrub_parser.set_defaults(func=scrub)
 
-log.info("zmirror finished!")
+  args = parser.parse_args()
+
+  zmirror_utils.cache_file_path = args.state_dir + "/cache.yml"
+  zmirror_utils.config_file_path = args.config_file
+
+  try:
+    args.func(args)
+  except Exception as exception:
+    traceback.print_exc()
+    error_message = str(exception)
+    log.error(error_message)
+
+    outs.newlines(3)
+    outs.print("error")
+    outs.print("################")
+    outs.newlines(2)
+    outs.print(error_message)
+    exit(error_message)
+
+  log.info("zmirror finished!")
+
+
+if __name__ == "__main__":
+  run_command(sys.argv)

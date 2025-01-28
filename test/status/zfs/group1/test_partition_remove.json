@@ -1,0 +1,5 @@
+{
+  "DEVTYPE": "partition",
+  "ACTION": "remove",
+  "PARTNAME": "OFFLINE"
+}

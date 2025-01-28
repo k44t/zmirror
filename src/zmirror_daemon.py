@@ -6,28 +6,26 @@ import threading
 import json
 from zmirror_logging import log
 from zmirror_utils import *
+import zmirror_utils as core
+import queue
 
 
 
 
+def handle(env):
+  cache_dict = core.cache_dict
 
-
-def handle(env = None):
-  global cache_dict
-  cache_dict = load_yaml_cache()
   log.info("handling udev and zfs events by interpreting environment variables")
-  if env == None:
-    env = dict(os.environ)
 
   now = datetime.now()
-  if "ZEVENT_CLASS" in env:
+  if "ZEVENT_SUBCLASS" in env:
     zevent = env["ZEVENT_SUBCLASS"]
     log.info(f"handling zfs event: {zevent}")
     zpool = env["ZEVENT_POOL"]
 
     # zpool event
     if zevent in ["scrub_finish", "scrub_start"]:
-      zpool_status = get_zpool_status(zpool)
+      zpool_status = core.get_zpool_status(zpool)
 
       regex = re.compile(rf'^\s+([a-zA-Z0-9_]+)\s+(ONLINE)\s+[0-9]\s+[0-9]\s+[0-9]\s*.*$')
 
@@ -56,14 +54,15 @@ def handle(env = None):
       cache = find_or_create_zfs_cache_by_vdev_path(cache_dict, zpool, vdev_path)
       if zevent == "vdev_online":
         log.info(f"zdev {cache.pool}:{cache.dev} went online")
-        cache.state = Since(ZFS_State.ONLINE, now)
+        cache.state = Since(Entity_State.ONLINE, now)
       elif zevent == "statechange":
-        if env["ZEVENT_VDEV_STATE_STR"] == "OFFLINE":
+        new_state = env["ZEVENT_VDEV_STATE_STR"]
+        if new_state == "OFFLINE":
           log.info(f"zdev {cache.pool}:{cache.dev} went offline")
-          cache.state = Since(ZFS_State.DISCONNECTED, now)
+          cache.state = Since(Entity_State.DISCONNECTED, now)
         else:
-          log.warning(f"(potential bug) unknown statechange event: {env["ZEVENT_VDEV_STATE_STR"]}")
-          cache.state = Since(ZFS_State.UNKNOWN, now)
+          log.warning(f"(potential bug) unknown statechange event: { new_state }")
+          cache.state = Since(Entity_State.UNKNOWN, now)
 
     # zool-vdev event
     elif zevent in ["resilver_start", "resilver_finish"]:
@@ -84,26 +83,72 @@ def handle(env = None):
       if "ID_SERIAL" in env:
         cache = find_or_create_cache(cache_dict, Disk, serial=env["ID_SERIAL"])
       elif "DM_NAME" in env:
-        cache = find_or_create_cache(cache_dict, Disk, name=env["DM_NAME"])
+        cache = find_or_create_cache(cache_dict, DM_Crypt, name=env["DM_NAME"])
     elif devtype == "partition":
       cache = find_or_create_cache(cache_dict, Partition, name=env["PARTNAME"])
     if cache != None:
       if action == "add":
-        cache.state = Since(DM_Crypt_State.ONLINE, now)
+        cache.state = Since(Entity_State.ONLINE, now)
       elif action == "remove":
-        cache.state = Since(DM_Crypt_State.DISCONNECTED, now)
+        cache.state = Since(Entity_State.DISCONNECTED, now)
 
-  save_cache(cache_dict, cache_file_path)
-
-
+  log.info("finished handling zmirror event.")
 
 
 
 
+def handle_client(connection: socket.socket, client_address, event_queue: queue.Queue):
+  try:
+    log.info(f"Connection from {client_address}")
+
+    data = bytearray(b'')
+    while True:
+      buf = connection.recv(16)
+      if buf != b'':
+        data.extend(buf)
+      else:
+        break
+    message = data.decode('utf-8')
+    event = json.reads(message)
+    event_queue.put(event)
+  except Exception as ex:
+    log.error("error while receiving data from zmirror-trigger: %s", ex)
+  finally:
+    # Clean up the connection
+    connection.close()
 
 
 
+def handle_event(event_queue: queue.Queue):
+  while True:
+    event = event_queue.get()
+    try:
+      handle(event)
+    except Exception as ex:
+      log.error("failed to handle event: ", event)
+      log.error("Exception: ", ex)
+    finally:
+      if event_queue.empty():
+        save_cache()
+
+
+# starts a daemon, or rather a service, or maybe it should be called simply a server, a listening loop that listens to whatever is being sent on a unix socket: /var/run/zmirror/zmirror.socket, to which zmirror-udev and zmirror-zed send their event streams. 
+# these scripts connect to it, send a set of environment variables and then disconnect.
+# this service then reads those environment variables
+# and creates event objects 
+# inside a list that is thread safe (only one thread ever changes the list)
+
+# on the other side, in a different thread (another loop)
+# this daemon simply removes the events from the list in order (FIFO)
+#
+# the code for this should be largely will lay in zmirror-handler.py:
+# and handles the events
+# and by handling we mean for now, that they simply get logged
+# so this is just a description for the next milestone
 def daemon(args):
+  global cache_dict
+
+  cache_dict = load_yaml_cache(cache_file_path)
 
   # Define the path for the Unix socket
   socket_path = "/tmp/zmirror_service.socket"
@@ -124,64 +169,22 @@ def daemon(args):
   # Listen for incoming connections
   server.listen()
 
-  log.info(f"Listening on {socket_path}")
+  log.info(f"listening on {socket_path}")
 
-  # Create a thread-safe list using a lock
-  class ThreadSafeList:
-    def __init__(self):
-      self.list = []
-      self.lock = threading.Lock()
-      self.condition = threading.Condition(self.lock)
 
-    def add_element(self, element):
-      with self.condition:
-        self.list.append(element)
-        self.condition.notify()  # Notify any waiting threads
-
-    def get_element(self):
-      with self.condition:
-        while not self.list:
-          self.condition.wait()  # Wait for an element to be added
-        return self.list.pop(0)
-
-  def handle_client(connection, client_address, threadsafe_list):
-    try:
-      log.info(f"Connection from {client_address}")
-
-      # Receive the data in small chunks and retransmit it
-      while True:
-        data = connection.recv(16)
-        if data:
-          threadsafe_list.add_element(data)
-          connection.sendall(data)
-        else:
-          break
-    finally:
-      # Clean up the connection
-      connection.close()
-
-  def handle_event(threadsafe_list):
-    while True:
-      message = threadsafe_list.get_element()
-      env = json.loads(message)[0]
-      try:
-        handle(env)
-      except Exception as ex:
-        log.error("failed to handle event: ", env)
-        log.error("Exception: ", ex)
-
+  event_queue = queue.Queue()
     
 
   # Create a thread-safe list
-  threadsafe_list = ThreadSafeList()
-  handle_event_thread = threading.Thread(target=handle_event, args=(threadsafe_list))
+  handle_event_thread = threading.Thread(target=handle_event, args=(event_queue, ))
   handle_event_thread.start()
+
   try:
     while True:
       # Wait for a connection
       connection, client_address = server.accept()
       # Start a new thread for the connection
-      client_thread = threading.Thread(target=handle_client, args=(connection, client_address, threadsafe_list))
+      client_thread = threading.Thread(target=handle_client, args=(connection, client_address, event_queue))
       client_thread.start()
   except KeyboardInterrupt:
     log.info("Keyboard Interrupt.")

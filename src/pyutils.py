@@ -1,15 +1,49 @@
 from datetime import datetime, timedelta
 import os
+import errno
 import subprocess
 import sys
-from zmirror_logging import ZMirror_Logger
+import ctypes
+
+from zmirror_logging import log
 from ki_utils import *
 
-zmirror_logger = ZMirror_Logger()
-log = zmirror_logger.get_Logger()
+
+def exec_background(command):
+    log.info(f"Starting command in background: `{command}`")
+    process = subprocess.Popen(command, shell=False)
+    log.info(f"`{command}` started")
+
+
+def silent_remove(filename):
+    try:
+        os.remove(filename)
+    except OSError as e: # this would be "except OSError, e:" before Python 2.6
+        if e.errno != errno.ENOENT: # errno.ENOENT = no such file or directory
+            raise # re-raise exception if a different error occurred
+
+def terminate_thread(thread):
+    """Terminates a python thread from another thread.
+
+    :param thread: a threading.Thread instance
+    """
+    if not thread.isAlive():
+        return
+
+    exc = ctypes.py_object(SystemExit)
+    res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+        ctypes.c_long(thread.ident), exc)
+    if res == 0:
+        raise ValueError("nonexistent thread id")
+    elif res > 1:
+        # """if it returns a number greater than one, you're in trouble,
+        # and you should call it again with exc=NULL to revert the effect"""
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(thread.ident, None)
+        raise SystemError("PyThreadState_SetAsyncExc failed")
+
 
 def myexec(command):
-    log.info(f"Executing command: {command}")
+    log.info(f"Executing command: `{command}`")
     process = subprocess.Popen(command,
                                shell=True,
                                stdout=subprocess.PIPE,
@@ -103,8 +137,8 @@ def load_yaml_cache(cache_file_path):
     cache_dict = dict()
   return cache_dict
 
-def find_or_create_cache(cache_dict, type, create_args=dict(), **kwargs):
-  id = type.__class__.__name__
+def find_or_create_cache(cache_dict, typ, create_args=dict(), **kwargs):
+  id = typ.__name__
   for i, (key, value) in enumerate(kwargs.items()):
     id = id + "|" + value
 
@@ -112,9 +146,9 @@ def find_or_create_cache(cache_dict, type, create_args=dict(), **kwargs):
   if id in cache_dict:
     cache = cache_dict[id]
 
-  if not isinstance(cache, type):
+  if not isinstance(cache, typ):
     kwargs.update(create_args)
-    cache = type(**kwargs)
+    cache = typ(**kwargs)
     cache_dict[id] = cache
   return cache
 
@@ -144,14 +178,14 @@ def print_config(config):
 
     stream.print_obj(config)
 
-def remove_cache(cache_file_path):
+def remove_yaml_cache(cache_file_path):
   log.info(f"removing {cache_file_path}")
   try:
     os.remove(cache_file_path)
   except Exception as exception:
     log.error(f"failed to remove {cache_file_path}. " + str(exception))
 
-def save_cache(cache_dict, cache_file_path):
+def save_yaml_cache(cache_dict, cache_file_path):
   log.info("writing cache")
   with open(cache_file_path, 'w') as stream:
     yaml.dump(cache_dict, stream)

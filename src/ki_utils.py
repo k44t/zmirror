@@ -6,9 +6,7 @@ import yaml
 from io import StringIO
 from enum import Enum
 
-from zmirror_logging import ZMirror_Logger
-zmirror_logger = ZMirror_Logger()
-log = zmirror_logger.get_Logger()
+from zmirror_logging import log
 
 def convert_dict_to_strutex(dictionary):
   for key, value in dictionary.items():

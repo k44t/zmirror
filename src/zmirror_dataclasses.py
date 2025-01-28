@@ -1,36 +1,34 @@
 from ki_utils import *
 
+
+@yaml_enum
+class Entity_State(Ki_Enum):
+  UNKNOWN = 0
+  DISCONNECTED = 1
+  ONLINE = 2
+
 @yaml_data
 class ZMirror:
-
   log_env: bool
   content = []
 
 @yaml_data
 class Partition:
-
   name: str
+  state = Entity_State.UNKNOWN
   content = []
-
-
-  def get_hash(self):
-    return hash((super().get_hash(), self.name))
 
 @yaml_data
 class Disk:
-
   serial: str
-
+  state = Entity_State.UNKNOWN
   content = []
   on_offline = None
 
-  def get_hash(self):
-    return hash((super().get_hash(), self.name))
-
 @yaml_data
 class ZPool:
-
   name: str
+  state = Entity_State.UNKNOWN
   on_offline: str = None
   content = []
 
@@ -38,23 +36,23 @@ class ZPool:
 
 @yaml_data
 class Volume:
-
   name: str
+  state = Entity_State.UNKNOWN
   on_offline: str = None
   content = []
 
 
 @yaml_data
 class LVM_Volume_Group:
-
   name: str
+  state = Entity_State.UNKNOWN
   on_offline: str = None
   content = []
 
 @yaml_data
 class LVM_Logical_Volume:
-
   name: str
+  state = Entity_State.UNKNOWN
   on_offline: str = None
   content = []
 
@@ -62,31 +60,19 @@ class LVM_Logical_Volume:
 
 @yaml_data
 class LVM_Physical_Volume:
-
   lvm_volume_group: str
+  state = Entity_State.UNKNOWN
   on_offline: str = None
 
 
-@yaml_enum
-class DM_Crypt_State(Ki_Enum):
-  UNKNOWN = 0
-  DISCONNECTED = 1
-  ONLINE = 2
 
 @yaml_data
 class DM_Crypt:
-
   name: str
   key_file: str
-
-  state = DM_Crypt_State.UNKNOWN
-
+  state = Entity_State.UNKNOWN
   content = []
-
   on_offline: str = None
-
-  def get_key(self):
-    return self.__cls__.name + ":" + self.name
 
 
 
@@ -103,11 +89,6 @@ class Since:
       kd_stream.stream.print_raw(" ")
     kd_stream.print_obj(self.what)
 
-@yaml_enum
-class ZFS_State(Ki_Enum):
-  UNKNOWN = 0
-  DISCONNECTED = 1
-  ONLINE = 2
 
 @yaml_enum
 class ZFS_Operation_State(Ki_Enum):
@@ -122,7 +103,7 @@ class ZFS_Blockdev_Cache:
   pool: str
   dev: str
 
-  state = Since(ZFS_State.UNKNOWN, None)
+  state = Since(Entity_State.UNKNOWN, None)
   operation = Since(ZFS_Operation_State.UNKNOWN, None)
   last_resilvered: datetime = None
   last_scrubbed: datetime = None

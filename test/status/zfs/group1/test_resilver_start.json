@@ -1,0 +1,5 @@
+{
+  "ZEVENT_SUBCLASS": "resilver_start",
+  "ZEVENT_VDEV_PATH": "remove",
+  "ZEVENT_POOL": "zpool-a"
+}

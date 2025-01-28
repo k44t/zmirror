@@ -1,0 +1,5 @@
+{
+  "ZEVENT_SUBCLASS": "scrub_finish",
+  "ZEVENT_VDEV_PATH": "remove",
+  "ZEVENT_POOL": "zpool-a"
+}

@@ -11,6 +11,19 @@ cache_file_path = "/var/lib/zmirror/cache.yml"
 os.makedirs(os.path.dirname(cache_file_path), exist_ok = True)
 
 
+cache_dict = dict()
+
+
+def load_cache():
+  return load_yaml_cache(cache_file_path)
+def load_config():
+  return load_yaml_config(config_file_path)
+def remove_cache():
+  remove_yaml_cache()
+
+def save_cache():
+  save_yaml_cache(cache_dict, cache_file_path)
+
 
 def iterate_content_tree(o, fn):
   result = []
@@ -26,7 +39,7 @@ def iterate_content_tree(o, fn):
   return result
 
 def find_or_create_zfs_cache_by_vdev_path(cache_dict, zpool, vdev_path):
-  vdev_name = vdev_path.removeprefix("/dev/mapper/").removeprefix("/dev/")
+  vdev_name = vdev_path.removeprefix("/dev/mapper/").removeprefix("/dev/disk/by-partlabel/").removeprefix("/dev/")
   return find_or_create_cache(cache_dict, ZFS_Blockdev_Cache, pool=zpool, dev=vdev_name)
 
 def get_zpool_status(zpool_name):
