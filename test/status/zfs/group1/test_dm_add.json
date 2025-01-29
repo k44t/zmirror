@@ -1,5 +1,5 @@
 {
   "DEVTYPE": "disk",
   "ACTION": "add",
-  "DM_NAME": "OFFLINE"
+  "DM_NAME": "dm-alpha"
 }

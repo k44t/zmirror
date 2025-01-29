@@ -1,6 +1,20 @@
 from ki_utils import *
 
 
+@yaml_data
+class Since:
+  what: object
+  since: datetime
+
+  def __to_kd__(self, kd_stream: Kd_Stream): 
+    if self.since != None:
+      kd_stream.stream.print_raw(self.__class__.__name__)
+      kd_stream.stream.print_raw(" ")
+      kd_stream.print_obj(self.since)
+      kd_stream.stream.print_raw(" ")
+    kd_stream.print_obj(self.what)
+
+
 @yaml_enum
 class Entity_State(Ki_Enum):
   UNKNOWN = 0
@@ -15,20 +29,20 @@ class ZMirror:
 @yaml_data
 class Partition:
   name: str
-  state = Entity_State.UNKNOWN
+  state = Since(Entity_State.UNKNOWN, None)
   content = []
 
 @yaml_data
 class Disk:
   serial: str
-  state = Entity_State.UNKNOWN
+  state = Since(Entity_State.UNKNOWN, None)
   content = []
   on_offline = None
 
 @yaml_data
 class ZPool:
   name: str
-  state = Entity_State.UNKNOWN
+  state = Since(Entity_State.UNKNOWN, None)
   on_offline: str = None
   content = []
 
@@ -37,7 +51,7 @@ class ZPool:
 @yaml_data
 class Volume:
   name: str
-  state = Entity_State.UNKNOWN
+  state = Since(Entity_State.UNKNOWN, None)
   on_offline: str = None
   content = []
 
@@ -45,14 +59,14 @@ class Volume:
 @yaml_data
 class LVM_Volume_Group:
   name: str
-  state = Entity_State.UNKNOWN
+  state = Since(Entity_State.UNKNOWN, None)
   on_offline: str = None
   content = []
 
 @yaml_data
 class LVM_Logical_Volume:
   name: str
-  state = Entity_State.UNKNOWN
+  state = Since(Entity_State.UNKNOWN, None)
   on_offline: str = None
   content = []
 
@@ -61,7 +75,7 @@ class LVM_Logical_Volume:
 @yaml_data
 class LVM_Physical_Volume:
   lvm_volume_group: str
-  state = Entity_State.UNKNOWN
+  state = Since(Entity_State.UNKNOWN, None)
   on_offline: str = None
 
 
@@ -70,24 +84,10 @@ class LVM_Physical_Volume:
 class DM_Crypt:
   name: str
   key_file: str
-  state = Entity_State.UNKNOWN
+  state = Since(Entity_State.UNKNOWN, None)
   content = []
   on_offline: str = None
 
-
-
-@yaml_data
-class Since:
-  what: object
-  since: datetime
-
-  def __to_kd__(self, kd_stream: Kd_Stream): 
-    if self.since != None:
-      kd_stream.stream.print_raw(self.__class__.__name__)
-      kd_stream.stream.print_raw(" ")
-      kd_stream.print_obj(self.since)
-      kd_stream.stream.print_raw(" ")
-    kd_stream.print_obj(self.what)
 
 
 @yaml_enum

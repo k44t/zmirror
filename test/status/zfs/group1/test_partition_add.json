@@ -1,5 +1,5 @@
 {
   "DEVTYPE": "partition",
   "ACTION": "add",
-  "PARTNAME": "OFFLINE"
+  "PARTNAME": "partition-a"
 }

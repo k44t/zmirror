@@ -100,6 +100,9 @@ class StringBuilder:
 
   def write(self, text):
     self.string = self.string + text
+
+  def print_raw(self, text):
+    self.string = self.string + text
   
   def get_string(self):
     return_string = self.string
@@ -320,6 +323,12 @@ class Kd_Stream:
 
     self.level = self.level + 1
 
+
+def to_kd(o):
+  b = StringBuilder()
+  s = Kd_Stream(Tabbed_Shiftex_Stream(b))
+  s.print_obj(o)
+  return b.string
 
 def to_ki_enum(data: Enum):
   return "#" + data.name.lower().replace("_", "-")

@@ -14,6 +14,7 @@ import queue
 
 def handle(env):
   cache_dict = core.cache_dict
+  cache = None
 
   log.info("handling udev and zfs events by interpreting environment variables")
 
@@ -25,19 +26,26 @@ def handle(env):
 
     # zpool event
     if zevent in ["scrub_finish", "scrub_start"]:
+      log.info(f"zpool {zpool}: {zevent}")
       zpool_status = core.get_zpool_status(zpool)
 
-      regex = re.compile(rf'^\s+([a-zA-Z0-9_]+)\s+(ONLINE)\s+[0-9]\s+[0-9]\s+[0-9]\s*.*$')
+      regex = re.compile(r'^ {12}([-a-zA-Z0-9_]+) +(ONLINE) +[0-9]+ +[0-9]+ +[0-9]+ *.*$', re.MULTILINE)
 
+      found = False
       for match in regex.finditer(zpool_status):
+        found = True
         dev = match.group(1)
 
         cache = find_or_create_cache(cache_dict, ZFS_Blockdev_Cache, pool=zpool, dev=dev)
         cache.operation = Since(ZFS_Operation_State.NONE, now)
         if zevent == "scrub_finish":
+          log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing finished")
           cache.last_scrubbed = now
         elif zevent == "scrub_start":
-          cache.operation.state = ZFS_Operation_State.SCRUBBING
+          log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing started")
+          cache.operation.what = ZFS_Operation_State.SCRUBBING
+      if found == False:
+        log.error("likely bug: scrub finished but no devices online")
     # TODO: add to docs that the admin must ensure that zpool import uses /dev/mapper (dm) and /dev/vg/lv (lvm) and /dev/disk/by-partlabel (partition)
       # zpool import -d /dev/mapper -d /dev/vg/lv -d /dev/disk/by-partlabel
       # zpool create my-pool mirror /dev/vg-my-vg/my-lv /dev/disk/by-partlabel/my-partition /dev/mapper/my-dm-crypt
@@ -67,7 +75,7 @@ def handle(env):
     # zool-vdev event
     elif zevent in ["resilver_start", "resilver_finish"]:
       vdev_path = env["ZEVENT_VDEV_PATH"]
-      cache = find_or_create_zfs_cache_by_vdev_path(vdev_path)
+      cache = find_or_create_zfs_cache_by_vdev_path(cache_dict, zpool, vdev_path)
       cache.operation = Since(ZFS_Operation_State.NONE, now)
       if zevent == "resilver_start":
         cache.operation = Since(ZFS_Operation_State.RESILVERING, now)
@@ -79,18 +87,25 @@ def handle(env):
     action = env["ACTION"]
     devtype = env["DEVTYPE"]
     log.info(f"handling udev block event: {action}")
+    state = None
+    if action == "add":
+      state = Since(Entity_State.ONLINE, now)
+    elif action == "remove":
+      state = Since(Entity_State.DISCONNECTED, now)
+
     if devtype == "disk":
       if "ID_SERIAL" in env:
         cache = find_or_create_cache(cache_dict, Disk, serial=env["ID_SERIAL"])
+        log.info(f"{cache.__class__.__name__} {cache.serial}: {to_kd(state)}")
       elif "DM_NAME" in env:
         cache = find_or_create_cache(cache_dict, DM_Crypt, name=env["DM_NAME"])
+        log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(state)}")
     elif devtype == "partition":
       cache = find_or_create_cache(cache_dict, Partition, name=env["PARTNAME"])
-    if cache != None:
-      if action == "add":
-        cache.state = Since(Entity_State.ONLINE, now)
-      elif action == "remove":
-        cache.state = Since(Entity_State.DISCONNECTED, now)
+      log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(state)}")
+    if cache != None and state != None:
+      cache.state = state
+
 
   log.info("finished handling zmirror event.")
 

@@ -1,5 +1,5 @@
 {
   "DEVTYPE": "disk",
   "ACTION": "remove",
-  "DM_NAME": "OFFLINE"
+  "DM_NAME": "dm-alpha"
 }

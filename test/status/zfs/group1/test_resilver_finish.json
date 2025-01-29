@@ -1,5 +1,5 @@
 {
   "ZEVENT_SUBCLASS": "resilver_finish",
-  "ZEVENT_VDEV_PATH": "remove",
+  "ZEVENT_VDEV_PATH": "/dev/disk/by-partlabel/partition-a",
   "ZEVENT_POOL": "zpool-a"
 }

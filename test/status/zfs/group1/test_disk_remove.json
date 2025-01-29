@@ -1,5 +1,5 @@
 {
   "DEVTYPE": "disk",
   "ACTION": "remove",
-  "SERIAL": "OFFLINE"
+  "ID_SERIAL": "0123456789abcdef"
 }
