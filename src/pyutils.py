@@ -189,6 +189,7 @@ def save_yaml_cache(cache_dict, cache_file_path):
   log.info("writing cache")
   with open(cache_file_path, 'w') as stream:
     yaml.dump(cache_dict, stream)
+  log.info("cache written.")
 
 def copy_attrs(lft, rgt):
   for prop in dir(lft):

@@ -2,10 +2,12 @@
 content:
     - !Partition
         name: partition-a
+        description: this is partition a
         content:
           - !ZFS_Blockdev
               pool: zpool-a
               dev: pooldev-a
+              description: this is zpool a
     - !ZPool 
         name: zpool-a
 

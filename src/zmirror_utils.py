@@ -12,18 +12,63 @@ os.makedirs(os.path.dirname(cache_file_path), exist_ok = True)
 
 
 cache_dict = dict()
+config: ZMirror = None
+config_dict = dict()
 
+def load_config_for_id(id):
+  global config_dict
+  config = None
+  if id in config_dict:
+    config = config_dict[id]
+  else:
+    log.error(f"id `{id}` not found in core.config_dict.")
+  return config
+
+
+def entity_id(entity):
+  return "|".join((entity.__class__.__name__, entity.id()))
 
 def load_cache():
-  return load_yaml_cache(cache_file_path)
+  global cache_dict
+  cache_dict = load_yaml_cache(cache_file_path)
 def load_config():
-  return load_yaml_config(config_file_path)
+  global config
+  config = load_yaml_config(config_file_path)
+  iterate_content_tree3(config, index_entities, None, config_dict)
+
+def index_entities(entity, parent, dct):
+  if hasattr(entity, "id"):
+    dct[entity_id(entity)] = entity
+  if hasattr(entity, "parent"):
+    entity.parent = parent
+
+
 def remove_cache():
   remove_yaml_cache()
 
 def save_cache():
   save_yaml_cache(cache_dict, cache_file_path)
 
+
+
+def iterate_content_tree3(o, fn, parent, strt):
+  result = fn(o, parent, strt)
+  if hasattr(o, "content"):
+    lst = getattr(o, "content")
+    if isinstance(lst, list):
+      for e in lst:
+        result = iterate_content_tree3(e, fn, result)
+  return result
+
+
+def iterate_content_tree2(o, fn, strt):
+  result = fn(o, strt)
+  if hasattr(o, "content"):
+    lst = getattr(o, "content")
+    if isinstance(lst, list):
+      for e in lst:
+        result = iterate_content_tree2(e, fn, result)
+  return result
 
 def iterate_content_tree(o, fn):
   result = []

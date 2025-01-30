@@ -13,7 +13,7 @@ import os
 from zmirror_logging import log
 
 # Define the path for the Unix socket
-socket_path = "/tmp/zmirror_service.socket"
+socket_path = "/var/run/zmirror/zmirror_service.socket"
 
 # Create a UDS (Unix Domain Socket)
 client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

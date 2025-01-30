@@ -17,8 +17,11 @@ def Log_func_end():
     message = function_qualifier_name + " end"
     log.info(message)
 
+
+
+logfile_path = '/var/lib/zmirror/log.st'
+
 def __init__():
-  logfile_path = '/var/run/zmirror/log.st'
   os.makedirs(os.path.dirname(logfile_path), exist_ok = True)
   
   # Check if systemd is available
@@ -33,7 +36,7 @@ def __init__():
   level=logging.DEBUG,
   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
   handlers=[
-      logging.FileHandler(logfile_path + datetime.now().strftime("%d-%m-%Y_%H:%M:%S.%f") ),  # File handler
+      # logging.FileHandler(logfile_path + datetime.now().strftime("%d-%m-%Y_%H:%M:%S.%f") ),  # File handler
       logging.StreamHandler(sys.stdout)   # Stream handler for stdout
   ]
   )

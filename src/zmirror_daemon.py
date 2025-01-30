@@ -8,6 +8,7 @@ from zmirror_logging import log
 from zmirror_utils import *
 import zmirror_utils as core
 import queue
+from zmirror_actions import *
 
 
 
@@ -16,7 +17,10 @@ def handle(env):
   cache_dict = core.cache_dict
   cache = None
 
-  log.info("handling udev and zfs events by interpreting environment variables")
+  log.info("handling event")
+  log.info(json.dumps(env, indent=2))
+
+  event_handled = False
 
   now = datetime.now()
   if "ZEVENT_SUBCLASS" in env:
@@ -41,9 +45,11 @@ def handle(env):
         if zevent == "scrub_finish":
           log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing finished")
           cache.last_scrubbed = now
+          event_handled = True
         elif zevent == "scrub_start":
           log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing started")
           cache.operation.what = ZFS_Operation_State.SCRUBBING
+          event_handled = True
       if found == False:
         log.error("likely bug: scrub finished but no devices online")
     # TODO: add to docs that the admin must ensure that zpool import uses /dev/mapper (dm) and /dev/vg/lv (lvm) and /dev/disk/by-partlabel (partition)
@@ -62,12 +68,16 @@ def handle(env):
       cache = find_or_create_zfs_cache_by_vdev_path(cache_dict, zpool, vdev_path)
       if zevent == "vdev_online":
         log.info(f"zdev {cache.pool}:{cache.dev} went online")
+
         cache.state = Since(Entity_State.ONLINE, now)
+        event_handled = True
       elif zevent == "statechange":
         new_state = env["ZEVENT_VDEV_STATE_STR"]
         if new_state == "OFFLINE":
           log.info(f"zdev {cache.pool}:{cache.dev} went offline")
           cache.state = Since(Entity_State.DISCONNECTED, now)
+          cache.last_online = now
+          event_handled = True
         else:
           log.warning(f"(potential bug) unknown statechange event: { new_state }")
           cache.state = Since(Entity_State.UNKNOWN, now)
@@ -79,42 +89,72 @@ def handle(env):
       cache.operation = Since(ZFS_Operation_State.NONE, now)
       if zevent == "resilver_start":
         cache.operation = Since(ZFS_Operation_State.RESILVERING, now)
+        event_handled = True
       elif zevent == "resilver_finish":
         cache.operation = Since(ZFS_Operation_State.NONE, now)
         cache.last_resilvered = now
+        event_handled = True
 
   elif ("DEVTYPE" in env):
     action = env["ACTION"]
     devtype = env["DEVTYPE"]
     log.info(f"handling udev block event: {action}")
-    state = None
+  
+    if action == "add" or action == "remove":
+      if devtype == "disk":
+        if "ID_SERIAL" in env:
+          cache = find_or_create_cache(cache_dict, Disk, serial=env["ID_SERIAL"])
+          udev_event_action(cache, action, now)
+          log.info(f"{cache.__class__.__name__} {cache.serial}: {to_kd(cache.state)}")
+          event_handled = True
+
+        # lvm logical volumes
+        # these events also have DM_NAME
+        elif "DM_LV_NAME" in env:
+          cache = find_or_create_cache(cache_dict, LVM_Logical_Volume, vg=env["DM_VG_NAME"], name=env["DM_LV_NAME"])
+          udev_event_action(cache, action, now)
+          log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
+          event_handled = True
+        # dm_crypts
+        elif "DM_NAME" in env:
+          cache = find_or_create_cache(cache_dict, DM_Crypt, name=env["DM_NAME"])
+          udev_event_action(cache, action, now)
+          log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
+          event_handled = True
+
+        # virtual device
+        elif "DEVPATH" in env and env["DEVPATH"].startswith("/devices/virtual/block/"):
+          if "ID_FS_UUID" in env:
+            cache = find_or_create_cache(cache_dict, VirtualDisk, fs_uuid=env["ID_FS_UUID"])
+            udev_event_action(cache, action, now)
+            log.info(f"{cache.__class__.__name__} {cache.fs_uuid}: {to_kd(cache.state)}")
+            event_handled = True
+          else:
+            log.warn("need a filesystem uuid `to identify virtual blockdevices")
+
+      elif devtype == "partition":
+        cache = find_or_create_cache(cache_dict, Partition, name=env["PARTNAME"])
+        udev_event_action(cache, action, now)
+        log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
+    if not event_handled:
+      log.warning("event not handled by zmirror")
+
+
+
+
+
+def udev_event_action(entity, action, now):
     if action == "add":
-      state = Since(Entity_State.ONLINE, now)
+      handle_entity_online(entity, now)
+      
     elif action == "remove":
-      state = Since(Entity_State.DISCONNECTED, now)
-
-    if devtype == "disk":
-      if "ID_SERIAL" in env:
-        cache = find_or_create_cache(cache_dict, Disk, serial=env["ID_SERIAL"])
-        log.info(f"{cache.__class__.__name__} {cache.serial}: {to_kd(state)}")
-      elif "DM_NAME" in env:
-        cache = find_or_create_cache(cache_dict, DM_Crypt, name=env["DM_NAME"])
-        log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(state)}")
-    elif devtype == "partition":
-      cache = find_or_create_cache(cache_dict, Partition, name=env["PARTNAME"])
-      log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(state)}")
-    if cache != None and state != None:
-      cache.state = state
-
-
-  log.info("finished handling zmirror event.")
-
+      handle_entity_offline(entity, now)
 
 
 
 def handle_client(connection: socket.socket, client_address, event_queue: queue.Queue):
   try:
-    log.info(f"Connection from {client_address}")
+    log.info(f"handling client connection")
 
     data = bytearray(b'')
     while True:
@@ -124,7 +164,7 @@ def handle_client(connection: socket.socket, client_address, event_queue: queue.
       else:
         break
     message = data.decode('utf-8')
-    event = json.reads(message)
+    event = json.loads(message)
     event_queue.put(event)
   except Exception as ex:
     log.error("error while receiving data from zmirror-trigger: %s", ex)
@@ -161,12 +201,13 @@ def handle_event(event_queue: queue.Queue):
 # and by handling we mean for now, that they simply get logged
 # so this is just a description for the next milestone
 def daemon(args):
-  global cache_dict
 
-  cache_dict = load_yaml_cache(cache_file_path)
+  load_cache()
+  load_config()
+
 
   # Define the path for the Unix socket
-  socket_path = "/tmp/zmirror_service.socket"
+  socket_path = "/var/run/zmirror/zmirror_service.socket"
 
   # Make sure the socket does not already exist
   try:
@@ -209,7 +250,10 @@ def daemon(args):
     server.close()
     os.unlink(socket_path)
     log.info("Server gracefully shut down")
-    os.remove(socket_path)
+    try:
+      os.remove(socket_path)
+    except Exception as exception:
+      log.warn(exception)
 
 
 

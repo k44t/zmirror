@@ -19,6 +19,7 @@ from zmirror import *
 import os
 import json
 import inspect
+from datetime import datetime
 
 
 
@@ -32,6 +33,10 @@ partition_id = "Partition|partition-a"
 dm_id= "DM_Crypt|dm-alpha"
 disk_id = "Disk|0123456789abcdef"
 zpool_id = "ZPool|zpool-a"
+virtual_disk_id = "VirtualDisk|0123456789abcdef"
+zfs_volume_id = "ZFS_Volume|zpool-a/path/zfs-volume"
+logical_volume_id = "LVM_Logical_Volume|vg-alpha|lv-1"
+
 
 
 def open_local(file, mode):
@@ -169,6 +174,8 @@ class Test_Group1_TestMethods():
     
     assert(dev != None)
     assert(dev.state.what == Entity_State.DISCONNECTED)
+    assert(dev.last_online != None)
+    assert(dev.last_online < datetime.now())
 
   # disk verschwindet (udev: remove)
   def test_disk_remove(self):
@@ -178,6 +185,8 @@ class Test_Group1_TestMethods():
     
     assert(dev != None)
     assert(dev.state.what == Entity_State.DISCONNECTED)
+    assert(dev.last_online != None)
+    assert(dev.last_online < datetime.now())
 
   # # zmirror command: zpool offline vdev
   # vdev wird faulted (falls der zmirror command nich schneller ist)
@@ -194,8 +203,99 @@ class Test_Group1_TestMethods():
     
     assert(dev != None)
     assert(dev.state.what == Entity_State.DISCONNECTED)
+    assert(dev.last_online != None)
+    assert(dev.last_online < datetime.now())
+
+  # virtual disk taucht auf (udev: add)
+  def test_virtual_disk_add(self):
+    
+    zmirror_core.cache_dict = dict()
+    assert virtual_disk_id not in zmirror_core.cache_dict
+
+    trigger_event(inspect.currentframe().f_code.co_name)
+
+    assert virtual_disk_id in zmirror_core.cache_dict
+    
+    dev: VirtualDisk = zmirror_core.cache_dict[virtual_disk_id]
+    
+    
+    assert(dev != None)
+    assert(dev.state.what == Entity_State.ONLINE)
+
+  # virtual disk verschwindet (udev: remove)
+  def test_virtual_disk_remove(self):
+    
+    assert virtual_disk_id in zmirror_core.cache_dict
+
+    trigger_event(inspect.currentframe().f_code.co_name)
+
+    dev: VirtualDisk = zmirror_core.cache_dict[virtual_disk_id]
+    
+    assert(dev != None)
+    assert(dev.state.what == Entity_State.DISCONNECTED)
+    assert(dev.last_online != None)
+    assert(dev.last_online < datetime.now())
+
+  # logical volume taucht auf (udev: add)
+  def test_logical_volume_add(self):
+    
+    zmirror_core.cache_dict = dict()
+    assert logical_volume_id not in zmirror_core.cache_dict
+
+    trigger_event(inspect.currentframe().f_code.co_name)
+    
+    assert logical_volume_id in zmirror_core.cache_dict
+
+    dev: LVM_Logical_Volume = zmirror_core.cache_dict[logical_volume_id]
+    
+    
+    assert(dev != None)
+    assert(dev.state.what == Entity_State.ONLINE)
+
+  # logical volume verschwindet (udev: remove)
+  def test_logical_volume_remove(self):
+    
+    assert logical_volume_id in zmirror_core.cache_dict
+
+    trigger_event(inspect.currentframe().f_code.co_name)
+
+    dev: LVM_Logical_Volume = zmirror_core.cache_dict[logical_volume_id]
+    
+    assert(dev != None)
+    assert(dev.state.what == Entity_State.DISCONNECTED)
+    assert(dev.last_online != None)
+    assert(dev.last_online < datetime.now())
 
 
+  # zfs_volume taucht auf (udev: add)
+  def test_zfs_volume_add(self):
+    
+    zmirror_core.cache_dict = dict()
+    assert zfs_volume_id not in zmirror_core.cache_dict
+
+    trigger_event(inspect.currentframe().f_code.co_name)
+
+    assert zfs_volume_id in zmirror_core.cache_dict
+    
+    dev: ZFS_Volume = zmirror_core.cache_dict[zfs_volume_id]
+    
+    
+    assert(dev != None)
+    assert(dev.state.what == Entity_State.ONLINE)
+
+  # zfs_volume verschwindet (udev: remove)
+  def test_zfs_volume_remove(self):
+    
+    assert zfs_volume_id in zmirror_core.cache_dict
+
+    trigger_event(inspect.currentframe().f_code.co_name)
+
+    dev: ZFS_Volume = zmirror_core.cache_dict[zfs_volume_id]
+    
+    assert(dev != None)
+    assert(dev.state.what == Entity_State.DISCONNECTED)
+    assert(dev.last_online != None)
+    assert(dev.last_online < datetime.now())
     
     # process.kill()
 
