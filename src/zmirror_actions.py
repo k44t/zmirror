@@ -1,59 +1,68 @@
 from datetime import datetime
-import re
-import socket
-import os
-import threading
-import json
-from zmirror_logging import log
-from zmirror_utils import *
-import zmirror_utils as core
-import queue
+
+from zmirror_dataclasses import EntityState, Since
+from zmirror_utils import load_config_for_id, entity_id
+
 
 def get_config_actions(text):
   raise NotImplementedError
-
-def handle_offline(entity):
-  if hasattr(entity, "handle_offline"):
-    entity.handle_offline()
 
 def handle_scrubbed(entity):
   if hasattr(entity, "handle_scrubbed"):
     entity.handle_scrubbed()
 
 
-def handle_parent_online(child):
+def handle_parent_online(parent, child):
   if hasattr(child, "handle_parent_online"):
     child.handle_parent_online()
   else:
     if hasattr(child, "content"):
       for grand_child in child.content:
-        handle_parent_online(grand_child)
+        handle_parent_online(child, grand_child)
 
 
-def handle_parent_offline(child):
+def handle_parent_offline(parent, child):
   if hasattr(child, "handle_parent_offline"):
     child.handle_parent_offline()
   else:
     if hasattr(child, "content"):
       for grand_child in child.content:
-        handle_parent_offline(grand_child)
+        handle_parent_offline(child, grand_child)
 
 
+def handle_child_online(parent, child):
+  pass
+
+
+def handle_child_offline(parent, child):
+  pass
+
+# updates the entity cache info as it comes online
+# triggers child actions
+# triggers parrent actions
 def handle_entity_online(entity, now: datetime):
-  if entity.state.what != Entity_State.ONLINE:
-    entity.state = Since(Entity_State.ONLINE, now)
-    id = entity_id(entity)
-    config = load_config_for_id(id)
-    if config != None:
+  if entity.state.what != EntityState.ONLINE:
+    entity.state = Since(EntityState.ONLINE, now)
+    identifier = entity_id(entity)
+    config = load_config_for_id(identifier)
+    if config is not None:
       for child in config.content:
-        handle_parent_online(child)
+        handle_parent_online(config, child)
+      if hasattr(config, "parent") and config.parent is not None:
+        handle_child_online(config.parent, config)
 
+# updates the entity cache info as it goes offline
+# triggers child actions
+# triggers parent actions
 def handle_entity_offline(entity, now: datetime):
-  if entity.state.what != Entity_State.DISCONNECTED:
-    entity.state = Since(Entity_State.DISCONNECTED, now)
+  if entity.state.what != EntityState.DISCONNECTED:
+    entity.state = Since(EntityState.DISCONNECTED, now)
     entity.last_online = now
-    id = entity_id(entity)
-    config = load_config_for_id(id)
-    if config != None:
+    identifier = entity_id(entity)
+    config = load_config_for_id(identifier)
+    if config is not None:
       for child in config.content:
-        handle_parent_offline(child)
+        handle_parent_offline(config, child)
+      if hasattr(config, "parent") and config.parent is not None:
+        handle_child_offline(config.parent, config)
+

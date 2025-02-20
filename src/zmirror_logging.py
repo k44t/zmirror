@@ -2,34 +2,35 @@
 import logging
 import logging.handlers
 import os
-from datetime import datetime
 import sys
+import inspect
 
-def Log_func_start():
-    frame = sys._getframe().f_back
-    function_qualifier_name = frame.f_code.co_qualname
-    message = function_qualifier_name + " start"
-    log.info(message)
+# Check if systemd is available
+try:
+  from systemd.journal import JournalHandler
+  USE_JOURNAL = True
+except ImportError:
+  USE_JOURNAL = False
 
-def Log_func_end():
-    frame = sys._getframe().f_back
-    function_qualifier_name = frame.f_code.co_qualname
-    message = function_qualifier_name + " end"
-    log.info(message)
+def log_func_start():
+  frame = inspect.currentframe().f_back
+  function_qualifier_name = frame.f_code.co_qualname
+  message = function_qualifier_name + " start"
+  log.info(message)
+
+def log_func_end():
+  frame = inspect.currentframe().f_back
+  function_qualifier_name = frame.f_code.co_qualname
+  message = function_qualifier_name + " end"
+  log.info(message)
 
 
 
-logfile_path = '/var/lib/zmirror/log.st'
+LOGFILE_PATH = '/var/lib/zmirror/log.st'
 
 def __init__():
-  os.makedirs(os.path.dirname(logfile_path), exist_ok = True)
-  
-  # Check if systemd is available
-  try:
-    from systemd.journal import JournalHandler
-    use_journal = True
-  except ImportError:
-    use_journal = False
+  os.makedirs(os.path.dirname(LOGFILE_PATH), exist_ok = True)
+
 
   # Configure the root logger
   logging.basicConfig(
@@ -41,19 +42,19 @@ def __init__():
   ]
   )
 
-  log = logging.getLogger("zmirror")
+  logger = logging.getLogger("zmirror")
 
   # Add systemd journal handler if available
-  if use_journal:
+  if USE_JOURNAL:
     journal_handler = JournalHandler()
     journal_handler.setLevel(logging.INFO)
     logging.getLogger().addHandler(journal_handler)
   else:
-    logging.getLogger().addHandler(logging.handlers.RotatingFileHandler(logfile_path, maxBytes=65535))
-    log.warning("systemd log not available")
-  return log
+    logging.getLogger().addHandler(logging.handlers.RotatingFileHandler(LOGFILE_PATH, maxBytes=65535))
+    logger.warning("systemd log not available")
+  return logger
 
 
 log = __init__()
-log.func_start = Log_func_start
-log.func_end = Log_func_end
+log.func_start = log_func_start
+log.func_end = log_func_end

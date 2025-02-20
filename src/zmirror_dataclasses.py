@@ -1,15 +1,17 @@
-from ki_utils import *
-from zmirror_actions import *
-import zmirror_utils as core
 
+
+from datetime import datetime
+from ki_utils import yaml_data, yaml_enum, KiEnum, KdStream
+import zmirror_commands
+from zmirror_logging import log
 
 @yaml_data
 class When:
   what: object
   since: datetime
 
-  def __to_kd__(self, kd_stream: Kd_Stream): 
-    if self.since != None:
+  def __to_kd__(self, kd_stream: KdStream): 
+    if self.since is not None:
       kd_stream.stream.print_raw(self.__class__.__name__)
       kd_stream.stream.print_raw(" ")
       kd_stream.print_obj(self.since)
@@ -21,7 +23,7 @@ class Since(When):
   pass
 
 @yaml_enum
-class Entity_State(Ki_Enum):
+class EntityState(KiEnum):
   UNKNOWN = 0
   DISCONNECTED = 1
   ONLINE = 2
@@ -34,7 +36,7 @@ class ZMirror:
 @yaml_data
 class Partition:
   name: str
-  state = Since(Entity_State.UNKNOWN, None)
+  state = Since(EntityState.UNKNOWN, None)
   parent: object = None
   last_online: datetime = None
   content = []
@@ -42,20 +44,20 @@ class Partition:
 
   def id(self):
     return self.name
-  
+
   def handle_parent_online(self):
     raise NotImplementedError
 
 @yaml_data
 class Disk:
-  
+
   serial: str
-  
-  state = Since(Entity_State.UNKNOWN, None)
+
+  state = Since(EntityState.UNKNOWN, None)
   last_online: datetime = None
-  
+
   content = []
-  on_offline = None
+  on_offline: str = None
   description = str
 
 
@@ -65,16 +67,16 @@ class Disk:
 
 @yaml_data
 class VirtualDisk:
-  
+
   fs_uuid: str
   devpath: str
-  
+
   parent: object = None
-  state = Since(Entity_State.UNKNOWN, None)
+  state = Since(EntityState.UNKNOWN, None)
   last_online: datetime = None
-  
+
   content = []
-  on_offline = None
+  on_offline: str = None
   description = str
 
   def id(self):
@@ -89,8 +91,8 @@ class VirtualDisk:
 class ZPool:
   name: str
 
-  state = Since(Entity_State.UNKNOWN, None)
-  last_online: datetime
+  state = Since(EntityState.UNKNOWN, None)
+  last_online: datetime = None
 
   on_offline: str = None
   content = []
@@ -100,19 +102,19 @@ class ZPool:
     return self.name
 
   def take_offline(self):
-    core.run_command(f"zpool export {self.name}")
+    zmirror_commands.execute_command(f"zpool export {self.name}")
 
   def take_online(self):
-    core.run_command(f"zpool import {self.name}")
+    zmirror_commands.execute_command(f"zpool import {self.name}")
 
 
 
 @yaml_data
-class ZFS_Volume:
+class ZFSVolume:
   name: str
   parent: object = None
-  state = Since(Entity_State.UNKNOWN, None)
-  last_online: datetime
+  state = Since(EntityState.UNKNOWN, None)
+  last_online: datetime = None
   on_offline: str = None
   content = []
   description = str
@@ -125,10 +127,45 @@ class ZFS_Volume:
 
 
 
+
+commands = []
+
+def add_command(command):
+  commands.append(command)
+
+
+def execute_commands():
+  seen = set()                                                    
+  cmds = [x for x in commands if not (x in seen or seen.add(x))]
+
+  for cmd in cmds:
+    execute_command(cmd)
+
+def execute_command(command):
+  apply_commands = False
+  if apply_commands:
+    log.info(f"executing command: {command}")
+    returncode, formatted_output, _, _ = exec(command)#pylint: disable=exec-used
+    if returncode != 0:
+      currently_scrubbing = False
+      for line in formatted_output:
+        if "currently scrubbing" in line:
+          info_message = line
+          log.info(info_message)
+          currently_scrubbing = True
+      if not currently_scrubbing:
+        error_message = f"something went wrong while executing command {command}, terminating script now"
+        log.error(error_message)
+        exit(error_message)
+    log.info(formatted_output)
+  else:
+    warning_message = f"applying command '{command}' is currently turned off!"
+    log.warning(warning_message)
+
 @yaml_data
-class LVM_Volume_Group:
+class LVMVolumeGroup:
   name: str
-  
+
   on_offline: str = None
   content = []
   description = str
@@ -136,14 +173,14 @@ class LVM_Volume_Group:
 
 
 @yaml_data
-class LVM_Logical_Volume:
+class LVMLogicalVolume:
   name: str
   vg: str = None
   parent: object = None
-  
-  state = Since(Entity_State.UNKNOWN, None)
+
+  state = Since(EntityState.UNKNOWN, None)
   last_online: datetime = None
-  
+
   on_offline: str = None
   content = []
   description = str
@@ -152,29 +189,29 @@ class LVM_Logical_Volume:
     return f"{self.parent.name}|{self.name}"
 
   def take_offline(self):
-    core.run_command(f"lvchange --activate n {self.parent.name}/{self.vg}")
+    zmirror_commands.execute_command(f"lvchange --activate n {self.parent.name}/{self.vg}")
 
   def take_online(self):
-    core.run_command(f"lvchange --activate y {self.parent.name}/{self.vg}")
+    zmirror_commands.execute_command(f"lvchange --activate y {self.parent.name}/{self.vg}")
 
 
 @yaml_data
-class LVM_Physical_Volume:
+class LVMPhysicalVolume:
   lvm_volume_group: str
   parent: object = None
 
   on_offline: str = None
   description = str
-  
+
 
 
 
 @yaml_data
-class DM_Crypt:
+class DMCrypt:
   name: str
-  parent: object = None
   key_file: str
-  state = Since(Entity_State.UNKNOWN, None)
+  parent: object = None
+  state = Since(EntityState.UNKNOWN, None)
   last_online: datetime = None
   content = []
   on_offline: str = None
@@ -187,17 +224,14 @@ class DM_Crypt:
     return f"/dev/mapper/{self.name}"
 
   def take_offline(self):
-    core.run_command(f"cryptsetup close {self.name}")
-    
-  def take_online(self):
-    core.run_command(f"cryptsetup open {self.parent.get_devpath()} {self.name} --key-file {self.key_file}")
-    
-  
+    zmirror_commands.execute_command(f"cryptsetup close {self.name}")
 
+  def take_online(self):
+    zmirror_commands.execute_command(f"cryptsetup open {self.parent.get_devpath()} {self.name} --key-file {self.key_file}")
 
 
 @yaml_enum
-class ZFS_Operation_State(Ki_Enum):
+class ZFSOperationState(KiEnum):
   UNKNOWN = 0
   NONE = 1
   SCRUBBING = 2
@@ -205,12 +239,12 @@ class ZFS_Operation_State(Ki_Enum):
 
 
 @yaml_data
-class ZFS_Blockdev_Cache:
+class ZFSBlockdevCache:
   pool: str
   dev: str
 
-  state = Since(Entity_State.UNKNOWN, None)
-  operation = Since(ZFS_Operation_State.UNKNOWN, None)
+  state = Since(EntityState.UNKNOWN, None)
+  operation = Since(ZFSOperationState.UNKNOWN, None)
   last_online: datetime = None
   last_resilvered: datetime = None
   last_scrubbed: datetime = None
@@ -220,16 +254,16 @@ class ZFS_Blockdev_Cache:
     return f"{self.pool}|{self.dev}"
 
 @yaml_data
-class ZFS_Blockdev:
+class ZFSBlockdev:
   pool: str
   dev: str
   parent: object = None
 
   on_scrubbed: str = None
   on_resilvered: str = None
-  on_offline: str
+  on_offline: str = None
   scrub_interval: str = None
-  
+
   def id(self):
     return f"{self.pool}|{self.dev}"
 
@@ -241,19 +275,19 @@ class ZFS_Blockdev:
   def handle_offline(self):
     action = self.on_offline
     if action == "offline-parent":
-      if self.parent != None and hasattr(self.parent, "take_offline"):
+      if self.parent is not None and hasattr(self.parent, "take_offline"):
         self.parent.take_offline()
-  
+
   def take_offline(self):
-    core.run_command(f"zpool offline {self.pool} {self.dev}")
-    
+    zmirror_commands.execute_command(f"zpool offline {self.pool} {self.dev}")
+
   def take_online(self):
-    core.run_command(f"zpool online {self.pool} {self.dev}")
+    zmirror_commands.execute_command(f"zpool online {self.pool} {self.dev}")
 
 
 
 
 @yaml_data
-class ZFS_Blockdev_Output(ZFS_Blockdev, ZFS_Blockdev_Cache):
-  def __to_kd__(self, kd_stream: Kd_Stream):
+class ZFSBlockdevOutput(ZFSBlockdev, ZFSBlockdevCache):
+  def __to_kd__(self, kd_stream: KdStream):
     kd_stream.print_partial_obj(self, ["pool", "dev", "state", "operation", "last_resilvered", "last_scrubbed"])

@@ -1,0 +1,4 @@
+{
+  //"pylint.args": ["--rc-file=.pylintrc"],
+  "python.analysis.extraPaths": ["./src"]
+}

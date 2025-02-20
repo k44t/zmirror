@@ -2,27 +2,19 @@
 
 
 
-import os, os.path
-import re
-from datetime import datetime
-import os
+import traceback
+import sys
 import argparse
 import dateparser
-import traceback
-from dataclasses import dataclass
 from zmirror_logging import log
-from ki_utils import *
-from zmirror_dataclasses import *
-from pyutils import *
-from zmirror_utils import *
+from zmirror_dataclasses import ZFSBlockdev, ZFSBlockdevCache, ZFSOperationState, ZFSBlockdevOutput
+from pyutils import myexec, outs, copy_attrs
+from zmirror_utils import load_yaml_cache, load_yaml_config, find_or_create_cache, iterate_content_tree, remove_cache
 import zmirror_utils
-from zmirror_daemon import *
+import zmirror_commands as commands
+from zmirror_daemon import daemon
+from ki_utils import KdStream
 
-from zmirror_logging import log
-
-
-
-command_list = []
 
 
 
@@ -80,57 +72,60 @@ command_list = []
 # we are overriding python's internal exec, which would execute python code dynamically, because we don't need nor like it
 
 pyexec = exec
-exec = myexec
+exec = myexec#pylint: disable=redefined-builtin
 
 
 # zmirror scrub
-def scrub(args):
-  global cache_dict
-  cache_dict = load_yaml_cache()
+def scrub(args):#pylint: disable=unused-argument
+  cache_dictionary = load_yaml_cache(zmirror_utils.CACHE_FILE_PATH)
   log.info("starting zfs scrubs if necessary")
   def possibly_scrub(dev):
-    if isinstance(dev, ZFS_Blockdev):
-      cache = find_or_create_cache(cache_dict, ZFS_Blockdev_Cache, pool=dev.pool, dev=dev.dev)
-      if dev.scrub_interval != None:
+    if isinstance(dev, ZFSBlockdev):
+      cache = find_or_create_cache(cache_dictionary, ZFSBlockdevCache, pool=dev.pool, dev=dev.dev)
+      if dev.scrub_interval is not None:
         # parsing the schedule delta will result in a timestamp calculated from now
         allowed_delta = dateparser.parse(dev.scrub_interval)
-        if (cache.last_scrubbed == None or allowed_delta > cache.last_scrubbed):
+        if (cache.last_scrubbed is None or allowed_delta > cache.last_scrubbed):
           log.info(f"zfs pool '{dev.pool}' dev '{dev.dev}' must be scrubbed")
-          if cache.operation != None and cache.operation.state == ZFS_Operation_State.NONE:
-            commands.append(f"zpool scrub {dev.pool}")
+          if cache.operation is not None and cache.operation.state == ZFSOperationState.NONE:
+            commands.add_command(f"zpool scrub {dev.pool}")
         else:
           log.info(f"zfs pool '{dev.pool}' dev '{dev.dev}' does not have to be scrubbed")
-  zmirror = load_yaml_config(config_file_path=config_file_path)
+  zmirror = load_yaml_config(config_file_path=zmirror_utils.CONFIG_FILE_PATH)
   iterate_content_tree(zmirror, possibly_scrub)
-  execute_commands()
+  commands.execute_commands()
 
 
 
 
 
 
-def clear_cache(args):
-  remove_cache(cache_file_path)
+def clear_cache(args):#pylint: disable=unused-argument
+  remove_cache()
 
 
 
 
-def show_status(args):
-  global cache_dict
-  cache_dict = load_yaml_cache(cache_file_path)
-  stream = Kd_Stream(outs)
+def show_status(args):#pylint: disable=unused-argument
+  cache_dict = load_yaml_cache(zmirror_utils.CACHE_FILE_PATH)
+  stream = KdStream(outs)
   # log.info("starting zfs scrubs if necessary")
   def possibly_scrub(dev):
-    if isinstance(dev, ZFS_Blockdev):
-      cache = find_or_create_cache(cache_dict, ZFS_Blockdev_Cache, pool=dev.pool, dev=dev.dev)
-      out = ZFS_Blockdev_Output(pool=dev.pool, dev=dev.dev)
+    if isinstance(dev, ZFSBlockdev):
+      cache = find_or_create_cache(cache_dict, ZFSBlockdevCache, pool=dev.pool, dev=dev.dev)
+      out = ZFSBlockdevOutput(pool=dev.pool, dev=dev.dev)
       copy_attrs(cache, out)
       copy_attrs(dev, out)
       stream.print_obj(out)
       stream.stream.newlines(3)
-  zmirror = load_yaml_config(config_file_path=config_file_path)
+  zmirror = load_yaml_config(config_file_path=zmirror_utils.CONFIG_FILE_PATH)
   iterate_content_tree(zmirror, possibly_scrub)
 
+
+def testufcntionr():
+  test = 1
+  print(test)
+  print("hello")
 
 
 def run_command(args):
@@ -175,8 +170,8 @@ def run_command(args):
 
   args = parser.parse_args()
 
-  zmirror_utils.cache_file_path = args.state_dir + "/cache.yml"
-  zmirror_utils.config_file_path = args.config_file
+  zmirror_utils.CACHE_FILE_PATH = args.state_dir + "/cache.yml"
+  zmirror_utils.CONFIG_FILE_PATH = args.config_file
 
   try:
     args.func(args)

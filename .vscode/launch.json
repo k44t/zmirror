@@ -6,24 +6,24 @@
   "configurations": [
 
   
-    {
-      "name": "Python Debugger: zmirror.py test",
-      "env": {
-          "PYTHONPATH": "${workspaceFolder}/src"
-      },
-      "type": "debugpy",
-      "request": "launch",
-      "program": "test/status/zfs/group1/test_group1.py",
-      "console": "integratedTerminal",
-      "args": [""]
+  {
+    "name": "Python Debugger: zmirror.py test",
+    "env": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+    },
+    "type": "debugpy",
+    "request": "launch",
+    "program": "test/status/zfs/group1/test_group1.py",
+    "console": "integratedTerminal",
+    "args": [""]
   },
   {
     "name": "Python Debugger: zmirror_daemon.py daemon",
     "type": "debugpy",
     "request": "launch",
-    "program": "src/zmirror_daemon.py",
+    "program": "src/zmirror.py",
     "console": "integratedTerminal",
     "args": ["daemon"]
-},
+  },
   ]
 }

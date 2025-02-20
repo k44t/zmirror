@@ -4,7 +4,7 @@ content:
         name: partition-a
         description: this is partition a
         content:
-          - !ZFS_Blockdev
+          - !ZFSBlockdev
               pool: zpool-a
               dev: pooldev-a
               description: this is zpool a
