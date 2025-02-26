@@ -110,7 +110,7 @@ def show_status(args):#pylint: disable=unused-argument
   cache_dict = load_yaml_cache(zmirror_utils.CACHE_FILE_PATH)
   stream = KdStream(outs)
   # log.info("starting zfs scrubs if necessary")
-  def possibly_scrub(dev):
+  def show(dev):
     if isinstance(dev, ZFSBlockdev):
       cache = find_or_create_cache(cache_dict, ZFSBlockdevCache, pool=dev.pool, dev=dev.dev)
       out = ZFSBlockdevOutput(pool=dev.pool, dev=dev.dev)
@@ -119,7 +119,7 @@ def show_status(args):#pylint: disable=unused-argument
       stream.print_obj(out)
       stream.stream.newlines(3)
   zmirror = load_yaml_config(config_file_path=zmirror_utils.CONFIG_FILE_PATH)
-  iterate_content_tree(zmirror, possibly_scrub)
+  iterate_content_tree(zmirror, show)
 
 
 def testufcntionr():

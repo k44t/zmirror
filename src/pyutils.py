@@ -133,6 +133,11 @@ def myexec(command):
         formatted_output.append(line)
   except Exception:
     pass
+  if process.returncode != 0:
+    try:
+      raise BaseException()
+    except BaseException:
+      log.exception(f"Command `{command}` failed with return code {process.returncode}.")
   return process.returncode, formatted_output, formatted_response, formatted_error
 
 

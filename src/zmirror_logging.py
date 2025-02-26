@@ -4,6 +4,8 @@ import logging.handlers
 import os
 import sys
 import inspect
+import traceback
+import re
 
 # Check if systemd is available
 try:
@@ -35,7 +37,7 @@ def __init__():
   # Configure the root logger
   logging.basicConfig(
   level=logging.DEBUG,
-  format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+  format='%(asctime)s %(name)s.%(levelname)s: %(message)s',
   handlers=[
       # logging.FileHandler(logfile_path + datetime.now().strftime("%d-%m-%Y_%H:%M:%S.%f") ),  # File handler
       logging.StreamHandler(sys.stdout)   # Stream handler for stdout
@@ -43,6 +45,64 @@ def __init__():
   )
 
   logger = logging.getLogger("zmirror")
+
+  logger.original_error = logger.error
+  logger.original_info = logger.info
+  logger.original_debug = logger.debug
+  logger.original_warning = logger.warning
+  logger.original_critical = logger.critical
+  def customized_logger(level, message, *args, **kwargs):
+    message = str(message)
+    printCallstack = True
+    if printCallstack:
+      callstack = ""
+      raw_tb = traceback.extract_stack()
+      entries = traceback.format_list(raw_tb)
+      for line in entries:
+          if ".vscode-server" in line or "/nix/store/" in line or "Apoeschllogging.py" in line\
+            or "zmirror_logging.py" in line:
+              continue
+          else:
+              regexp_pattern = r'line (.*?),'
+              line_number = re.search(regexp_pattern, line).group(1)
+              #line_number = clicolors.DEBUG + line_number + clicolors.OKBLUE
+              regexp_pattern = r'File "(.*?)"'
+              file = re.search(regexp_pattern, line).group(1)
+              regexp_pattern = r'in (.*?)\n'
+              function = re.search(regexp_pattern, line).group(1)
+              if function == "<module>":
+                  callstack = callstack + file + ":" + line_number + ":" + function
+              else:
+                  callstack = callstack + "->" + file + ":" + line_number + ":" + function
+      modified_message = message + '\033[90m' + "     <<<<<<<<< " + callstack + '\033[0m'
+    else:
+      modified_message = message
+    if level == logging.ERROR:
+        log.original_error(modified_message)
+    elif level == logging.INFO:
+        log.original_info(modified_message)
+    elif level == logging.DEBUG:
+        log.original_debug(modified_message)
+    elif level == logging.WARNING:
+        log.original_warning(modified_message)
+    elif level == logging.CRITICAL:
+        log.original_critical(modified_message)
+  def customized_error(message, *args, **kwargs):
+    customized_logger(logging.ERROR, message, *args, **kwargs)
+  def customized_info(message, *args, **kwargs):
+    customized_logger(logging.INFO, message, *args, **kwargs)
+  def customized_debug(message, *args, **kwargs):
+    customized_logger(logging.DEBUG, message, *args, **kwargs)
+  def customized_warning(message, *args, **kwargs):
+    customized_logger(logging.WARNING, message, *args, **kwargs)
+  def customized_critical(message, *args, **kwargs):
+    customized_logger(logging.CRITICAL, message, *args, **kwargs)
+
+  logger.error = customized_error
+  logger.info = customized_info
+  logger.debug = customized_debug
+  logger.warning = customized_warning
+  logger.critical = customized_critical
 
   # Add systemd journal handler if available
   if USE_JOURNAL:

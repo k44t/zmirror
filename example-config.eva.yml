@@ -1,0 +1,285 @@
+--- !ZMirror
+
+
+# enable logging of the environment variables for all relevant events
+log_env: yes
+
+
+# application state:
+# /var/lib/zmirror/cache.st
+# finished scrub & active devices
+
+
+
+# zmirror trigger
+
+# zmirror scrub: starts all scrubs that are pending for which the devices are connected
+#   
+
+# zmirror status:
+# eva-a-main @Dm-Crypt
+#
+#   #disconnected|online
+#
+#   eva/eva-a-main @ZFSBlockdev
+#
+#     #disconnected | present-but-offline | online
+#
+#     operation
+#      
+#      # start time
+#      resilvering: 2024-12-12'18:45:12
+# 
+#      # start time
+#      scrubbing: 2024-12-12'18:54:34
+#      
+#     # finish time
+#     last resilvered: 2025-12-12'14:48:41 | unknown
+#     last scrubbed: 2021-12-12'14:58:14 | unknown
+#
+#     scrub: pending | overdue
+#      since: 2021-12-12
+
+
+
+# todo
+# implement on_scrubbed and on_resilvered (i.e. interpret what is configured)
+# implement on_child_offline where it is relevant
+# implement on_volume_group_offline for physical volumes (and call it when group offline event comes)
+# implement on_zpool_export for physical volumes (and call it when zpool export event comes)
+# implement all that was forgotten
+
+
+content:
+
+  # partitions are considered top-level in this configuration. 
+  # we could implement disks and below partitions, but since both disks and partitions cannot be taken offline (only their containers can if that is the case)
+  # we don't need to implement this
+  - !Partition
+
+    # partition names for zmirror must be unique
+    name: eva-a-main
+
+    # a partition is offline once its content is offline
+    # on_child_offline()
+    #   set_state(present)
+    # on_child_online()
+    #   set_state(online)
+    # on_children_offline: automatically --> present
+    
+    # when partition goes offline (present or disconnected)
+    # if parent
+    #   parent.on_child_offline(child)
+    
+    content:
+      - !DMCrypt
+
+        # name of dm-crypt
+        name: eva-a-main
+        
+        key-file: /dev/disk/by-partlabel/eva-key
+
+        on_children_offline: offline
+
+        content:
+          # the zfs blockdev inside the partition
+          - !ZFSBlockdev
+            # name for the zfs pool
+            pool: eva
+          
+            # the name of the zfs blockdev
+            dev: eva-a-main
+          
+            # what to do when a scrub finishes
+            on_scrubbed: offline
+            # or just offline
+
+            scrub_interval: 3 weeks
+
+            # what to do when a resilver finishes
+            on_resilvered: scrub
+
+
+  - !Partition
+
+    # partition names used by zmirror must be unique
+    name: eva-b-main
+
+    
+    content:
+      - !DMCrypt
+
+        # name of dm-crypt
+        name: eva-b-main
+        
+        key-file: /dev/disk/by-partlabel/eva-key
+
+        on_children_offline: offline
+
+        content:
+          # the zfs blockdev inside the partition
+          - !ZFSBlockdev
+            # name for the zfs pool
+            pool: eva
+          
+            # the name of the zfs blockdev
+            dev: eva-b-main
+          
+            # what to do when a scrub finishes
+            on_scrubbed: offline
+            # or just offline
+
+            # what to do when a resilver finishes
+            on_resilvered: scrub
+
+            scrub_interval: 1 week
+
+      
+  - !Partition
+    name: bak-gamma
+    key-file: /dev/disk/by-partlabel/eva-key
+
+    content:
+      - !LVMPhysicalVolume
+        
+        # pvdisplay
+        pv_uuid: XXXXX
+        lvm_volume_group: vg-eva-bak-gamma
+
+
+        # when the group goes offline, then the volume is considered (virtually) offline!
+        # this is the n-to-1 relation
+        # 
+        #
+        # call on_group_offline() --> parent.on_child_offline()
+
+
+  # if the volume group goes offline, then each physical device must get its own virtual offline event
+  - !LVMVolumeGroup
+    name: vg-eva-bak-gamma
+
+    on_children_offline: offline
+
+    content:
+      - !LVMLogicalVolume
+        name: lv-eva-bak-gamma
+
+        on_children_offline: offline
+        content:
+          - !ZFSBlockdev
+            pool: eva
+            dev: vg-eva-bak-gamma/lv-eva-bak-gamma
+
+            on_scrubbed: offline
+            
+            # what to do when a resilver finishes
+            on_resilvered: scrub
+          
+
+      - !LVMLogicalVolume
+        name: lv-big-bak-gamma
+        on_children_offline: offline
+        content: 
+          - !ZFSBlockdev
+            pool: big
+            dev: vg-eva-bak-gamma/lv-big-gamma
+
+            on_scrubbed: offline
+            
+            # what to do when a resilver finishes
+            on_resilvered: scrub
+
+
+
+  # bak-delta
+  - !Disk
+    serial: TOSHIBA_MG09ACA18TE_71L0A33JFQDH
+
+    content:
+      - !DMCrypt
+        name: bak-delta
+        key-file: /dev/disk/by-partlabel/eva-key
+
+        content: 
+          # zfs blockdev inside the partition
+          - !ZFSBlockdev
+            # name for the zfs pool
+            pool: bak-delta
+          
+            # the name of the zfs blockdev
+            dev: bak-delta
+          
+            # or just offline
+            on_scrubbed: offline-parent
+
+            scrub-interval: 3 weeks
+
+  # a zpool cannot be taken offline, once all of its backing blockdevs have disappeared (reboot manually)
+  - !ZPool 
+    name: eva
+
+
+
+
+  # once a zpool is being exported, we must generate a "virtual event", because now all backing blockdevs are considered to be offline (so their parent's on_child_offline method must be called)
+  - !ZPool
+    name: bak-delta
+
+    # zfs: bak-delta
+
+
+    content:
+      
+      - !ZFSVolume
+        name: backups
+        on_offline: snapshot | offline-parent
+        content:
+          # it is important that all physical volumes are configured
+          - !LVMPhysicalVolume
+            # pvdisplay
+            pv_uuid: YYYY
+            lvm_volume_group: vg-bak-delta
+    
+
+  - !LVMVolumeGroup
+    name: vg-bak-delta
+
+    # this is the action, that was configured
+    on_children_offline: offline
+
+
+
+    
+    content:
+      - !LVMLogicalVolume 
+        name: eva
+
+        on_children_offline: offline
+
+        content:
+          - !ZFSBlockdev
+            pool: eva
+            dev: vg-bak-delta/eva
+
+            on_scrubbed: offline
+            
+            # what to do when a resilver finishes
+            on_resilvered: scrub
+          
+
+      - !LVMLogicalVolume 
+        name: big
+
+        on_children_offline: offline
+
+        content: 
+          - !ZFSBlockdev
+            pool: big
+            dev: vg-bak-delta/big
+
+            on_scrubbed: offline
+            
+            # what to do when a resilver finishes
+            on_resilvered: scrub
+
+

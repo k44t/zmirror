@@ -7,12 +7,14 @@ import os
 import threading
 import json
 from zmirror_logging import log
-from zmirror_utils import load_cache, save_cache, load_config, find_or_create_zfs_cache_by_vdev_path
+from zmirror_utils import load_cache, save_cache, load_config, find_or_create_zfs_cache_by_vdev_path,  load_config_for_cache
 import zmirror_utils as core
 from zmirror_actions import handle_entity_online, handle_entity_offline
 from pyutils import find_or_create_cache
-from zmirror_dataclasses import ZFSBlockdevCache, ZFSOperationState, EntityState, Disk, LVMLogicalVolume, DMCrypt, VirtualDisk, Partition, Since
+from zmirror_dataclasses import ZFSBlockdevCache, ZFSOperationState, EntityState, Disk, LVMLogicalVolume, DMCrypt, VirtualDisk, Partition, Since, set_entity_state
 from ki_utils import to_kd
+
+import zmirror_globals as globals
 
 
 
@@ -32,8 +34,18 @@ def handle(env):
     log.info(f"handling zfs event: {zevent}")
     zpool = env["ZEVENT_POOL"]
 
+
+    if zevent == "pool_export":
+
+      log.info(f"zpool {cache.pool} exported")
+      if zpool in globals.zfs_blockdevs:
+        for dev in globals.zfs_blockdevs[zpool]:
+          cache = find_or_create_cache(cache_dictionary, ZFSBlockdevCache, pool=zpool, dev=dev)
+          handle_entity_offline(cache, now)
+        event_handled = True
+
     # zpool event
-    if zevent in ["scrub_finish", "scrub_start"]:
+    elif zevent in ["scrub_finish", "scrub_start", "pool_export"]:
       log.info(f"zpool {zpool}: {zevent}")
       zpool_status = core.get_zpool_status(zpool)
 
@@ -50,13 +62,24 @@ def handle(env):
         if zevent == "scrub_finish":
           log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing finished")
           cache.last_scrubbed = now
+
+
+          config = load_config_for_cache(cache)
+          if hasattr(config, "handle_scrubbed"):
+            config.handle_scrubbed()
+
           event_handled = True
         elif zevent == "scrub_start":
           log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing started")
           cache.operation.what = ZFSOperationState.SCRUBBING
           event_handled = True
+        # TODO: figure out what the event is actually called (it's just a guess that its called cancel)
+        elif zevent == "scrub_cancel":
+          log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing cancelled")
+          cache.operation.what = ZFSOperationState.NONE
+          event_handled = True
       if found is False:
-        log.error("likely bug: scrub finished but no devices online")
+        log.error("likely bug: zpool event but no devices online")
     # TODO: add to docs that the admin must ensure that zpool import
     # uses /dev/mapper (dm) and /dev/vg/lv (lvm) and /dev/disk/by-partlabel (partition)
       # zpool import -d /dev/mapper -d /dev/vg/lv -d /dev/disk/by-partlabel
@@ -74,19 +97,17 @@ def handle(env):
       cache = find_or_create_zfs_cache_by_vdev_path(cache_dictionary, zpool, vdev_path)
       if zevent == "vdev_online":
         log.info(f"zdev {cache.pool}:{cache.dev} went online")
-
-        cache.state = Since(EntityState.ONLINE, now)
+        handle_entity_online(cache, now)
         event_handled = True
       elif zevent == "statechange":
         new_state = env["ZEVENT_VDEV_STATE_STR"]
         if new_state == "OFFLINE":
           log.info(f"zdev {cache.pool}:{cache.dev} went offline")
-          cache.state = Since(EntityState.DISCONNECTED, now)
-          cache.last_online = now
+          handle_entity_offline(cache, now)
           event_handled = True
         else:
           log.warning(f"(potential bug) unknown statechange event: { new_state }")
-          cache.state = Since(EntityState.UNKNOWN, now)
+          set_entity_state(cache, EntityState.UNKNOWN)
 
     # zool-vdev event
     elif zevent in ["resilver_start", "resilver_finish"]:
@@ -99,6 +120,11 @@ def handle(env):
       elif zevent == "resilver_finish":
         cache.operation = Since(ZFSOperationState.NONE, now)
         cache.last_resilvered = now
+
+        config = load_config_for_cache(cache)
+        if hasattr(config, "handle_resilvered"):
+          config.handle_resilvered()
+
         event_handled = True
 
   elif "DEVTYPE" in env:
@@ -195,7 +221,7 @@ def handle_event(event_queue: queue.Queue):
 
 # starts a daemon, or rather a service, or maybe it should be called simply a server,
 # a listening loop that listens to whatever is being sent on a
-# unix socket: /var/run/zmirror/zmirror.socket, to which 
+# unix socket: /var/run/zmirror/zmirror.socket, to which
 # zmirror-udev and zmirror-zed send their event streams.
 # these scripts connect to it, send a set of environment variables and then disconnect.
 # this service then reads those environment variables

@@ -7,7 +7,7 @@
 
   
   {
-    "name": "Python Debugger: zmirror.py test",
+    "name": "zmirror tests",
     "env": {
         "PYTHONPATH": "${workspaceFolder}/src"
     },
@@ -18,7 +18,15 @@
     "args": [""]
   },
   {
-    "name": "Python Debugger: zmirror_daemon.py daemon",
+    "name": "zmirror daemon",
+    "type": "debugpy",
+    "request": "launch",
+    "program": "src/zmirror.py",
+    "console": "integratedTerminal",
+    "args": ["daemon"]
+  },
+  {
+    "name": "zmirror daemon",
     "type": "debugpy",
     "request": "launch",
     "program": "src/zmirror.py",

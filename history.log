@@ -1,0 +1,2506 @@
+ifconfig eva
+ifconfig feu down
+ifconfig k44 down
+ifconfig inet down
+systemctl restart vmm-feudns1
+virsh domiflist feudns1
+ping feudns1
+ping niddah
+zpool attach sda3 /dev/nvme0n1
+zpool attach eva sda3 /dev/nvme0n1
+zpool attach -f eva sda3 /dev/nvme0n1
+zpool scrub
+zpool clear
+zpool trim
+sudo sg_vpd -a /dev/sdX | grep "Unmap"
+sg_vpd
+sg_vpd -a /dev/sdX | grep "Unmap"
+sg_vpd -a /dev/sda | grep "Unmap"
+cat /sys/block/sda/device/scsi_disk/0:0:0:0/provisioning_mode
+cat /sys/block/sda/device/scsi_disk/3:0:0:0/protection_mode
+echo unmap /sys/block/sda/device/scsi_disk/3:0:0:0/protection_mode
+echo unmap > /sys/block/sda/device/scsi_disk/3:0:0:0/protection_mode
+echo "unmap" > /sys/block/sda/device/scsi_disk/3:0:0:0/protection_mode
+echo unmap /sys/block/sda/device/scsi_disk/3:0:0:0/provisioning_mode
+echo unmap > /sys/block/sda/device/scsi_disk/3:0:0:0/provisioning_mode
+zpool trim eva
+zpool trim; zpool status
+cat /sys/block/sda/device/scsi_disk/3:0:0:0/provisioning_mode
+zpool detach eva sda3
+zpool status~
+zpool attach eva nvme0n1 /dev/sda3
+blockdev --getbsz /dev/sda
+zpool detach eva nvme0n1
+sgdisk -R /dev/nvme0n1 /dev/sda
+parted /dev/nvme0n1 -- mkpart primary ESP fat32 0% 512MiB
+parted /dev/nvme0n1 -- mkpart ESP fat32 0% 512MiB
+parted /dev/nvme0n1 -- mklabel gpt
+parted /dev/nvme0n1 -- mkpart ESP fat32 0% 1024MiB
+parted /dev/nvme0n1 -- set 1 boot on
+parted /dev/nvme0n1 -- mkpart primary 1024MiB 100%
+mkfs.fat -F 32 -n evaboot2 /dev/nvme0n1p1
+mount /dev/disk/by-label/evaboot2 /boot
+mkdir /boot2
+mount /dev/disk/by-label/evaboot /boot2
+rsync -av /boot2/ /boot/
+zpool attach sda3 /dev/nvme0n1p2
+zpool attach eva sda3 /dev/nvme0n1p2
+nixos-generate-config
+ls -al /dev/disk/by-id/
+ls -al /dev/disk/by-uuid/
+nano /etc/nixos/hardware-configuration.nix
+zpool detach eva 12828299742664836074
+journalctl -fn 50
+virsh domiflist john
+cat /sys/bus/usb/devices/usb1/authorized_default
+ping john
+virsh dumpxml john
+virsh attach-device john ./dev.txt
+nano dev.txt
+systemctl list-units -t device
+systemctl restart virtm-usb-0x03f0-0x4f17.service
+udevadm test (udevadm info=path --name=/devices/pci0000:00/0000:00:14.0/usb1/1-1/1-1.4)
+udevadm test (udevadm info --query=path --name=/devices/pci0000:00/0000:00:14.0/usb1/1-1/1-1.4)
+udevadm test
+udevadm -d test
+nano /nix/store/x4ymbnsa9yz2k9mvihjs4ki0r9hcqxr1-udev-rules/69-vdev.rules
+nano /nix/store/x4ymbnsa9yz2k9mvihjs4ki0r9hcqxr1-udev-rules/99-local.rules
+nano /nix/store/s0mlmrbwxgkkv6zaqzpryp9wk3485x8c-udev-rules/99-local.rules
+udevadm -d test /sys/devices/pci0000:00/0000:00:14.0/usb1/1-1/1-1.4
+nano /nix/store/an36w5cc457lphfm99zyipa92w4ma1nb-udev-rules/99-local.rules
+zfs destroy eva/libvirtd/vm-arithmos-vda
+zfs destroy -r eva/libvirtd/vm-arithmos-vda
+journalctl -e
+lsblk -I 8 -I 259
+badblocks -w -s -o error.log /dev/sda
+zpool attach eva nvme0n1p2 /dev/sda
+zpool attach eva -f nvme0n1p2 /dev/sda
+zpool scrub eva; zpool status
+virsh shutdown arithmos
+virsh start arithmos
+virsh shutdown ima-test
+virsh domiflist ima-test
+virsh start ima-test
+systemctl restart virtm-usb-0x04b8-0x0165.service
+ethtool
+ethtool -g eno1
+ethtool --help
+ethtool -a eno1
+ethtool --help | grep -a
+ethtool --help | grep "-a"
+ethtool --help | grep "*-a"
+ethtool --help | grep ".*-a"
+ping arithmos
+virsh detach-device john ./dev.txt
+nano /nix/store/61sy7vf9bqkzb0r6kffx4h7jvi2fzqkq-virtm-usb-attach-0x03f0-0x4f17.sh/bin/virtm-usb-attach-0x03f0-0x4f17.sh
+/nix/store/0h456nmhmhkff07a0a1h5n9fkwa9z3k0-libvirt-8.1.0/bin/virsh attach-device john /nix/store/10p9khxsrsaryl7lxwn7gbk12w4sgadx-virtm-usb-0x03f0-0x4f17.xml
+logger "hello"
+nix-path logger
+virsh shutdown john
+systemctl restart vmm-john
+udevadm monitor
+udevadm monitor --property
+nano /etc/udev/rules.d/99-local.rules
+virsh start virtm-usb-detach-0x03f0-0x4f17.service
+lsusb --help
+lsusb -d 8087:0026
+nix-path lsusb
+nix-path echo
+udevadm --help
+udevadm trigger remove
+udevadm trigger --subsystem-match=usb --action=add
+udevadm trigger --subsystem-match=usb --action=remove
+udevadm trigger --subsystem-match=usb --action=add --attr-match=idVendor=03f0 --attr-match=idProduct=4f17
+udevadm trigger --subsystem-match=usb --action=add --attr-match=idVendor=03f0 --attr-match=idProduct=4f17 --subsystem-match=usb
+udevadm test --subsystem-match=usb --action=add --attr-match=idVendor=03f0 --attr-match=idProduct=4f17 --subsystem-match=usb
+udevadm test --help
+udevadm test --action --help
+udevadm test --action=help
+udevadm test --action=add --subsystem-match=usb --attr-match=idVendor=03f0 --attr-match=idProduct=4f17 --subsystem-match=usb
+udevadm test --action=add --subsystem=usb --attr=idVendor=03f0 --attr-match=idProduct=4f17 --subsystem-match=usb
+udevadm test --action=add
+udevadm test --action=add --help
+man udevadm test
+udevadm test --action=remove /sys/bus/usb/devices/1-1.4:1.1
+udevadm test --action=add /sys/bus/usb/devices/1-1.4:1.1
+udevadm trigger --action=add /sys/bus/usb/devices/1-1.4:1.1
+systemctl virtm-usb-detach-0x03f0-0x4f17.service
+systemctl start virtm-usb-detach-0x03f0-0x4f17.service
+virsh start john
+virsh dumpxml john | grep usb
+mkdir /mnt
+mount mmcblk0 /mnt
+mount mmcblk0p1 /mnt
+mount /dev/mmcblk0p1 /mnt
+cat id_rsa.pub
+umount /mnt
+netstat -tunp
+ping 10.222.77.11
+ping pur
+modprobe bonding
+ip address
+ifenslave --help
+ifenslave -a
+ifenslave bond0
+modprobe -l | grep -i bonding
+modprobe --help | grep -i bonding
+modprobe --help
+modprobe --showconfig
+cat /proc/net/bonding/bond0
+mkcd temp
+wget https://gemmei.ftp.acc.umu.se/debian-cd/current/amd64/iso-cd/debian-11.5.0-amd64-netinst.iso
+wget https://channels.nixos.org/nixos-22.05/latest-nixos-x86_64-linux.ova
+nano /etc/resolv
+nano /etc/resolv.conf
+ping 1.1.1.1
+virsh domifaddr tavek
+virsh stop tavek
+ip -d link show tavek-vl
+nmap --script broadcast-dhcp-discover -e tavek-vl
+ping 10.253.0.1
+ping 10.253.0.44
+nmap --script broadcast-dhcp-discover -e tavek
+ping 10.253.0.161
+virsh shutdown tavek
+virsh start tavek
+ifconfig tavek
+virsh domiflist tavek
+ifconfig og
+ifconfig og 10.2.0.77 netmask 255.255.255.0
+ping 10.2.0.1
+ip -d link show og-vl
+ip -d link show og
+ip link show og
+ip address show og
+ping 10.2.0.144
+ifconfig og 0.0.0.0
+ip address show
+ifconfig | grep inet addr
+virsh net-dumpxml
+virsh net-dumpxml default
+virsh net-dumpxml deploy
+virsh net-destroy deploy
+virsh net-undefine deploy
+virsh net-list
+ifconfig | grep "inet addr"
+journalctl -fn 100
+virsh undefine ima-test
+virsh vol-list
+virsh vol-list --pool pcie4
+virsh vol-list --pool pcie1
+virsh vol-list --pool libvirtd
+virsh vol-list --pool default
+virsh vol-delete vm-ima-test-vda --pool default
+virsh dumpxml towla
+ip -d link show towla
+ip -d link show towla-vl
+ifconfig towla
+virsh domiflist towla
+virsh reboot towla
+virsh start towla
+cat dev.txt
+rm dev.txt
+zfs snapshot eva/libvirtd/vm-john-vda@migrate
+man virsh vol-delete
+zfs destroy eva/libvirtd/vm-john-vda@migrate
+virsh vol-delete vm-john-vda -r --pool default
+virsh vol-delete vm-john-vda --pool default
+virsh undefine vol --nvram
+virsh undefine john --nvram
+zfs rename eva/libvirtd/vm-barbur-vda eva/libvirtd/vm-barbur-vda-bak
+zfs destroy eva/libvirtd/vm-barbur-vda
+zfs rename eva/libvirtd/vm-barbur-vda-bak eva/libvirtd/vm-barbur-vda
+ping barbur
+ifconfig barbur
+echo $(date)
+ping 10.0.0.1
+systemctl list-units -t service | grep nt
+systemctl list-units -t service | grep times
+systemctl restart systemd-timesyncd.service
+zfs lisf
+zfs rename eva/libvirtd/vm-eden-vda eva/libvirtd/vm-eden-vda-b
+zfs destroy eva/libvirtd/vm-eden-vda
+zfs rename eva/libvirtd/vm-eden-vda-b eva/libvirtd/vm-eden-vda
+zfs destroy eva/libvirtd/vm-eden-vdb
+zfs destroy eva/libvirtd/vm-eden-vdc
+zpool import big-e big-eva
+zpool import big-e big-eva -f
+zfs lis
+zfs rename eva/libvirtd/vm-arche-vda eva/libvirtd/vm-arche-vda-b
+zfs destroy eva/libvirtd/vm-arche-vda
+zfs rename eva/libvirtd/vm-arche-vda-b eva/libvirtd/vm-arche-vda
+zpool export big-eva
+zpool import big-eva big
+zfs get encryption eva/zion
+zfs destroy eva/zion
+virsh start barbur
+virsh start sha-ar
+ifconfig bond1
+/data/zion/nixops/mynix nixops ssh arche
+nixos-version
+cd /data/zion/nixops/.nix-channel/nixpkgs
+git show --format="%h" --no-patch
+./mynix nixops deploy --include saraph
+which nixops
+cat /run/current-system/sw/bin/nixops
+mynixops
+mynixops list
+zfs rollback eva/zion@2023-06-23_09-37-12-migrate
+nano ~/.ssh/config
+git reset
+nano .gitignore
+git stash
+git stash drop
+rm scripting/bash/my-nixops.nix
+cd .ssh
+tmux attach-session -t 0
+mkdir /data/keys
+mkdir .nixops
+mv .localstate.nixops .nixops/
+mv .nixops /data/keys/
+mv /root/.ssh/id_rsa /data/keys/
+ln -sv /data/keys/id_rsa /root/.ssh/id_rsa
+ping wall-e
+ssh wall-e
+ln -sv /data/keys/.nixops/ /data/zion/nixops/.nixops
+sdc9      part     8M
+zfs_member 4359382555384135024
+zpool create keys sdc -O encryption=on -O keylocation=file:///etc/data-zpool-key.txt -O compression=lz4 -O mountpoint=/data/keys
+mv /data/keys /data/oldkeys
+zpool create keys sdc -O encryption=on -O keylocation=file:///etc/data-zpool-key.txt -O compression=lz4 -O mountpoint=/data/keys -f
+mv /data/oldkeys/.nixops /data/keys
+mv /data/oldkeys/* /data/keys
+rmdir /data/oldkeys/
+zpool clear keys
+umount /data/keys -f
+umount -f /data/keys
+ifconfig bond0
+ifconfig enp57s0u1c2
+ifconfig | grep 10.101
+ifconfig | grep 10.222.7
+ifconfig | grep 10.222.39
+ifconfig | grep 127
+ifconfig | grep lo
+ifconfig lo
+journalctl -fn 1000
+virsh stop barubr
+virsh stop barbur
+lsblk -I 8 -I 259 -io KNAME,TYPE,SIZE,MODEL,FSTYPE,UUID,MOUNTPOINT
+fdisk /dev/sdc
+mkfs -t ext2 /dev/sdc1
+mount  usb-JetFlash_Transcend_16GB_0761ZE74WH6G3YIZ-0:0-part1 /data/keys
+mount -t ext2 usb-JetFlash_Transcend_16GB_0761ZE74WH6G3YIZ-0:0-part1 /data/keys
+cd /root/.ssh/
+true
+umount /dev
+mount -t ext2 /dev/disk/by-id/usb-JetFlash_Transcend_16GB_0761ZE74WH6G3YIZ-0:0-part1 /data/keys
+findmnt /data/keys
+nano /etc/fstab
+mount -a
+which mount
+ls -al /run/wrappers/bin/mount
+which whoami
+ls -al /run/current-system/sw/bin/whoami
+which sudo
+ls -al /run/wrappers/bin/sudo
+./nixops deploy --include eva
+which bash
+which bash | ls -al
+which bash | xargs ls -al
+bash -e "echo hello"
+bash -c "echo hello"
+bash -c echo hello
+umount /dev/sdc1
+e2fsck /dev/sdc1
+/run/wrappers/bin/mount -t ext2 /dev/disk/by-id/usb-JetFlash_Transcend_16GB_0761ZE74WH6G3YIZ-0:0-part1 /data/keys
+which mktmp
+which mktemp
+which mktemp | xargs ls -al
+rsync -av /data/keys/ /data/oldkeys/
+umount /data/keys
+zpool create keys sdc -O encryption=on -O keylocation=file:///etc/data-zpool-key.txt -O keyformat=passphrase -O compression=lz4 -O mountpoint=/data/keys -f
+zpool destroy keys
+ls -al /dev/disk/by-id
+zpool create keys /dev/disk/by-id/usb-JetFlash_Transcend_16GB_0761ZE74WH6G3YIZ-0:0 -O encryption=on -O keylocation=file:///etc/data-zpool-key.txt -O keyformat=passphrase -O compression=lz4 -O mountpoint=/data/keys -f
+zpool attach keys usb-JetFlash_Transcend_16GB_0761ZE74WH6G3YIZ-0:0 /tmp/zfs-keys.temp
+mktemp /tmp/zfs-keys.temp
+mktemp /tmp/zfs-keys.tempXXXXX
+truncate -s 20G /tmp/zfs-keys.temp48KEw
+zpool attach keys usb-JetFlash_Transcend_16GB_0761ZE74WH6G3YIZ-0:0 /tmp/zfs-keys.temp48KEw
+which truncate
+which truncate | xargs ls -al
+zpool import keyso
+zpool status keys
+zpool remove keys /tmp/zfs-keys.temp48KEw
+rm /tmp/zfs-keys.temp48KEw
+rsync -av /data/oldkeys/ /data/keys/
+virsh stop sha-ar
+virsh shutdown sha-ar
+virsh shutdown barbur
+systemctl start stop-management
+mynixops deploy --include eva
+systemctl start start-management
+systemctl stop start-management
+rm /tmp/keys-mirror.zfs
+zpool attach keys mirror-0 /tmp/keys-mirror.zfs
+zpool status -g
+zpool clear -nFX keys
+systemctl restart management
+which ls
+which ls | xargs ls -al
+systemctl start management
+zpool import keys -d /dev/disk/by-id/
+ifconfig | grep tap
+zfs snapshot eva/libvirtd/vm-eden-vda@$(date)-before-upgrade
+zfs snapshot eva/libvirtd/vm-eden-vdb@$(date)-before-upgrade
+zfs snapshot eva/libvirtd/vm-eden-vdc@$(date)-before-upgrade
+cd git
+mv nixops oldnixops
+git init --bare --shared nixops
+cd nixops/
+mv nixops oldnewnixops
+git clone git/nixops nixops --shared
+cd nixops
+./mynix nixops deploy --include eden
+nix-channel --add
+nix-channel --add nixos https://nixos.org/channels/nixos-23.05
+nix-channel --add https://nixos.org/channels/nixos-23.05 nixos
+nix-channel --add https://github.com/nix-community/home-manager/archive/release-23.05.tar.gz home-manager
+nix-channel list
+nix-channel --list
+cd /root
+cd .nix-channeels
+ln -al
+nano .nix-channels
+cd /nix/var/nix/profiles/per-user/root/channels/
+cd /data/zion/nixops/.channels/nixpkgs/pkgs/tools/package-management/nixops/python-env/
+dig @10.0.0.11 eden.feu
+socat
+nix-shell -p socat
+socat tcp4-listen:5353,reuseaddr,fork UDP:10.0.0.2:53
+dig @localhost eden.feu
+tmux attach -t 2
+cd /data/zion/nixops; ./mynix nixops show-option eden networking.interfaces.zion.ipv4
+git   stash
+cd /data/zion/nixops; git pull;
+ping 10.222.45.45
+ping 10.222.44.222
+ping 10.222.45.222
+zpool export keys
+ping 10.222.48.48
+virsh reboot eden
+ping edenr
+cd /data/zion/nixops; ./mynix nixops ping eden
+cd /data/zion/nixops; ./mynix nixops check eden
+cd /data/zion/nixops; ./mynix nixops check --include eden
+nano /root/.ssh/known_hosts
+git config --global user.email "root@eva"
+git config --global user.name "root@eva"
+git push
+cd /data/zion/nixops
+cd /data/zion/nixops; ./mynix nixops deploy --include eden
+cd /data/zion/nixops; ./mynix nixops ssh eden
+cd oldnixops/
+mv nixops newnixops
+mv oldnixops nixops
+nano nixops/hosts/eva/virtualisation.nix
+cd /data/zion/newnixops; ./mynix nixops ssh arche
+systemctl stop management
+mkcd .channels
+git clone https://github.com/NixOS/nixpkgs.git
+nano ./knet-live/shell.nix
+nano ./feu/shell.nix
+nano $(which mount-mergers)
+mergerfs
+nano shell.nix
+git restore --staged
+hostid
+virsh stop arche
+virsh shutdown arche
+zfs listd
+nano ./legacy/users/_g.nix
+nixos-rebuild
+nano /etc/nixos/configuration.nix
+chown -r _g:wheel .
+cd ~/.ssh
+zfs mount big
+zfs mount big/zvols
+nano hosts/eva
+nano hosts/eva/zfs.nix
+nano ../knet-live/hosts/zion/zion.nix
+nano hosts/eva/eva.nix
+nixos-rebuild switch;
+knock-hayyam ssh hayyam; ssh root@hayyam
+knock-hayyam ssh hayyam; ssh root@hayyam -p
+nano ../legacy/hosts/hayyam
+nano ../legacy/hosts/hayyam/hayyam-common.nix
+cd /data/keys/
+zpool import keys
+zfs mount keys/
+zfs mount keys
+zfs mount keys -l
+zfs    mount
+cd /data/keys
+cp id_rsa /root/.ssh/id_rsa2
+cd ~/.ssh/
+mv id_rsa2 id_rsa
+knock-hayyam ssh hayyam; ssh root@hayyam -p 48792
+knock-hayyam ssh hayyam; ssh root@hayyam -p 48792 -R localhost:22077:localhost:22
+echo "hayyam-to-eva-tunnel"; knock-hayyam ssh hayyam; ssh root@hayyam -p 48792 -R localhost:22077:localhost:22
+echo 'show me all running vms'; virsh list
+echo 'start up arche'; virsh start arche
+echo 'i want to start arche'; virsh start arche
+echo 'i want to see storage pool'; zfs list
+echo 'i want to mount all zfs'; zfs mount -a
+echo 'i want to see all mounted zfs'; zfs mount
+echo 'i want to mount big/zvols, with flag -l to load encryption key'; zfs mount big/zvols -l
+nano ~/data/zion/config/feu/hosts/eva/eva.nix
+nano ~/data/zion/config/feu/hosts/eva
+cd ~
+zfs mount zion
+zfs mount /data/zion
+echo 'i want to mount zion'; zfs mount eva/zion -l
+nano /data/zion/config/feu/hosts/eva/eva.nix
+echo 'i want to mount zion and see eva.nix config'; zfs mount eva/zion -l; nano /data/zion/config/feu/hosts/eva/eva.nix
+echo 'i want to mount zion and see zfs.nix config'; zfs mount eva/zion -l; nano /data/zion/config/feu/hosts/eva/zfs.nix
+echo 'i want to see zfs.nix config'; nano /data/zion/config/feu/hosts/eva/zfs.nix
+nixos-rebuild switch
+/data/zion/config/feu/nix-shell
+cd /data/zion/config/feu
+resize
+virsh start arche
+virsh start niddah
+echo 'i want to open nix-shell in feu'; cd /data/zion/config/feu; nix-shell
+nano /data/zion/config/feu/hosts/eva/virtualisation.nix
+nano /data/zion/config/feu/hosts/eva/vms/tavek.nix
+find -name "*tavek*"
+nano /data/zion/config/feu/og-hosts/tavek/tavek.nix
+nano /data/zion/config/feu/hosts/pur/pur.nix
+journalctl -fn 500 -u virtm-autostart.service
+zfs get encryption eva
+zfs get encryption lib
+zfs get encryption eva/libvirtd
+zfs get encryption eva -R
+zfs get encryption eva -r
+zfs get encryptionroot eva -r
+zfs mount -a
+journalctl -fn 500
+cd /data/zion/config/feu/hosts/eva/
+nano zfs.nix
+nano zpool-eva.nix
+nano eva.nix
+umount-mergers
+virsh start pur
+ssh arche
+cd hosts
+cd arche
+cd eva
+nano virtualisation.nix
+mount-mergers
+source $(which nix-path-local)
+nano hosts/eva/virtualisation.nix
+last
+mount-mergers; eval $(which nix-path-local)
+echo 'i want to rebuild switch'; nixos-rebuild switch
+git clone https://github.com/NixOS/nixpkgs.git nixpkgs-next
+cd /data/zion/config/
+cd knet-live
+cd /data/zion/config/feu/
+mount-mergers; source $(which nix-path-local)
+git worktree list
+cp config config-ng
+cp -r config config-ng
+mv config-ng config.bak
+ifconfig eden
+ping eden
+cd /data/zion/git
+git init --bare --shared legacy
+git init --bare --shared feu
+for d in *; cd $d; git branch -m main; cd ..; end
+chown -R root:wheel .
+for d in *; cd $d; git branch -m main; git config core.sharedRepository true; cd ..; end
+cd ../
+cd config
+mv config local
+nixos-rebuild switch --flake hosts/eva --impure --print-build-logs
+chown -R _g:wheel /data/zion/local
+nano /data/zion/local/legacy/users/_g.nix
+git config --global --add safe.directory /data/zion/local/feu
+cd /data/zion/local/.channels
+virsh destroy ima-test
+virsh undefine ima-test --nvram --help
+virsh undefine ima-test --nvram
+zfs destroy eva/libvirtd/vm-ima-test-vda
+cd .channels
+git checkout
+virsh undefine towla --nvram
+zfs create eva/libvirtd/vm-ima-test-vda -V 1
+virsh vol-delete --pool default vm-ima-test-vda
+zfs destroy eva/libvirtd/vm-barbur-vda@2023-06-21_18-24-58-migrate
+zfs destroy eva/libvirtd/vm-arche-vda@2023-06-22_13-01-06-migrate
+zfs destroy eva/libvirtd/vm-arithmos-vda@migrate
+cryptsetup luksFormat --type luks2 /dev/sdb
+cd ../.channels/home-manager/
+git checkout origin/release-23.05
+sudo -u _g git checkout origin/release-23.05
+sudo -u _g git switch origin/release-23.05
+sudo -u _g git switch release-23.05
+sudo -u _g git switch release-23.11
+funced __fish_is_zfs_feature_enabled.fish
+ip addr show ext
+bridge show
+bridge help
+ip addr show eva
+ip route add 10.222.77.0/24 dev eva
+moount
+zfs mount eva/zion -l
+cd /data/zion/
+virsh start feudns1
+zfs mount big/zvols -l
+zpool import arche
+zpool import arche -o readonly=on -f
+zpool import arche -o readonly=on -f -R /mounts/arche
+cd /mounts/arche
+cryptsetup luksAddKey nbig
+cryptsetup luksAddKey /dev/sdb
+cryptsetup luksAddKey /dev/sdb /etc/data-zpool-key.txt
+zpool create nbig /dev/mapper/nbig -o ashift=12 -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O compression=zstd -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none
+zfs create nbig/reserved -o refreservation=1G
+zfs create nbig/files
+rsync -av /mounts/arche/data/ blubs/blubs
+mkdir /mounts/nbig
+zfs set omuntpoint=legacy nbig/files
+zfs set mountpoint=legacy nbig/files
+mount -t zfs nbig/files /mounts/nbig/
+ps aux
+zpool import eden -o readonly=on -f -R /mnt/eden
+zfs list -t snapshot eden/data
+zfs list -t snapshot eden
+zfs get all eden
+zfs get all eden | sort
+ssh localhost
+zpool import eden -f -R /mnt/eden
+zfs snapshot -r eden@$(date "+%Y-%m-%d_%H-%M-%S")
+zfs send
+man zfs send
+./zfs-send-incremental.sh
+zfs create nbig/temp
+mount -t zfs nbig/temp /mounts/temp
+mkdir /mounts/temp
+rsync -av /mnt/eden/data/* /mnt/eden/var/lib/nextcloud /mnt/eden/var/lib/postgresql /mounts/temp/
+zfs get all eva/libvirtd
+zfs get all eva/libvirtd | grep -E "inherited from|-\$|local\$"
+zfs create nbig/backups
+zfs create nbig/backups/vms
+zfs create nbig/backups/vms/eden -V 50G
+zfs destroy nbig/backups/vms/eden
+zfs create nbig/backups/vms/eden
+zfs rename nbig/backups/vms/eden nbig/backups/eden
+zfs destroy nbig/backups/vms
+zfs set mountpoint=/data/backups nbig/backups
+rsync -av /mnt/eden/data/* /mnt/eden/var/lib/nextcloud /mnt/eden/var/lib/postgresql /data/backups/eden/
+rsync -av --exclude .zfs /mnt/eden/data/* /mnt/eden/var/lib/nextcloud /mnt/eden/var/lib/postgresql /data/backups/eden/
+zfs create nbig/backups/eva
+cd oldkeys
+cd big
+zfs create nbig/backups/eva/zion
+rsync -av --exclude .zfs /data/zion/ /data/backups/eva/zion/
+zfs rename nbig/backups/eva/zion nbig/backups/eva/data
+zfs create nbig/backups/eva/data/zion
+rsync -av --exclude .zfs /data/zion/ /data/backups/eva/data/zion/
+rsync -av --delete --exclude .zfs /data/zion/ /data/backups/eva/data/zion/
+cd /data/zion
+cd /data/backups/eva/data/zion
+rm -R ./.archive
+rsync -av --delete --exclude .zfs /data/zion/{git,local} /data/backups/eva/data/zion/
+rmdir *
+zfs destroy nbig/temp
+zfs set mountpoint=/data/files nbig/files
+zfs create eva/libvirtd/vm-f-esh-vda -V 16
+zfs get volsize eva/libvirtd/vm-f-esh-vda
+zfs set volsize=16G eva/libvirtd/vm-f-esh-vda
+parted /dev/zvol/eva/libvirtd/vm-f-esh-vda
+lsblk --tree=kname -o kname,type,size,model,fstype,label,mountpoint,phy-sec,uuid,partuuid,id-link
+mkfs.vfat -F 32 -n f-esh-boot /dev/disk/by-partlabel/f-esh-boot
+zpool create f-esh /dev/disk/by-partlabel/f-esh-main -o ashift=12 -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none
+zpool status f-esh
+zpool destroy f-esh
+zpool create f-esh /dev/disk/by-partlabel/f-esh-main -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none
+zfs create f-esh/fsroot
+zfs create f-esh/data
+zfs set mountpoint=/ f-esh/fsroot
+zfs set mountpoint=/data f-esh/data
+cd /mnt/f-esh/data/
+mkdir -p keys/wireguard
+chmod o+rx keys
+wg genpsk > _k.psk
+wg genpsk > _g.psk
+wg genpsk > hayyam.psk
+wg genkey | tee pvt | wg pubkey pub
+wg genkey | tee prv | wg pubkey > pub
+mv prv privatekey
+mv pub publickey
+rm pvt
+mv _g.psk _g.presharedkey
+mv _k.psk _k.presharedkey
+mv hayyam.psk hayyam.presharedkey
+chgrp wheel .
+chgrp root .
+chmod -R g-w .
+chmod g+r wireguard/
+mkdir /mnt/f-esh/boot/
+cd /mnt/f-esh/data/keys/wireguard/
+git init --bare --shared
+rm -R {branches,config,description ,HEAD,hooks,info,objects}
+git init --shared
+git branch -m main
+chown -R g:wheel .
+chown g:wheel .
+chmod -R g+rw .
+find -type d -exec chmod g+x \{\} \;
+rm -R refs
+nixos-install --flake ./hosts/f-esh#f-esh --root /mnt/f-esh --impure --print-build-logs
+chmod o+rx /mnt
+rsync -av /mounts/arche/data/ /mounts/nbig/
+tmux attach -t 1
+umount /mnt/f-esh/boot
+ip addr add 10.77.0.77 dev feu
+ping 10.77.0.19
+zpool import f-esh -R /mnt/f-esh
+zpool import f-esh -R /mnt/f-esh -f
+cd /mnt/f-esh/etc/systemd/network/
+nano 40-enp3s1.link
+mount /dev/disk/by-partlabel/f-esh-boot /mnt/f-esh/boot/
+nixos-install --flake ./hosts/f-esh#f-esh --root /mnt/f-esh --impure
+umount -r /mnt/f-esh
+umount -r /mnt/f-esh; sleep 1; zpool export f-esh
+cd /data/zion/local/wireguard/_g/
+zpool import f-esh -f -R /mnt/f-esh
+mount /dev/disk/by-label/f-esh-boot /mnt/f-esh/boot
+zion-vpn _k/feu/f-esh up
+umount -r /mnt/f-esh/boot; sleep 1; zpool export f-esh
+cd /data/zion/local/wireguard/
+cd _g/feu
+zion-vpn _g/feu/f-esh down
+cd /data/zion/local/feu; zpool import f-esh -f -R /mnt/f-esh; mount /dev/disk/by-partlabel/f-esh-boot /mnt/f-esh/boot
+cd /data/zion/local/feu; nixos-install --flake ./hosts/f-esh#f-esh --root /mnt/f-esh --impure --no-root-passwd
+cd /data/zion/local/feu; umount -r /mnt/f-esh/boot; sleep 1; zpool export f-esh
+ping fd44:44::77:19:1
+ip link delete vrbr0
+ip link delete virbr0
+netstat -tunlp
+mkcd -p /data/keys/wireguard/
+mkdir -p /data/keys/wireguard/
+wg genkey | tee privatekey | wg pubkey > publickey
+chmod u-w,g-w
+chmod u-w,g-w -R .
+chown -R root:systemd-network .
+cat *
+chmod g-w .. -R
+chmod g-w . -R
+chmod -R g+w zion
+ping fd44:44::77:77:144
+ip link feu down
+ip link set feu down
+lsblk --tree=kname -o kname,type,size,model,fstype,label,mountpoint,phy-sec,uuid,partuuid,id
+lsblk --tree=kname -o kname,type,size,model,fstype,partlabel,label,mountpoint,phy-sec,uuid,partuuid,id --help
+lsblk --tree=kname -o kname,type,size,model,fstype,partlabel,label,mountpoint,phy-sec,uuid,partuuid,id,subsystems
+virsh undefine --nvram arche
+virsh undefine --nvram barbur
+virsh undefine --nvram sha-ar
+virsh undefine --nvram arithmos
+virsh vol-delete --pool default vm-arithmos-vdb
+virsh vol-delete --pool default vm-arithmos-vda
+virsh vol-delete --pool default vm-barbur-vda
+virsh vol-delete --pool default vm-sha-ar-vda
+virsh vol-delete --pool default vm-towla-vda
+tmux --list
+tmux --list-sessions
+tmux list-sessions
+zpool status arche
+lsblk --tree=kname -o kname,type,size,model,fstype,partlabel,label,mountpoint,phy-sec,uuid,partuuid,id
+cd /dev/zvol; for f in */*; echo -n $f; ; end
+cd /dev/zvol; find -type s;
+cd /dev/zvol; find -type l
+cd /dev/zvol; find -type l -exec lsblk --tree=kname -o kname,type,size,model,fstype,partlabel,label,mountpoint,phy-sec,uuid,partuuid,id \{\} \;
+cd /dev/zvol; find -type l -print -exec lsblk --tree=kname -o kname,type,size,model,fstype,partlabel,label,mountpoint,phy-sec,uuid,partuuid,id \{\} \;
+cd /dev/zvol; find -type l -exec echo ""; echo ""; echo \{\} \; -exec lsblk --tree=kname -o kname,type,size,model,fstype,partlabel,label,mountpoint,phy-sec,uuid,partuuid,id \{\} \;
+cd /dev/zvol; find -type l -exec echo "" \; echo "" \; echo \{\} \; -exec lsblk --tree=kname -o kname,type,size,model,fstype,partlabel,label,mountpoint,phy-sec,uuid,partuuid,id \{\} \;
+cd /dev/zvol; find /dev/zvol -type l -exec echo "" \; echo "" \; echo \{\} \; -exec lsblk --tree=kname -o kname,type,size,model,fstype,partlabel,label,mountpoint,phy-sec,uuid,partuuid,id \{\} \;
+cd /dev/zvol; find /dev/zvol -type l -exec echo ""
+cd /dev/zvol; find /dev/zvol -type l -exec echo "" \;
+cd /dev/zvol; find /dev/zvol -type l -exec echo "" \; -exec echo "" \; -exec echo \{\} \; -exec lsblk --tree=kname -o kname,type,size,model,fstype,partlabel,label,mountpoint,phy-sec,uuid,partuuid,id \{\} \;
+cd /dev/zvol; find /dev/zvol -type l -name -not -regex ".+-part[0-9]\$" -exec echo "" \; -exec echo "" \; -exec echo \{\} \; -exec lsblk --tree=kname -o kname,type,size,model,fstype,partlabel,label,mountpoint,phy-sec,uuid,partuuid,id \{\} \;
+cd /dev/zvol; find /dev/zvol -type l -name -not -regex ".+-part[0-9]\$"
+cd /dev/zvol; find /dev/zvol -type l -name -not -regex ".+-part[0-9]\$" print
+cd /dev/zvol; find /dev/zvol -type l -name -not -regex ".+-part[0-9]\$" -print
+cd /dev/zvol; find /dev/zvol -type l -name -not -regextype posix-egrep -regex ".+-part[0-9]\$" -print
+cd /dev/zvol; find /dev/zvol -type l -name -not -regextype perl -regex ".+-part[0-9]\$" -print
+cd /dev/zvol; find /dev/zvol -type l -name -not -regextype egrep -regex ".+-part[0-9]\$" -print
+cd /dev/zvol; find /dev/zvol -type l -name -not -regextype egrep -regex ".+-part[0-9]" -print
+cd /dev/zvol; find /dev/zvol -type l -name -regextype egrep -regex ".+-part[0-9]" -print
+cd /dev/zvol; find /dev/zvol -type l -regextype egrep -regex ".+-part[0-9]" -print
+cd /dev/zvol; find /dev/zvol -type l -not -regextype egrep -regex ".+-part[0-9]" -print
+cd /dev/zvol; find /dev/zvol -type l -regextype egrep -not -regex ".+-part[0-9]" -print
+parted /dev/zd192
+parted /dev/zd176
+parted /dev/zd160
+parted /dev/zd144
+parted /dev/zd96
+parted /dev/zd80
+parted /dev/zd48
+cd /dev/zvol
+find -type l
+virsh vol-delete --pool default vm-arche-vda
+virsh undefine --nvram niddah
+virsh undefine --nvram pur
+virsh undefine --nvram tavek
+zfs-destroy-snapshots eva/libvirtd/vm-niddah-vda
+zfs-destroy-snapshots eva/libvirtd/vm-tavek-vda-part1
+zfs-destroy-snapshots eva/libvirtd/vm-tavek-vda
+zfs-destroy-snapshots eva/libvirtd/vm-pur-vda
+virsh undefine --nvram towla
+virsh vol-delete --pool default vm-niddah-vda
+cd eva/libvirtd/
+virsh vol-delete --pool default vm-tavek-vda
+virsh vol-delete --pool default vm-pur-vda
+mkdir /mnt/feudns1
+mount /dev/zvol/eva/libvirtd/vm-feudns1-vda /mnt/feudns1/
+mount /dev/zvol/eva/libvirtd/vm-feudns1-vda-part2
+mount /dev/zvol/eva/libvirtd/vm-feudns1-vda-part2 /mnt/feudns1/
+cd /mnt/feudns1/
+rsync -av /mnt/feudns1/data/ /data/backups/feudns1/
+virsh undefine --nvram feudns1
+zfs-destroy-snapshots eva/libvirtd/vm-feudns1-vda
+zpool export feudns1
+umount /mnt/feudns1
+virsh vol-delete --pool default vm-feudns1-vda
+cd /data/backups/
+cd feudns1/ssl/
+cd
+rm -R feudns1/
+zfs create nbig/backups/f-esh
+ssh f-esh
+zfs set com.sun:auto-snapshot=true eva/zion
+systemctl restart zfs-snapshot-daily
+cd /dev/zvol; for f in */*; echo -n $f; lsblk --tree=kname -o kname,type,size,model,fstype,partlabel,label,mountpoint,phy-sec,uuid,partuuid,id; end
+cd /dev/zvol; find /dev/zvol -type l -regextype egrep -not -regex ".+-part[0-9]" -exec echo "" \; -exec echo "" \; -exec echo \{\} \; -exec lsblk --tree=kname -o kname,type,size,model,fstype,partlabel,label,mountpoint,phy-sec,uuid,partuuid,id \{\} \;
+zpool import f-esh -f -o readonly=on -R /mnt/f-esh;
+zfs send f-esh/data@zfs-auto-snap_frequent-2024-01-15-18h49U nbig/backups/f-esh
+zfs send f-esh/data@zfs-auto-snap_frequent-2024-01-15-18h49U | zfs recv nbig/backups/f-esh
+zfs send f-esh/data@zfs-auto-snap_frequent-2024-01-15-18h49U | zfs recv nbig/backups/f-esh -F
+cd /data/backups
+chmod o-rx .
+chmod g-rx .
+nix-shell -p jq --run fish
+xargs -rn 1 echo ip link del
+ip -j link show type wireguard | jq -r ' .[] | .ifname' | \
+ip -j link show type wireguard | jq -r ' .[] | .ifname' | sed '/mgmt/d' | xargs -rn 1 echo ip link del
+ip -j link show type wireguard | jq -r ' .[] | .ifname' | sed '/mgmt/d' | xargs -rn 1 ip link del
+xargs --help
+ip -j link show type wireguard | jq -r ' .[] | .ifname' | sed '/mgmt/d' | xargs -vrn 1 ip link del
+ip -j link show type wireguard | jq -r ' .[] | .ifname' | sed '/mgmt/d' | xargs --verbose -rn 1 ip link del
+nano ./hosts/f-esh/f-esh.nix
+zpool import f-esh -f -R /mnt/f-esh; mount /dev/disk/by-partlabel/f-esh-boot /mnt/f-esh/boot
+nixos-install --flake ./hosts/f-esh#f-esh --root /mnt/f-esh --impure --no-root-passwd --print-build-logs
+umount /mnt/f-esh/boot; zpool export f-esh
+zfs mount eva/zion
+dhcpcd
+nix-shell -p dhcpcd --run fish
+zpool import big
+cd data/fam/
+cd erich
+cd fam
+virsh undefine --nvram feudns1 --storage
+virsh undefine --nvram feudns1 --remove-all-storage
+virsh undefine --nvram towla --remove-all-storage
+virsh undefine --nvram tavek --remove-all-storage
+virsh undefine --nvram pur --remove-all-storage
+virsh undefine --nvram niddah --remove-all-storage
+virsh undefine --nvram barbur --remove-all-storage
+virsh undefine --nvram arithmos --remove-all-storage
+virsh undefine --nvram arche --remove-all-storage
+virsh undefine --nvram sha-ar --remove-all-storage
+zfs get encryption eva/libvirtd/vm-eden-vdc
+zfs create eva/libvirtd/vm-neden-vda -V 40G -o encryption=none
+zfs create eva/libvirtd/vm-neden-vda -V 40G -o encryption=off
+parted /dev/zvol/eva/libvirtd/vm-neden-vda
+zpool create eden /dev/disk/by-partlabel/neden-main -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none
+zfs create eden/fsroot -O normalization=formD
+zfs create eden/fsroot -o normalization=formD
+zpool status -v eden
+zpool export eden
+zpool import 4943824323078638606 oldeden -R /mnt/eden
+zpool export oldeden
+zpool import eden -R /mnt/eden
+zpool import eden oeden -f -R /mnt/eden
+zpool export oeden
+zpool import oldeden eden -R /mnt/eden
+parted /dev/zd112
+parted /dev/zd0
+set name eden; mkfs.vfat -F 32 -n $name-boot /dev/disk/by-partlabel/$name-boot
+set name old-eden; mkfs.vfat -F 32 -n $name-boot /dev/disk/by-partlabel/$name-boot
+set name old-eden; mkfs.vfat -F 32 -n $name-bo /dev/disk/by-partlabel/$name-boot
+zfs create eden/fsroot -o normalization=formD -o mountpoint=/
+zfs set mountpoint=/ eden/fsroot
+mkdir /mnt/eden/boot
+set name eden; zpool import $name -R /mnt/$name; mount /dev/disk/by-partlabel/$name-boot /mnt/$name/boot
+zpool import nbig
+mkdir -p /mnt/eden/data/keys/ssl/
+cp ssl/eden.key.pem /mnt/eden/data/keys/ssl/
+chgrp www-data ssl
+cd ssl
+cd /data/backups/eden/ssl
+l /home
+zpool import oeden -R /mnt/oldeden
+rsync -av /data/backups/eden/nextcloud/ /mnt/eden/data/eanritenat/enaritnert/eanritinert
+mv /mnt/eden/data /mnt/eden/data2
+zfs create eden/data -o normalization=formD -o mountpoint=/data
+rsync -av /mnt/eden/data2/ /mnt/eden/data/
+rm -R /mnt/eden/data2
+rsync -av /data/backups/eden/ /mnt/eden/data/
+rm -R {backups-bak,backupsng,temp}
+rm -R {backups-bak,backupsng,temp,ssl}
+cat /etc/resolv.conf
+ip -6 route show
+kill 13756
+nano /etc/systemd/network/10-ext.network
+nano /etc/systemd/network/40-inet.network
+ifconfig vms
+ip route del default via 10.0.0.19
+ping inet
+systemctl status --failed
+ip link set inet down
+ip link set inet up
+brctl
+nix-shell -p brctl --run fish
+nix-shell -p busybox --run fish
+ip link del virbr0
+nmap --script broadcast-dhcp-discover -e inet
+ip -d link show inet
+nix-shell -p bridge-utils --run fish
+ifconfig inet up
+journalctl -b
+ifconfig ext
+ip link show ext
+ip link show inet
+cd /etc/systemd/network/
+l | grep inet
+cat *inet*
+systemctl status sys-devices-virtual-net-inet.device
+systemctl status -vl
+systemctl status "-vl"
+ip link show inet-vl
+ip link show feu-vl
+cat 20-ext.network
+zfs rename eva/libvirtd/vm-eden-vda eva/libvirtd/vm-oeden-vda
+zfs rename eva/libvirtd/vm-eden-vdb eva/libvirtd/vm-oeden-vdb
+zfs rename eva/libvirtd/vm-eden-vdc eva/libvirtd/vm-oeden-vdc
+zfs rename eva/libvirtd/vm-neden-vda eva/libvirtd/vm-eden-vda
+echo disconnect-mgmt-vpns; ip -j link show type wireguard | jq -r ' .[] | .ifname' | sed '/mgmt/d' | xargs --verbose -rn 1 ip link del
+dhcpcd --rebind inet
+ping 192.168.178.28
+virsh shutdown f-esh; sleep 1; virsh list
+set name f-esh; zpool import $name -R /mnt/$name; mount /dev/disk/by-partlabel/$name-boot /mnt/$name/boot
+set name f-esh; zpool import $name -Rf /mnt/$name; mount /dev/disk/by-partlabel/$name-boot /mnt/$name/boot
+cd /mnt/f-esh/data/keys/wireguard
+virsh virsh shutdown f-esh
+set name f-esh; umount /mnt/$name/boot; zpool export $name
+set name f-esh; zpool import $name -f -R /mnt/$name; mount /dev/disk/by-partlabel/$name-boot /mnt/$name/boot
+echo 1 > /sys/module/zfs/parameters/zfs_recover
+echo 1 > /sys/module/zfs/parameters/zil_replay_disable
+zpool import f-esh -f -R /mnt/f-esh;
+man wg-quick
+cryptsetup luksOpen /dev/disk/by-partlabel/eva-b-main eva-b
+zpool import -R /mnt/eva 15504989894263299749
+zpool import -R /mnt/eva 15504989894263299749 eva2
+rsync -av /root/ /mnt/eva/data/root/
+journalctl -b -1
+zfs set mountpoint=legacy eva/data
+zfs set mountpoint=legacy eva/etc
+zfs set mountpoint=legacy eva/nix
+zfs get all oldeva/libvirtd | grep -E "inherited from|-\$|local\$"
+zfs create eva/vms -o mountpoint=/data/vms
+git pull eva
+zfs create eva/libvirtd
+virsh pool-delete default
+rm -R /home/*/.local/state/home-manager/
+rm -R /home/*/.local/state/nix/profiles/home-manager
+virsh pool-destroy default
+virsh pool-undefine default
+systemctl restart virtm.service
+systemctl restart vmm-f-esh.service
+cd ../root-shared/scripts/bash
+chmod u+x,g+x {ensure-wireguard.nix , prepare-vm-host.sh }
+zfs set volsize=16G eva/vms/vm-f-esh-vda
+cd /data/zion/local/root-shared/scripts/bash/
+chmod u+x,g+x {*.sh}
+chmod u+x,g+x *.sh
+chmod u-x,g-x ensure-wireguard.nix
+./prepare-vm-host.sh f-esh /dev/zvol/eva/vms/vm-f-esh-vda
+./mount-vm-host.sh f-esh
+mkdir {boot,home,root,data,etc,nix}
+mountpoint
+mountpoint .
+umount /mnt/f-esh/root
+zfs create eva/temp -o com.sun:auto-snapshot=true
+zfs destroy eva/temp
+zfs set com.sun:auto-snapshot=true eva/data
+zfs get all | grep sun
+zfs set com.sun:auto-snapshot=true f-esh/data
+umount -R /mnt/f-esh
+umount -R /mnt/f-esh; zpool export f-esh
+cryptsetup luksOpen /dev/disk/by-uuid/7aa18eb2-054b-460a-9c9d-32494765187e nbig
+cryptsetup luksAddKey /dev/disk/by-uuid/7aa18eb2-054b-460a-9c9d-32494765187e /dev/disk/by-partlabel/eva-key
+cryptsetup --allow-discards --persistent refresh nbig
+rsync -av /data/backups/f-esh/ /mnt/f-esh/data/
+cd /mnt/f-esh/data
+rm grep
+cp _g.presharedkey feu
+cp _k.presharedkey knet
+/data/zion/local/root-shared/scripts/bash/ensure-wireguard.sh .
+rm -R data
+/data/zion/local/root-shared/scripts/bash/ensure-wireguard.sh /mnt/f-esh/
+nano hayyam.conf
+virsh destroy f-esh
+/data/zion/local/root-shared/scripts/bash/mount-vm-host.sh f-esh
+rsync -av  /mnt/f-esh/data/ /data/backups/f-esh/eanrit/enarti
+zfs snapshot -r data/backups/f-esh@$(date "+%Y-%m-%d_%H-%M-%S")
+zfs snapshot -r nbig/backups/f-esh@$(date "+%Y-%m-%d_%H-%M-%S")
+rsync -av --delete  /mnt/f-esh/data/ /data/backups/f-esh/
+set name f-esh; nixos-install --flake ./hosts/$name#$name --root /mnt/$name --impure --no-root-passwd
+/data/zion/local/root-shared/scripts/bash/mount-vm-host.sh f-esh umount
+nano /data/keys/wireguard/
+cat privatekey
+find /home/ -type d -name home-manager
+find /home/ -type d -name "home-manager"
+find /home/ -type d -name "home-manager*"
+systemctl restart home-manager-_g.service
+systemctl restart home-manager-_k.service
+rm .nix-profile
+rm .manpath
+rm .bashrc
+rm .bash_profile
+cd _k
+cd ../_g
+rm .profile
+cd /home/_k/
+cd .local
+cd state
+nix-channel --update
+home-manager
+nix-shell -p home-manager
+cd /data/zion/local/.channels/home-manager/
+git log
+sudo -u _g git log
+git checkout 7e398b3d76bc1503171b1364c9d4a07ac06f3851
+sudo -u _g git checkout 7e398b3d76bc1503171b1364c9d4a07ac06f3851
+cd /data/zion/local/feu; nix-shell;
+wg-quick /data/keys/wirguard/hayyam-vpn.conf up
+wg-quick up /data/keys/wirguard/hayyam-vpn.conf
+wg-quick upel /data/keys/wireguard/hayyam-vpn.conf
+nano /data/keys/wirguard/hayyam-vpn.conf
+nano /data/keys/wireguard/hayyam-vpn.conf
+wg-quick down /data/keys/wireguard/hayyam-vpn.conf
+wg-quick up /data/keys/wireguard/hayyam-vpn.conf
+ifconfig hayyam-vpn
+ip -6 addr show hayyam-vpn
+ping fd44:55::77:77
+ping fd44:55::77:19
+ping fd44:55::33:144
+ping fd44:55::33:13
+ping fd44:55::33:79
+cd /data/zion/local/feu;
+passwd _k
+zfs set com.sun:auto-snapshot=true nbig/files
+cryptsetup luksDump /dev/sdb
+nixos-container
+nixos-container create arche --flake ./hosts/arche#arche
+nixos-container update arche --flake ./hosts/arche#arche
+nixos-container update arche --flake ./hosts/arche#arche --impure
+nixos-container list
+for x in nixos-container list; echo -n $x; end
+for x in $(nixos-container list); echo -n $x; end
+for x in $(nixos-container list); echo -n $x: '\t'; nixos-container status $x; end
+for x in $(nixos-container list); echo -n $x: \t; nixos-container status $x; end
+for x in $(nixos-container list); echo -n $x: \t\t; nixos-container status $x; end
+echo container status; for x in $(nixos-container list); echo -n $x: \t\t; nixos-container status $x; end
+nixos-container show-ip
+nixos-container show-ip arche
+systemctl restart hayyam-vpn.service
+echo wi
+journalctl
+systemctl status hayyam-vpn
+systemctl status hayyam-vpn.timer
+journalctl --this-boot | grep target
+systemctl status systemd-networkd-wait-online.service
+journalctl --this-boot | grep -E "target|"
+zfs list --all
+zfs create eva/vms/vm-f-esh-data -o com.sun:auto-snapshot=true -V 8G
+virsh domblklist
+zpool create f-esh-data /dev/disk/by-partlabel/f-esh-data -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=legacy
+zpool import -R /mnt/f-esh -o readonly=on -f
+zpool import -R /mnt/f-esh -o readonly=on -f f-esh
+mount -t zfs f-esh/data /mnt/f-esh/
+rsync -av ./ /data/backups/eanrtianert/neratiir
+rsync -av --delete ./ /data/backups/f-esh/
+zfs rollback eva/vms/vm-f-esh-vda@2024-01-17_19-26-43
+rsync -av --delete /data/backups/f-esh/ /mnt/f-esh/
+zfs list -t snapshot,volume
+zfs list -t snapshot,volume,dataset
+zfs list -t volume,snapshot
+zfs list -t volume,snapshot --help
+man zfs list
+zpool import -R /mnt/oldeva oldeva
+zfs list -t all
+zpool export f-esh
+zfs set volsize=16G eva/vms/vm-eden-vda
+zfs create eva/vms/vm-eden-data -o com.sun:auto-snapshot=true -V 16G
+cd /data/zion/local/feu; nix-shell
+group
+id
+cd /data/zion/local/feu/../root-shared/scripts/bash
+prepare-vm-host
+set name eden; echo prepare vm host with data: $name; prepare-vm-host.sh $name /dev/zvol/eva/vms/vm-$name-vda /dev/zvol/eva/vms/vm-eden-data
+set name eden; echo prepare vm host with data: $name; prepare-vm-host.sh $name /dev/zvol/eva/vms/vm-$name-vda /dev/zvol/eva/vms/vm-eden-data --data-only
+zpool create eden-data -R /mnt/eden /dev/disk/by-partlabel/eden-data -o autotrim=on -O acltype=posix -O atime=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=legacy -O com.sun:auto-snapshot=true
+mount -t zfs eden-data /mnt/eden/data
+mount /dev/disk/by-partlabel/ede-boot /mnt/eden/boot/
+mount /dev/disk/by-partlabel/eden-boot /mnt/eden/boot/
+cryptsetup luksOpen /dev/disk/by-uuid/7aa18eb2-054b-460a-9c9d-32494765187e nbig; zpool import nbig
+zpool export nbig; cryptsetup luksClose nbig
+zpool import big oldbig -R /mnt/oldbig
+cryptsetup luksOpen /dev/disk/by-uuid/7aa18eb2-054b-460a-9c9d-32494765187e big; zpool import nbig big
+cryptsetup luksOpen /dev/disk/by-uuid/7aa18eb2-054b-460a-9c9d-32494765187e big; zpool import big
+cryptsetup luksOpen /dev/disk/by-uuid/7aa18eb2-054b-460a-9c9d-32494765187e big --key-file /dev/disk/by-partlabel/eva-key; zpool import big
+zpool export big; cryptsetup luksClose big
+journalctl --this-boot | grep -E "target|zfs|files"
+journalctl --this-boot | grep -iE "target|zfs|files"
+ech $PATH
+echo $PATH
+zfs create big/backups/vms -o mountpoint=none
+zfs send eva/vms/vm-eden-data@zfs-auto-snap_hourly-2024-01-18-07h00U big/backups/vms/
+zfs send eva/vms/vm-eden-data@zfs-auto-snap_hourly-2024-01-18-07h00U | zfs recv big/backups/vms/
+zfs send eva/vms/vm-eden-data@zfs-auto-snap_hourly-2024-01-18-07h00U | zfs recv big/backups/vms
+zfs send eva/vms/vm-eden-data@zfs-auto-snap_hourly-2024-01-18-07h00U | zfs recv big/backups/vms/vm-eden-data
+zfs send eva/vms/vm-f-esh-data@zfs-auto-snap_hourly-2024-01-18-07h00U | zfs recv big/backups/vms/vm-f-esh-data
+zfs moutn
+zfs mount -al
+zpool import arche -o readonly=on -f -R /mnt/arche
+cd /mnt/arche
+rsync -av --delete --dry-run /mnt/arche/data/ /data/files/
+rsync -av --delete --dry-run --checksum /mnt/arche/data/ /data/files/
+nixos-container create arche --config ./hosts/arche/container.nix
+nixos-container update arche --config ./hosts/arche/container.nix
+nixos-container update arche --config /data/zion/local/feu/hosts/arche/container.nix
+nixos-container create arche --config /data/zion/local/feu/hosts/arche/container.nix
+echo feu
+nixos-container create arche --config-file ./hosts/arche/container.nix
+nixos-container destroy arche
+cd /var/lib/nixos-containers/
+mkdir arche/etc/nixos/configuration.nix
+mkdir -p arche/etc/nixos/configuration.nix
+rmdir arche/etc/nixos/configuration.nix
+mkdir -p /nix/var/nix/profiles/per-container/arche
+journalctl --this-boot | grep -iE "import"
+nixos-container update arche --config-file ./hosts/arche/container.nix
+nixos-container start arche; journalctl -fn 200
+nixos-container restart arche &; nixos-container root-login arche
+set $name eden; echo unmount host $name; umount -R /mnt/$name; zpool export $name; zpool export $name-data
+umount --help
+set name eden; echo unmount host $name; umount -R /mnt/$name; zpool export $name; zpool export $name-data
+nixos-container restart arche
+virsh domblklist f-esh
+virsh domblklist eden
+ping eden.feu
+zfs get all
+zfs get all eva
+zfs get all eva | sort
+zfs set multihost=on eden
+zfs get multihost eden
+zpool feature
+zpool get feature
+zpool set feature multihost=on eden
+zpool set feature@multihost=on eden
+zpool status eden
+virsh domiflist eden
+nmap -e feu
+zpool export eden-data
+history save
+mount | grep nix
+set name eden; nixos-install --flake ./hosts/$name#$name --root /mnt/$name --impure --no-root-passwd
+cd eden
+rm -R {bin,dev,etc,mnt,nix,proc,run,srv,sys,tmp,usr,var}
+lsattr
+rmdir var
+zfs get com.sun:auto-snapshot
+cd /data/backups/eden/
+rm -R backups-*
+rm -R backupsn*
+mkdir keys
+mv ssl keys
+cd backups
+rm -R .zfs
+cd restore
+rm -R restore
+rm -R temp
+mkdir wireguard
+rsync -av --delete /data/backups/eden/ /mnt/eden/data/
+ensure-wireguard .
+cd data/keys/
+wg genpsk > _k.presharedkey
+wg genpsk > _g.presharedkey
+cat _k.presharedkey
+nixos-enter --root /mnt/eden/
+cd /mnt/eden/root
+cd /mnt/eden/data
+umount /mnt/eden/root
+umount /mnt/eden/home
+mkdir root
+mkdir home
+mount -o bind /mnt/eden/data/root /mnt/eden/root
+mount -o bind /mnt/eden/data/home /mnt/eden/home
+set name eden; nixos-install --flake ./hosts/$name#$name --root /mnt/$name --impure
+mount-vm-host.sh eden
+rsync -av --delete --dry-run /mnt/eden/data/ /data/backups/eden/
+rsync -av --delete /mnt/eden/data/ /data/backups/eden/
+zfs snapshot big/backups/eden@$(date "+%Y-%m-%d_%H-%M-%S")
+mount-vm-host.sh eden umount
+ping 10.0.0.48
+mount-vm-host.sh f-esh
+set name f-esh; nixos-install --flake ./hosts/$name#$name --root /mnt/$name --impure
+mount-vm-host.sh f-esh umount
+zfs snapshot eva/vms/vm-eden-data@$(date "+%Y-%m-%d_%H-%M-%S")
+l /mnt/arche/data/ /data/files/
+findmnt /mnt/arche/data/ /data/files/
+findmnt /mnt/arche/data/
+zpool export arche
+zpool destroy oldbig
+parted /dev/sda
+cryptsetup luksFormat --type luks2 /dev/sda
+nixos-container help
+find -name "arche"
+find / -name "arche"
+cd /nix/var/nix/profiles/per-container/arche/
+cd /nix/store/j9fsiklhfln3sxpv3ac9bak7bvw7vi6i-nixos-system-arche-23.11pre-git
+l /nix/var/nix/profiles/per-container/arche/system/init
+cat /nix/var/nix/profiles/per-container/arche/system/init
+nano /nix/store/ikn0nalykij3naana9i6fcci1qllnk08-container-init
+nano --line-numbers /nix/store/ikn0nalykij3naana9i6fcci1qllnk08-container-init
+nano --linenumbers /nix/store/ikn0nalykij3naana9i6fcci1qllnk08-container-init
+sudo -u nobody -i
+cd /nix/var/nix/profiles/
+chmod a+rx per-container/
+cd per-user/root
+cd per-container/arche/
+/nix/store/ikn0nalykij3naana9i6fcci1qllnk08-container-init
+nano /etc/nixos-containers/arche.conf
+SYSTEM_PATH=/nix/var/nix/profiles/per-container/arche/system echo $SYSTEM_PATH
+SYSTEM_PATH=/nix/var/nix/profiles/per-container/arche/system l $SYSTEM_PATH
+SYSTEM_PATH=/nix/var/nix/profiles/per-container/arche/system/init l $SYSTEM_PATH
+sudo -u nobody fish
+lsblk --tree=kname -o kname,type,size,model,fstype,partlabel,label,mountpoint,phy-sec,uuid,partuuid,id /dev/sda
+cryptsetup luksAddKey /dev/disk/by-uuid/9b2015e6-c1fb-407f-894d-8e0b489c7ffd --key-file /dev/disk/by-partlabel/eva-key;
+cryptsetup luksAddKey /dev/disk/by-uuid/9b2015e6-c1fb-407f-894d-8e0b489c7ffd /dev/disk/by-partlabel/eva-key;
+nixos-enter --root /var/lib/nixos-containers/arche/
+nixos-container --help
+journalctl --this-boot | grep -iE "arche"
+chmod o+rx .
+cd samba
+chmod g+x .
+nixos-container terminate arche
+virsh cpu-stats
+virsh cpu-stats f-esh
+virsh cpu-stats eden
+ssh eden
+nixos-container start arche
+ps aux | grep arche
+dosfsutil
+dosfslabel /dev/sdc1 "eva-b-boot"
+zpool import oldeva -R /mnt/oldeva
+cd /mnt/oldeva
+cd home/_g
+mkdir /data/backups/eva/oldeva/_g/
+mkdir -p /data/backups/eva/oldeva/_g/
+mkdir -p /data/backups/eva/oldeva/root/
+cp fish_history /data/backups/eva/oldeva/_g/
+cd root
+cd .local/share/fish/
+cp fish_history /data/backups/eva/oldeva/root/
+cd /mnt/oldeva/var
+cd ../home
+tree --help
+cd ../root
+cat .config/fish/config.fish
+tree -a -l 4
+tree -a -L 3
+tree -a -L 3 --help
+tree -a -L 3 -I "nix-store"
+tree -a -L 2 -I "nix-store"
+tree -a -L 2 -I "store"
+tree -a -L 3 -I "store"
+tree -a -L 4 -I "store"
+zpool export oldeva
+sfdisk -d /dev/sdc
+sfdisk -d /dev/sdc > ~/temp/part-table
+cd ~/temp
+nano ./part-table
+sfdisk /dev/nvme0n1 < part-table
+dd if=/dev/disk/by-partlabel/eva-key of=/dev/disk/by-partlabel/eva-a-key
+dd if=/dev/urandom of=/dev/disk/by-partlabel/eva-key
+parted /dev/sdc
+parted /dev/nvme0n1
+zpool attach eva dm-0 /dev/disk/by-partlabel/eva-a-main
+cryptsetup luksOpen /dev/disk/by-uuid/9b2015e6-c1fb-407f-894d-8e0b489c7ffd /dev/disk/by-partlabel/eva-key;
+cryptsetup luksOpen /dev/disk/by-uuid/9b2015e6-c1fb-407f-894d-8e0b489c7ffd big-b --key-file /dev/disk/by-partlabel/eva-key;
+zpool attach big big /dev/mapper/big-b
+zpool trim eva; zpool status
+zpool status -v
+zpool status -t
+cryptsetup luksDump /dev/disk/by-uuid/7aa18eb2-054b-460a-9c9d-32494765187e
+sg_vpd -a /dev/nvme0n1 | grep "map"
+sg_vpd -a /dev/nvme0n1
+sg_vpd -a /dev/sda | grep "map"
+sg_vpd -a /dev/sdb | grep "map"
+cat /sys/block/sda/device/scsi_disk/2:0:0:0/provisioning_mode
+sg_vpd -a /dev/sdc | grep "map"
+cd /sys/block
+tree -a
+tree -a --help
+tree -a --help | grep "sym"
+tree -a -l
+tree -a -l -L 5
+tree -a -l -L 5 sda
+cat /sys/block/sdc/device/{vendor,model}
+udevadm info -a /dev/sda
+lsusb -D $(udevadm info --path=$(udevadm info -q path /dev/sda | cut -d / -f 1-7) | grep DEVNAME | cut -d = -f 2)
+lsusb -D $(udevadm info --path=$(udevadm info -q path /dev/sdb | cut -d / -f 1-7) | grep DEVNAME | cut -d = -f 2)
+mkfs.vfat -F 32 -n eva-a-boot /dev/disk/by-partlabel/eva-a-boot
+cd /mnt
+mkdir new-eva
+mount -o bind / /mnt/new-eva
+cd /mnt/new-eva
+mount -o bind /nix /mnt/new-eva/nix
+mount -o bind /etc /mnt/new-eva/etc
+mount -o bind /data /mnt/new-eva/data
+mount -o bind /data/zion /mnt/new-eva/data/zion
+cd zion
+mount -o bind /data/root /mnt/new-eva/root
+mount -o bind /data/home /mnt/new-eva/home
+mount /dev/disk/by-partlabel/eva-a-boot /mnt/new-eva/boot/
+echo feu; cd /data/zion/local/feu/
+set name eva; echo nixos-install --flake ./hosts/$name#$name --root /mnt/new-eva/ --impure
+zfs snapshot -R eva@$(date "+%Y-%m-%d_%H-%M-%S")
+zfs snapshot -r eva@$(date "+%Y-%m-%d_%H-%M-%S")
+set name eva; echo nixos-install --flake ./hosts/$name#$name --root /mnt/new-eva/ --impure --no-root-passwd
+set name eva; nixos-install --flake ./hosts/$name#$name --root /mnt/new-eva/ --impure --no-root-passwd
+umount -r /mnt/new-eva
+umount /mnt/new-eva/boot/
+umount /mnt/new-eva/{root,home}
+umount /mnt/new-eva/data/zion
+umount /mnt/new-eva/data/
+umount /mnt/new-eva/nix
+umount /mnt/new-eva/etc
+umount /mnt/new-eva/
+mount /dev/disk/by-partlabel/eva-a-boot /boot/
+lsusb
+zpool offline eva eva-a-main
+cryptsetup luksFormat --type luks2 /dev/disk/by-partlabel/eva-a-main
+cryptsetup luksAddKey /dev/disk/by-partlabel/eva-a-main --key-file /dev/disk/by-partlabel/eva-key
+cryptsetup luksAddKey /dev/disk/by-partlabel/eva-a-main /dev/disk/by-partlabel/eva-key
+zpool export big
+cryptsetup luksOpen /dev/disk/by-partlabel/eva-a-main eva-a-main --key-file /dev/disk/by-partlabel/eva-key;
+zpool replace eva eva-a-main /dev/mapper/eva-a-main
+ip addr show | less
+zfs set mountpoint=legacy big/files
+mount | grep boot
+umount /boot
+shutdown now
+zfs set mountpoint=/data/files big/files
+mount | grep big
+zfs set mountpoint=/etc eva/etc
+lsmod | grep z
+zfs set mountpoint=/data/zion eva/zion
+zfs set mountpoint=/data/zion eva/data/zion
+zfs set mountpoint=/data eva/data
+nano /nix/store/s2ns38zxzngxqpmns3ghdifj3c9iv1qh-unit-script-mount-rest-start/bin/mount-rest-start
+mount -o bind /data/home/ /home
+journalctl --this-boot | grep -iE "arche|import|target|local"
+journalctl --this-boot
+zfs lit
+echo zvol lsblk; cd /dev/zvol; find /dev/zvol -type l -regextype egrep -not -regex ".+-part[0-9]" -exec echo "" \; -exec echo "" \; -exec echo \{\} \; -exec lsblk --tree=kname -o kname,type,size,model,fstype,partlabel,label,mountpoint,phy-sec,uuid,partuuid,id \{\} \;
+cd /data/vms
+nixos-container stop arche
+zfs umount eva/vms
+zfs mount eva/vms
+cd /dev
+for f in /sys/block/zd*; udevadm trigger -v --sysname-match=$f:t; sleep 1; end
+cd zvol
+udevadm trigger -v --subsystem-match=block --sysname-match=zd* --action=change
+udevadm trigger -v --subsystem-match=block "--sysname-match=zd*" --action=change
+mount /dev/disk/by-partlabel/eva-a-boot /boot
+ip link show
+ip link show | grep -iE ": |"
+ip link show | grep -iE ": "
+echo feu-nix; cd /data/zion/local/feu/; nix-shell
+cat _g.presharedkey
+cd /data/zion/local/wireguard
+cd _g
+cp eden.conf eva.conf
+echo container status; echo "######################"; echo; for x in $(nixos-container list); echo -n $x: \t\t; nixos-container status $x; end
+systemctl list-units -t target
+systemctl list-units -t all
+systemctl list-units
+cat zfs-trim@.service
+cd /data/
+cd /var/lib/nixos-containers/arche/
+pwd
+cd files
+./shell.fish
+chmod u+x,g+x *.fish
+nano
+nano shell.fish
+cd ../.channels/nixpkgs
+cd ../../feu
+nixos-container update arche --config-file ./hosts/arche/arche.nix
+cd /mnt/f-esh/
+cd /data/zion/local/feu
+source shell.fish
+nano hosts/f-esh/f-esh.nix
+nano ../root-shared/derivations/nixos-image/hardware-manual.nix
+virsh domiflist f-esh
+zfs snapshot eva/vms/vm-f-esh-vda@$(date "+%Y-%m-%d_%H-%M-%S")
+zfs snapshot eva/vms/vm-f-esh-data@$(date "+%Y-%m-%d_%H-%M-%S")
+ssh 10.0.0.19
+zfs mount
+
+echo mount host; set name f-esh; set division ''; zpool import $name -f -R /mnt/$name -N; mount -t zfs $name/fsroot /mnt/$name/; mount -t zfs $name/etc /mnt/$name/etc; mount -t zfs $name/nix /mnt/$name/nix; mount -t zfs $name/data /mnt/$name/data; zfs mount $name/data; zpool import $name-data -f -R /mnt/$name; mount -t zfs $name-data /mnt/$name/data; zfs mount $name-data; mount /dev/disk/by-partlabel/$name$division-boot /mnt/$name/boot; mount -o bind /mnt/$name/data/home/ /mnt/$name/home/; mount -o bind /mnt/$name/data/root/ /mnt/$name/root/
+nixos-enter --root /mnt/f-esh
+nixos-install --flake ./hosts/f-esh#f-esh --root /mnt/f-esh --impure --no-root-passwd
+set name f-esh; echo unmount host $name; umount -R /mnt/$name; zpool export $name; zpool export $name-data
+echo disconnect-vpns; ip -j link show type wireguard | jq -r ' .[] | .ifname' | sed '/mgmt/d' | xargs --verbose -rn 1 ip link del
+echo disconnect-vpns; ip -j link show type wireguard | jq -r ' .[] | .ifname' | sed '/mgmt|hayyam-vpn/d' | xargs --verbose -rn 1 ip link del
+mkdir knet
+cp _k.presharedkey knet/_k.psk
+mkdir feu
+cp _g.presharedkey feu/_g.psk
+ensure-wireguard /mnt/eden
+cd /mnt/eden
+rm -R eden
+cd knet
+zion-vpn _g/feu/f-esh up
+cat shell.fish
+ping arche.feu
+zfs create eva/vms/vm-etzchaim-data -o com.sun:auto-snapshot=true -V 16G
+zfs create eva/vms/vm-etzchaim-vda -V 16G
+parted /dev/zvol/eva/vms/vm-etzchaim-data print
+parted /dev/zvol/eva/vms/vm-etzchaim-data -- mklabel gpt
+parted /dev/zvol/eva/vms/vm-etzchaim-data
+parted /dev/zvol/eva/vms/vm-eden-vda
+parted /dev/zvol/eva/vms/vm-etzchaim-vda
+l /dev/disk/by-partlabel
+/data/zion/local/root-shared/scripts/bash/prepare-vm-host.sh etzchaim
+bash
+umount -R /mnt/etzchaim
+udevadm trigger -v --subsystem-match=block '--sysname-match=zd*' --action=change
+/data/zion/local/root-shared/scripts/bash/prepare-vm-host.sh etzchaim /dev/zvol/eva/vms/vm-etzchaim /dev/zvol/eva/vms/vm-etzchaim-data
+zpool import etzchaim -R /mnt/etzchaim
+zpool destroy etzchaim
+/data/zion/local/root-shared/scripts/bash/prepare-vm-host.sh etzchaim /dev/zvol/eva/vms/vm-etzchaim-vda /dev/zvol/eva/vms/vm-etzchaim-data
+kdir -p {/mnt/data/root, /mnt/data/home}
+cd /mnt/etzchaim/
+chmod o+rx {etc,home,nix}
+mkdir {root,home}
+chmod o+rx {home}
+chmod o+rx home
+l hosts
+l ../knet-live/hosts
+echo lol
+mount -o bind /mnt/data/root /mnt/etzchaim/root
+mount -o bind /mnt/etzchaim/data/root /mnt/etzchaim/root
+mount -o bind /mnt/etzchaim/data/home /mnt/etzchaim/home
+zfs rename eva/vms/vm-etzchaim-vda eva/vms/tem
+systemctl restart vmm-etzchaim.service
+zfs destroy eva/vms/vm-etzchaim-vda
+zfs rename eva/vms/tem eva/vms/vm-etzchaim-vda
+zfs set mountpoint=/data etzchaim-data
+mountpoint /home
+nix eval --impure --expr '(builtins.getFlake (toString ./hosts/k-arche)).outputs.nixosConfigurations.k-arche.config.boot.kernel.enable'
+nix eval --impure --expr '(builtins.getFlake (toString ./hosts/etzchaim)).outputs.nixosConfigurations.k-arche.config.networking.defaultGateway'
+zfs snapshot eva/vms/vm-etzchaim-vda@$(date "+%Y-%m-%d_%H-%M-%S")
+zfs snapshot eva/vms/vm-etzchaim-data@$(date "+%Y-%m-%d_%H-%M-%S")
+nix eval --impure --expr '(builtins.getFlake (toString ./hosts/etzchaim)).outputs.nixosConfigurations.etzchaim.config.systemd.network.networks'
+nix eval --impure --expr '(builtins.getFlake (toString ./hosts/etzchaim)).outputs.nixosConfigurations.etzchaim.config.systemd.network.networks.10-ext.address'
+nix eval --impure --expr '(builtins.getFlake (toString ./hosts/etzchaim)).outputs.nixosConfigurations.etzchaim.config.systemd.network.networks."10-ext".address'
+nix eval --impure --expr '(builtins.getFlake (toString ./hosts/etzchaim)).outputs.nixosConfigurations.etzchaim.config.networking.defaultGateway'
+set name etzchaim; nixos-install --flake ./hosts/$name#$name --root /mnt/$name --impure
+
+echo mount-host; set name etzchaim; set division ''; mkdir -p /mnt/$name; zpool import $name -f -R /mnt/$name -N; mount -t zfs $name/fsroot /mnt/$name/; mount -t zfs $name/etc /mnt/$name/etc; mount -t zfs $name/nix /mnt/$name/nix; mount -t zfs $name/data /mnt/$name/data; zfs mount $name/data; zpool import $name-data -f -R /mnt/$name; mount -t zfs $name-data /mnt/$name/data; zfs mount $name-data; mount /dev/disk/by-partlabel/$name$division-boot /mnt/$name/boot; mount -o bind /mnt/$name/data/home/ /mnt/$name/home/; mount -o bind /mnt/$name/data/root/ /mnt/$name/root/
+set name etzchaim; nixos-install --flake ./hosts/$name#$name --root /mnt/$name --impure --no-root-passwd
+cd /data/zion/local/feu; source shell.fish
+nixos-container root-login arche
+echo "login_nixos_builder" cd /data/zion/local/feu; source shell.fish
+echo "login_nixos_builder"; cd /data/zion/local/feu; source shell.fish
+git commit
+git commit -a
+nixos-rebuild switch --flake ./hosts/eva#eva --impure --print-build-logs
+cd /data/files
+cd sap
+nix-shell -p unrar-wrapper
+unrar
+unrar -h
+unrar x TD752SP04part01.rar
+dig @10.0.0.2 eden.feu
+dig @10.0.0.2 etzchaim.feu
+mkdir /#
+ssh f-esh.feu.mgmt.k44
+zion-vpn _g/feu/f-esh up; ssh f-esh.feu.mgmt.k44;
+cat ~/.config/fish/config.fish
+nano hayyam-vpn.conf
+ip link del f-esh
+cryptsetup luksOpen /dev/disk/by-partlabel/bak-gamma-eva bak-gamma-eva --key-file /dev/disk/by-partlabel/eva-key;
+cryptsetup luksFormat --type luks2 /dev/disk/by-partlabel/bak-gamma
+cryptsetup luksAddKey /dev/disk/by-partlabel/bak-gamma /dev/disk/by-partlabel/eva-key
+cryptsetup luksDump /dev/disk/by-partlabel/bak-gamma
+pvcreate /dev/sdd1
+ls /dev/mapper/
+ls /dev/mapper/bak-gamma
+pvcreate /dev/mapper/bak-gamma
+vgcreate vg-eva-bak-gamma /dev/mapper/bak-gamma
+lvcreate -n lv-eva-bak-gamma -L 1.7TiB vg-bak-gamma
+lvcreate -n lv-eva-bak-gamma -L 1.7TiB vg-eva-bak-gamma
+lsblk --tree=kname -o kname,type,size,model,fstype,partlabel,label,mountpoint,phy-sec,uuid,partuuid,id-link
+zpool attach wall-e wall-e-a-main /dev/vg-bak-alpha/lv-wall-e
+zpool attach eva eva-a-main /dev/vg-eva-bak-gamma/lv-eva-bak-gamma
+mv /data/zion/local/channels/deploy-rs /#/zion/channels/deploy-rs
+NIXPKGS_ALLOW_INSECURE=1 nixos-rebuild switch --impure;
+echo https://github.com/nix-community/nixos-vscode-server
+virsh stop etzchaim
+mkdir /root/.config/home-manager
+ln -sv /#/zion/k/home-manager/nixos/wall-e/ /root/.config/home-manager/home.nix
+cd /root/.config/home-manager/
+rm home.nix/
+rm home.nix
+ln -sv /#/zion/k/home-manager/nixos/wall-e/root/home.nix /root/.config/home-manager/home.nix
+nixos-enter --root /mnt/etzchaim
+cd /data/keys/wireguard/
+rsync -av /data/zion/local/wireguard/ /#/zion/wireguard/
+cd /#/zion/wireguard
+mv _g/* ./
+rmdir _g
+cd /mnt/etzchaim/data/keys/wireguard/
+cat publickey
+home-manager switch -b backup
+cd /#/zion/k
+git config --global --add safe.directory /#/zion/k
+git config --global --add safe.directory /#/zion/gits/k
+now
+zfs snapshot eva/vms/vm-etzchaim-data@$(now)
+ping etzchaim.feu
+ping 10.33.0.30
+adm
+/data/keys/wireguard
+virsh kill etzchaim
+virsh destroy etzchaim
+NIX_PATH=/#/zion/k44/feu:/#/zion/k44:/#/zion:/#/zion/channels:nixos-config=/#/zion/k44/feu/hosts/eva/eva.nix NIXPKGS_ALLOW_INSECURE=1 nixos-install
+NIX_PATH=/#/zion/k44/feu:/#/zion/k44:/#/zion:/#/zion/channels:nixos-config=/#/zion/k44/feu/hosts/eva/eva.nix NIXPKGS_ALLOW_INSECURE=1 nixos-install --flake ./hosts/f-esh#f-esh --root /mnt/f-esh --impure --no-root-passwd
+NIX_PATH=/#/zion/k44/feu:/#/zion/k44:/#/zion:/#/zion/channels:nixos-config=/#/zion/k44/feu/hosts/eva/eva.nix NIXPKGS_ALLOW_INSECURE=1 name=etzchaim nixos-install --flake ./hosts/$name#$name --root /mnt/$name --impure --no-root-passwd
+rmdir tmp
+rm -R tmp
+zfs set volsize=20G eva/vms/vm-etzchaim-vda
+zpool online etzchaim -e
+zpool status etzchaim
+zpool online etzchaim -e zd32p2
+
+echo mount host; set name etzchaim; set division ''; mkdir -p /mnt/$name; zpool import $name -f -R /mnt/$name -N; mount -t zfs $name/fsroot /mnt/$name/; mount -t zfs $name/etc /mnt/$name/etc; mount -t zfs $name/nix /mnt/$name/nix; mount -t zfs $name/data /mnt/$name/data; zfs mount $name/data; zpool import $name-data -f -R /mnt/$name; mount -t zfs $name-data /mnt/$name/data; zfs mount $name-data; mount /dev/disk/by-partlabel/$name$division-boot /mnt/$name/boot; mount -o bind /mnt/$name/data/home/ /mnt/$name/home/; mount -o bind /mnt/$name/data/root/ /mnt/$name/root/
+df -h
+zfs get volsize eva/vms/vm-etzchaim-vda
+zfs get autoexpand etzchaim
+zpool get autoexpand etzchaim
+zpool set autoexpand=on etzchaim
+zpool online etzchaim zd32p2 -e
+parted /dev/zd32
+zpool online -e etzchaim zd32p2
+nixos-enter --root /mnt/etzchaim/
+cd /mnt/etzchaim/nix/store/
+rm -R ./*
+cd /mnt/etzchaim
+rm -R ./nix
+set name etzchaim; echo unmount host $name; umount -R /mnt/$name; zpool export $name; zpool export $name-data
+zfs snapshot eva/vms/vm-etzchaim-vda@$(now)
+sudo virsh start etzchaim
+ping 10.0.0.30
+ssh 10.0.0.30
+ping bloedsinn.k44
+cat /etc/hosts
+ssh git@etzchaim.k44
+ssh gitlab@etzchaim.k44
+ssh-keygen -t ed25519 -C "gitlabtest" -i ~/.ssh/gitlabtest.id_ed25519
+ssh-keygen -t ed25519 -C "gitlabtest" -f ~/.ssh/gitlabtest.id_ed25519
+cat ~/.ssh/gitlabtest.id_ed25519.pub
+ssh gitlab@etzchaim.k44 -i ~/.ssh/gitlabtest.id_ed25519
+rm ~/.ssh/gitlabtest.id_ed25519
+rm ~/.ssh/gitlabtest.id_ed25519.pub
+virsh dommemstat
+virsh dommemstat etzchaim
+adm feu etzchaim
+depl feu etzchaim
+tmux attach -t 0
+systemctl -h
+ping 10.77.0.77
+nmap 10.0.0.0/24
+passwd
+systemctl poweroff
+ping 10.0.0.19
+curl ifconfig.me
+ping fritz.box
+ping 192.168.178.1 -4
+ping 10.0.0.99
+ping 10.0.0.143
+bridge link show
+brctl show
+ip link -d show
+ip -d link show
+ip -d link show knet
+ip -d link show feu
+ip -d link show feu | highlight id
+ip -d link show feu | highlight 77
+ip -d link show | highlight 77
+ip link del feu
+ip link del feu-vl
+ip link show sws
+ping 10.100.0.83
+ip -d link show | highlight "vlan protocol"
+wget 10.100.0.84
+wget 10.100.0.81
+wget http://10.100.0.81
+nmap 10.100.0.0/24
+ping 10.100.0.81
+ip addr show sws
+ping 10.100.81
+ping 10.100.84
+ping 10.100.0.84
+nmap 10.102.0.0/24
+ip addr show aps
+ping 10.0.0.
+ping f-esh.feu.mgmt.k44
+adm feu f-esh
+virsh stop f-esh
+virsh shutdown f-esh
+virsh shutdown eden
+virsh start eden
+virsh start f-esh
+ping 10.0.0.2
+nmap --script broadcast-dhcp-discover -e knet
+nmap --script broadcast-dhcp-discover -e feu
+systemctl reboot
+cd /tmp
+nix-shell -p file
+file code-ff4317e4-24f7-4c2e-899e-e774e9f87ca1
+sshsocket
+fish
+testecho
+virsh shutdown etzchaim
+adm etzchaim
+zpool import -o name
+zpool import --help
+man zpool import
+man zpool-import
+man zpool
+zpool import | highlight "pool: .+"
+sgpt --repl vim
+findmnt /data/files
+findmnt /data/fileseeeee
+findmnt --help
+findmnt --noheadings --output source /mnt
+cd /data
+findmnt --noheadings --output source -T .
+findmnt --noheadings --output target -T .
+findmnt --noheadings --output target /data456
+findmnt --noheadings --output target /data
+findmnt --noheadings --output source /data
+findmnt --noheadings --output source /dev/disk/by-partlabel/eva-a-boot
+sudo mkdir /var/temporarymount
+mount /dev/disk/by-partlabel/eva-a-boot /var/temporarymount/
+findmnt --noheadings --output target /dev/disk/by-partlabel/eva-a-boot
+findmnt --noheadings --output target,options /home
+sgpt --repl python
+findmnt --noheadings --output target,options,propagation /home
+findmnt --noheadings --output target,source /home
+findmnt -T .
+findmnt
+findmnt | less
+findmnt --noheadings --output source /home | grep '\['
+findmnt --noheadings --output source /home | grep '\[' | head -n 1
+findmnt --noheadings --output target /home
+findmnt --noheadings --output target /data/home
+findmnt --noheadings --output target,source /data/home
+findmnt --noheadings --output source /data/home
+findmnt --noheadings /home
+findmnt /home
+findmnt /
+findmnt --noheadings --output target /
+mount | grep -E '[,(]bind[,)]'
+findmnt | grep  "\["
+findmnt --noheadings --output source /home | grep "\["
+findmnt --noheadings --output source eva/data
+findmnt --noheadings --output target eva/data | head
+findmnt --noheadings --output source,target /home
+findmnt --noheadings --output target eva/data | head -n 1
+findmnt --noheadings --output target eva/data
+findmnt --noheadings --output source /home
+cd /var
+umount /var/temporarymount
+mount --bind /lib /var/temporarymount
+findmnt --noheadings --output target,source eva/fsroot
+findmnt --noheadings --output source,target eva/fsroot
+echo /lib
+findmnt --noheadings --output source /var/temporarymount/
+findmnt --noheadings --output source eva/fsroot
+findmnt --noheadings --output target eva/fsroot
+findmnt --help | less
+findmnt --noheadings --output target eva/fsroot --json
+findmnt --noheadings --output target,source eva/fsroot --json
+zfs snapshot eva/vms/vm-eden-vda@$(now)
+zfs snapshot eva/vms/vm-eden-data@$(now)
+virsh list --name
+python vmm.py bana
+python vmm.py create bana
+zfs create bana/fsroot -o mountpoint=legacy -o normalization=formD
+zpool list -H -o name | grep -q 'bana'
+zpool list -H -o name | grep -q '^bana$'
+partprobe
+zpool create bana -R /var/vmm/bana /dev/disk/by-partlabel/bana-main -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none
+parted /dev/zvol/eva/vms/vm-bana-vda
+parted
+parted -s /dev/zvol/eva/vms/vm-bana-vda print
+parted -s /dev/zvol/eva/vms/vm-bana-vda print | grep -q "Partition Table:"
+parted -s /dev/zvol/eva/vms/vm-bana-vda print | grep "Partition Table:"
+parted -s print | grep -q "Partition Table:"
+parted -s /boot print | grep "Partition Table:"
+parted -s eva-main print | grep "Partition Table:"
+parted -s /dev/disk-bypartlabel/eva-main print | grep "Partition Table:"
+parted -s /dev/disk/by-partlabel/eva-a-main print | grep "Partition Table:"
+parted -s /dev/sda/ print | grep "Partition Table:"
+parted -s /dev/sda print | grep "Partition Table:"
+parted -s /dev/sda --print | grep "Partition Table:"
+parted -s /dev/sda print
+parted -s /dev/sdc1 print
+parted -s /sdc print
+parted -s /dev/sdc print
+parted -s /dev/zd80 print
+findmnt --noheadings --output source
+https://prod.liveshare.vsengsaas.visualstudio.com/join?D908FB1A4F4553690793B98BF7C8EAC77A88
+cd /dev/disk/by-partlabel/
+ls /dev/zvol/eva/vms/
+file /dev/disk/by-partlabel/
+parted /dev/zvol/eva/vms/vm-bana-data
+parted /dev/zvol/eva/vms/vm-bana-vda print
+parted /dev/zvol/eva/vms/vm-bana-main print
+file /dev/zvol/eva/vms/vm-bana-data
+parted /dev/zvol/eva/vms/vm-bana-data print
+zpool import | grep -q 'pool: bana-data'
+zpool list -H -o name | grep -q '^bana-data$'
+ls /dev/disk/by-partlabel/
+file /dev/disk/by-partlabel/bana-data
+findmnt --noheadings --output source /var/vmm/bana/data/root
+findmnt --noheadings --output source /var/vmm/bana/data
+ech oki
+echo ok
+findmnt --noheadings --output source /var/vmm/bana/root
+mount /mnt/bana/data
+umount /mnt/bana/data
+python vmm.py create bana --zvol_parent_path eva/vms
+python install bana
+python vmm.py install bana
+python vmm.py install bana -vmorg feu
+python vmm.py install banah
+cd /#/zion/k44/feu/hosts/banah
+file /#/zion/k44/feu/hosts/banah
+nixos-install --flake /#/zion/k44/feu/hosts/banah#banah --root /var/vmm/banah --impure --no-root-passwd
+virsh list --name | grep -q '^banah$'
+file /var/vmm/banah
+nixos-install --flake ./#/zion/k44/feu/hosts/banah#banah --root /var/vmm/banah --impure --no-root-passwd
+nixos-install --flake file:///#/zion/k44/feu/hosts/banah#banah --root /var/vmm/banah --impure --no-root-passwd
+nixos-install --flake file:///#/zion/k44/feu/hosts/banah%23banah --root /var/vmm/banah --impure --no-root-passwd
+nixos-install --flake ./k44/feu/hosts/banah%23banah --root /var/vmm/banah --impure --no-root-passwd
+nixos-install --flake ./k44/feu/hosts/banahbanah --root /var/vmm/banah --impure --no-root-passwd
+nixos-install --flake ./k44/feu/hosts/banah#banah --root /var/vmm/banah --impure --no-root-passwd
+nixos-install --flake file:///#/zion/k44/feu/hosts/etzchaim#etzchaim --root /var/vmm/banah --impure --no-root-passwd
+nixos-install --flake file://#/zion/k44/feu/hosts/etzchaim#etzchaim --root /var/vmm/banah --impure --no-root-passwd
+nixos-install --flake /#/zion/k44/feu/hosts/etzchaim#etzchaim --root /var/vmm/banah --impure --no-root-passwd
+env
+env | grep /#/zion
+cd etc
+env | grep /#/zion/k44/feu/hosts
+nixos-install --flake ./k44/feu/hosts/etzchaim#etzchaim --root /var/vmm/banah --impure --no-root-passwd
+nixos-install --flake ./k44/feu/hosts/etzchaim#etzchaim --root /var/vmm/etzchaim --impure --no-root-passwd
+chmod o+rx /mnt/etzchaim
+cd /#/zion; NIX_PATH=/#/zion/k44/feu:/#/zion/k44:/#/zion:/#/zion/channels:nixos-config=/#/zion/k44/feu/hosts/eva/eva.nix NIXPKGS_ALLOW_INSECURE=1 name=etzchaim nixos-install --flake ./k44/feu/hosts/$name#$name --root /mnt/$name --impure --no-root-passwd
+eva.nix NIXPKGS_ALLOW_INSECURE=1 name=etzchaim
+set NIX_PATH /#/zion/k44/feu:/#/zion/k44:/#/zion:/#/zion/channels:nixos-config=/#/zion/k44/feu/hosts/eva/
+set NIX_PATH /#/zion/k44/knet /#/zion/k44 /#/zion/k44/feu /#/zion /#/zion/channels nixos-config=/#/zion/k44/knet/hosts/wall-e/wall-e.nix
+nixos-install --flake ./k44/feu/hosts/etzchaim#etzchaim --root /mnt/etzchaim --impure --no-root-passwd
+python vmm.py install bana --vmorg feu
+python /#/zion/nixk44/scripts/vmm.py install banah --vmorg feu --verbose VERBOSE
+python /#/zion/nixk44/scripts/vmm.py install banah --vmorg feu --verbose
+python /#/zion/nixk44/scripts/vmm.py --verbose install banah --vmorg feu
+python /#/zion/nixk44/scripts/vmm.py install banah --verbose --vmorg feu
+python /#/zion/nixk44/scripts/vmm.py -v install banah --vmorg feu
+nixos-install --flake ./feu/hosts/banah#banah --root /var/vmm/banah --impure --no-root-passwd
+adm banah
+set name banah; echo unmount host $name; umount -R /mnt/$name; zpool export $name; zpool export $name-data
+set name banah; echo unmount host $name; umount -R /var/vmm/$name; zpool export $name; zpool export $name-data
+zpool export bana
+zpool expor bana-data
+zpool export bana-data
+umount /var/vmm/bana/root
+umount /var/vmm/bana/home
+umount /var/vmm/bana/boot
+zfs destroy eva/vms/vm-bana-data
+zfs destroy eva/vms/vm-bana-vda
+mount -r /var/vmm/banah/root
+zfs destroy banah
+zfs destroy eva/vms/vm-banah-dta
+rm banah
+tree banah
+file banah/var/empty
+unlink banah/var/empty
+sudo unlink banah/var/empty
+rm -rf bana
+sudo chmod 755 empty
+umount /var/vmm/banah/boot
+umount /var/vmm/banah/home
+umount /var/vmm/banah/root
+zpool
+zfs destroy eva/vms/vm-banah-vda
+zfs list | grep bana
+zfs get mountpoint
+zfs get mountpoint banah
+zfs get mountpoint banah -H -o VALUE
+zfs get mountpoint banah -H -o "VALUE"
+zfs get mountpoint banah -H
+zfs get mountpoint banah -H -o "value"
+zpool list -H -o name | grep -q '^banah$'
+zpool list -H -o name | grep -q 'banah'
+zpool list -H -o name | grep 'banah'
+zpool list -H -o name | grep '^banah$'
+zpool list -H -o name | grep -q --extended -regexp '^banah$'
+zpool list -H -o name | grep --extended --regexp '^banah$'
+zpool list -H -o name | grep -q --extended --regexp '^banah$'
+zpool list -H -o name | grep -q --extended --regexp '^banadh$'
+file /banah/etc
+file banah/etc
+mount -t zfs banah/etc /var/vmm/banah/etc
+umount /var/vmm/banah/data
+umount banah-data
+umount -r banah-data
+zpool import banah-data -f -R /var/vmm/banah
+touch test
+vim
+zfs get mountpoint banah/data -H -o "value"
+echo also zfs-list bana-data ist schonmal bloedsinn
+echo bana/data
+echo zpool bana-data
+echo lol zpool bana-data. zfs dataset bana/data
+echo es gibt auch ein dataset namens bana-data aber das interessiert uns nicht, weil das ist das root dataset vom bana-data zpool und das ist automount, grundsaetzlich
+mount list | grep banah
+mount list
+umount -r banah
+umount -r /var/vmm/banah/root
+umount -r /var/vmm/banah/home
+umount -r /var/vmm/banah/data
+https://prod.liveshare.vsengsaas.visualstudio.com/join?5C5E74F3E8C54AE59C9D48E272F0FD4C3BAD
+zfs get mountpoint eva/vms/vm-banah-vda
+zfs get mountpoint eva/vms/vm-banah-vda -o value
+zfs get mountpoint eva/vms/vm-banah-vda -o value -H
+zfs get mountpoint banah/data -H -o value
+python vmm.py mount banah#
+zfs get banah/data | filter mount
+zfs get all banah/data | filter mount
+zfs get all banah | filter mount
+python vmm.py enter etzchaim
+ls -al /var/vmm/banah
+sudo chmod
+sudo chmod 755 etc
+sudo chmod 755 /var/vmm/banah/etc
+umount -r /var/vmm/banah/boot
+umount -r /var/vmm/banah
+python vmm.py enter banah
+ip route show
+ping google.de
+ping 192.168.178.1
+ping 192.168.188.1
+ifconfig inet
+virsh start etzchaim
+zfs snapshot eva/vms/vm-banah-data@$(now)
+zfs snapshot eva/vms/vm-banah-vda@$(now)
+nixos-rebuild switch --flake ./hosts/banah#banah --impure --print-build-logs
+cd feu
+ping banah.k44
+ping etzchaim.k44
+virsh stop banah
+ls -al /root
+cd /etc
+cd --
+zfs list -t snapshot
+zfs list -t snapshot | grep banah
+zfs revert eva/vms/vm-banah-data@2024-12-15_22-08-30
+zfs rollback eva/vms/vm-banah-data@2024-12-15_22-08-30
+zfs rollback eva/vms/vm-banah-vda@2024-12-15_22-08-44
+zfs list -H -o name | grep -q 'banah-data'
+zfs list -H -o name | grep -q 'banah-datad'
+zfs list -H -o name | grep 'banah-data'
+zfs list -H -o banah-data
+zfs list banah-data
+zfs list eva
+zfs list eva -H -o name
+umount -R banah
+umount -R banah-data
+umount -R banah/fsroot
+zfs list banah-data -H -o name
+zpool list -H -o name | grep -q --extended-regexp '^banah-data$'
+zpool list -H -o name | grep -q --extended-regexp '^eva$'
+zpool list -H -o name | grep --extended-regexp '^banah-data$'
+zpool list -H -o nam
+zpool import -f banah-data -R /var/vmm/banah
+zpool import banah -f -R /var/vmm/banah
+zpool import | grep -q --extended-regexp 'pool: banah-data$'
+zpool export banah-data
+zpool export banah
+zpool destroy banah
+zpool import
+virsh kill banah
+rm -rf banah#
+mount | grep bana
+ls -a
+mount | grep ba
+cd var
+unlink empty
+cd empty
+chattr -i empty
+rm empty
+rmdir empty
+rm -rf banah
+python vmm.py create banah --vmorg feu
+python vmm.py create banah
+python vmm.py install banah --vmorg feu
+python vmm.py kill banah
+python vmm.py mount banah
+nixos-enter --root /var/vmm/banah
+python vmm.py unmount banah
+python vmm.py start banah
+ps aux | grep node
+ssh banah.k44
+ifconfig feu
+ping 10.77.0.30
+ping 10.77.0.70
+ping 10.77.0.50
+python vmm.py create banah --zvol_parent_path eva/vms
+python vmm.py create bahan --zvol_parent_path eva/vms
+python vmm.py install bahan --vmorg feu
+python vmm.py install bahan --vmorg feu --zvol_parent_path eva/vms
+zfs helüp
+zfs help
+zfs help snapshot
+zfs snapshot -h
+python /#/zion/nixk44/scripts/vmm.py create bahan
+python /#/zion/nixk44/scripts/vmm.py install banah -v --vmorg feu
+python /#/zion/nixk44/scripts/vmm.py install banah --vmorg feu
+python /#/zion/nixk44/scripts/vmm.py install bahan --vmorg feu
+python /#/zion/nixk44/scripts/vmm.py install bahan --vmorg feu --zvol_parent_path eva/vms
+zfs snapshot eva/vms/vm-bahan-data@$(now)
+python /#/zion/nixk44/scripts/vmm.py setup_vm sum --vmorg feu --zvol_parent_path eva/vms
+python vmm.py unmount bahan
+mount | grep sum
+python vmm.py mount bahan
+python /#/zion/nixk44/scripts/vmm.py setup_vm bahan --vmorg feu --zvol_parent_path eva/vms
+ls .al
+mount bahan
+mount | grep bahan
+virsh stop bahan
+ping 10.77.0.60
+ping 10.0.0.50
+ping 10.0.0.60
+systemctl restart systemd-networkd.service
+ping bahan.k44 -t
+ping bahan.k44
+ensure-wireguard
+ssh root@bahan.k44
+ssh bahan.k44
+home-manager switch
+ssh sum.k44
+virsh start sum
+ssh_load_forwarded_socket
+ssh banah.feu
+ssh root@banah.feu
+virsh shutdown bahan
+python /#/zion/nixk44/scripts/vmm.py mount bahan
+cd /var/vmm/bahan
+cd wireguard
+cd keys
+cd wireguard/
+stat -c '%a %n' *
+whoami+
+whoam
+ping 10.3.0.1
+ping 10.77.0.20
+ping 10.0.0.20
+python /#/zion/nixk44/scripts/vmm.py setup_vm wg_esh --vmorg feu --zvol_parent_path eva/vms
+who
+who -h
+virsh destroy wg-esh
+virsh destroy wg_esh
+ssh 10.3.0.20
+echo module wireguard +p > /sys/kernel/debug/dynamic_debug/control
+python /#/zion/nixk44/scripts/vmm.py setup_vm wg-esh --vmorg feu --zvol_parent_path eva/vms
+ping wg-esh.feu
+ssh wg-esh.feu
+set NIX_PATH /#/zion/k44/feu:/#/zion/k44:/#/zion:/#/zion/channels:nixos-config=/#/zion/k44/feu/hosts/eva/eva.nix NIXPKGS_ALLOW_INSECURE=1 name=etzchaim
+ssh gt-esh.feu
+python /#/zion/nixk44/scripts/vmm.py setup_vm gt-esh --vmorg feu --zvol_parent_path eva/vms
+wg show
+virsh start gt-esh
+adm feu wg-esh
+ping 10.3.0.20
+ping 10.4.0.21
+ping gt-esh.feu#
+netstat -tunlpea
+history -1 -11
+history -1 -100
+history -1 -200
+virsh reboot f-esh
+ping 10.4.0.77
+ip addr show feu
+ip addr show
+virsh shutdown wg-esh
+virsh start wg-esh
+ping gt-esh.feu
+adm feu gt-esh
+python /#/zion/nixk44/scripts/vmm.py snapshot bahan --snapshot_name before_springboot_devtools
+python /#/zion/nixk44/scripts/vmm.py snapshot bahan --snapshot_name before_springboot_devtools --zvol_parent_path eva/vms
+adm feu bahan
+exot
+journalctl --this-boot --reverse | less
+systemctl status
+cd /var/vmm/banah/data/keys/
+python /#/zion/nixk44/scripts/vmm.py unmount bahan
+virsh shutdown banah
+depl feu sum
+ping banah.feu.mgmt.k44
+mv /#/zion/keys/gitlab_to_bahan_ssh_key .
+mv /#/zion/keys/gitlab_to_bahan_ssh_key.pub .
+sudo mkdir /data/files/gitlab
+cd /data/files/gitlab
+rm gitlab
+rmdir gitlab
+virsh start bahan
+virsh start banah
+ping banah.feu
+python /#/zion/nixk44/scripts/vmm.py install banah --vmorg feu --zvol_parent_path eva/vms
+mount -t zfs banah/fsroot /var/vmm/banah
+riit
+cd /var/vmm/
+python /#/zion/nixk44/scripts/vmm.py unmount banah
+python /#/zion/nixk44/scripts/vmm.py mount banah
+cd /var/vmm/banah
+mount
+virsh list
+virsh destroy banah
+tree
+virsh -h
+virsh undefine banah
+virsh undefine --nvram banah --remove-all-storage
+sudo virsh undefine --nvram banah --remove-all-storage
+virst list --all
+virsh undefine --nvram gt_esh --remove-all-storage
+sudo virsh undefine --nvram wg_esh --remove-all-storage
+virsh undefine --nvram wg_esh --remove-all-storage
+sudo rm -rf banah
+zfs destroy eva/vms/vm-banah-data
+cd /dev/zvol/eva/vms
+fdisk /dev/zd16p2
+zfs destroy eva/vms/vm-wg_esh-data
+zfs destroy -r eva/vms/vm-wg_esh-data
+zfs destroy -r eva/vms/vm-wg_esh-vda
+cd /var/vmm
+set NIX_PATH /#/zion/k44/feu:/#/zion/k44:/#/zion:/#/zion/channels:nixos-config=/#/zion/k44/feu/hosts/eva/eva.nix NIXPKGS_ALLOW_INSECURE=1 name=gt-esh; python /#/zion/nixk44/scripts/vmm.py setup_vm gt-esh --vmorg feu --zvol_parent_path eva/vms
+ls -alo
+mount | grep banah
+umount -R /var/vmm/banah
+cd /var/vmm/banah/data
+cd ../..
+ls /var/vmm/banah/data/
+cd banah
+cd data
+ls -al
+ls banah/data/
+python /#/zion/nixk44/scripts/vmm.py remove_vm banah
+watch virsh list
+cd /#/zion/nixk44/scripts/
+virsh list --all
+python /#/zion/nixk44/scripts/vmm.py setup_vm banah --vmorg feu --zvol_parent_path eva/vms
+set NIX_PATH /#/zion/k44/feu:/#/zion/k44:/#/zion:/#/zion/channels:nixos-config=/#/zion/k44/feu/hosts/eva/eva.nix NIXPKGS_ALLOW_INSECURE=1 name=gt-esh; python /#/zion/nixk44/scripts/vmm.py setup_vm banah --vmorg feu --zvol_parent_path eva/vms
+ssh bahan.feu
+ssh-add -L
+adm feu banah
+virsh reboot bahan
+curl bahan.feu:5000
+curl bahan.feu:8079
+curl bahan.feu:8080
+depl feu bahan
+python zmirror.py
+which python3
+/nix/store/6q60222kix48g2di3136afjp8cvch99n-zmirror/
+nix-support/
+cd ./nix-support/
+cd nix-support/
+cat propagated-build-inputs
+udevadm trigger -v --subsystem-match=block  --action=add
+udevadm trigger -v --subsystem-match=block '--sysname-match=zd96' --action=add
+/nix/store/irbfdvwrsfqgc5cix91i83wabhk7a9ls-python3-3.12.7-env/bin/python3 /\#/zion/zmirror/zmirror.py
+cd /etc/zfs/zed.d/
+cd /etc/static/zfs/zed.d/
+ls -al zmirror
+ls -al --dereference zmirror
+udevadm trigger -v --subsystem-match=block '--sysname-match=zd96p2' --action=add
+chmod 777 .
+chmod 666 log.st
+touch all-test.sh
+chmod 777 all-test.sh
+nano all-test.sh
+mv all-test.sh test.sh
+mv all-zmirror.sh zmirror.sh
+zpool ffline eva eva-b-main
+mv zmirror.sh all-zmirror.sh
+systemctl restart zfs-zed.service
+rm /var/run/zmirror/log.st
+tail -f /var/run/zmirror/log.st
+udevadm trigger -v --subsystem-match=block '--sysname-match=sdc1' --action=add
+udevadm trigger -v --subsystem-match=block '--sysname-match=sdc2' --action=add
+cd /dev/disk/by-partuuid
+l | sort
+ls | sort
+cd /dev/disk/by-uuid
+zpool clear eva
+cryptsetup close eva-b-main
+cryptsetup open eva-b-main
+cryptsetup luksOpen /dev/disk/by-partlabel/eva-b-main eva-b-main --key-file /dev/disk/by-partlabel/eva-key;
+zpool scrub eva eva-b-main
+watch zpool status
+parted /dev/mapper/eva-b-main
+zpool import bak
+cryptsetup luksOpen /dev/disk/by-partlabel/bak-gamma bak-gamma --key-file /dev/disk/by-partlabel/eva-key;
+cd /dev/vg-eva-bak-gamma/
+zpool online eva vg-eva-bak-gamma/lv-eva-bak-gamma
+zpool offline eva vg-eva-bak-gamma/lv-eva-bak-gamma
+cryptsetup close lv-eva-bak-gamma
+vgchange --help
+vgchange --activate n vg-bak-gamma
+vgchange --activate n vg-eva-bak-gamma
+cryptsetup close bak-gamma
+cat /dev/disk/by-partlabel/eva-key | cryptsetup open /dev/disk/by-partlabel/bak-gamma bak-gamma
+cat /dev/disk/by-partlabel/eva-key
+cryptsetup open /dev/disk/by-partlabel/bak-gamma bak-gamma --key-file /dev/disk/by-partlabel/eva-key;
+vgchange --activate y vg-eva-bak-gamma
+zfs create eva/test -V 1G
+cryptsetup luksFormat /dev/zvol/eva/test --key-file /dev/disk/by-partlabel/eva-key
+chown -R _g:wheel .
+git add -A; git commit
+git config core.sharedRepository true;
+mkdir temp
+cd temp
+git clone https://github.com/k44t/zmirror
+rm -R ../.git
+mv zmirror/.git ../
+zpool status -h
+zpool status --help
+zpool status help
+zpool event
+journalctl -f
+/run/current-system/sw/bin/python /#/zion/zmirror/zmirror.py
+zpool list -H -o name
+zpool list -H -o name eva
+zpool scrub eva
+journalctl -fn 4000 | less
+journalctl -fn 4000 | less > log.txt
+cd /#/zion/zmirror/
+cd /var/lib/zmirror/#
+cache_object
+rm /var/lib/zmirror/cache.json
+chmod 777 /var/run/zmirror/
+mv /var/run/zmirror/log.st /var/run/zmirror/log.bak.st
+tmux set -g mouse on
+cat /etc/zfs/zed.d/all-zmirror.sh
+cat /etc/udev/rules.d/99-local.rules
+free
+top
+systemctl status zmirror-scrub
+systemctl status zmirror-scrub.timer
+cat /#/zion/k44/feu/hosts/eva/hardware.nix
+systemctl status zmirror-scrub2.service
+systemctl status zmirror-scrub2
+systemctl status zmirror-scrub2.timer
+cd /etc/systemd/system/
+systemctl status intel-nic-compat.service
+systemctl status zm
+systemctl status zmirror
+systemctl status zmirror-scrub.service
+systemctl start zmirror-scrub
+python zmirror.py status
+journalctl -fn 200 -u zmirror
+journalctl -fn 200 -t zmirror
+python zmirror.py scrub
+which python
+cd zmirror/
+nix-shell
+python -m debugpy -- /#/zion/zmirror/zmirror.py
+python -m debugpy /#/zion/zmirror/zmirror.py
+python -m debugpy --listen localhost:8888 /#/zion/zmirror/zmirror.py
+python -Xfrozen_modules=off -m debugpy --listen localhost:8888 /#/zion/zmirror/zmirror.py
+python -Xfrozen_modules=off -m debugpy --wait-for-client --listen localhost:8888 /#/zion/zmirror/zmirror.py
+python -Xfrozen_modules=off -m debugpy --wait-for-client --listen localhost:8888 /#/zion/zmirror/zmirror.py scrub
+rm eva
+ln -sv k44/feu/hosts/eva eva
+pkill zmirror
+which zmirror
+zmirror
+zpool status eva
+pkill zmirror; zpool online eva eva-b-main
+journalctl -fn 200
+pkill zmirror; export ZEVENT_CLASS=hello ZEVENT_SUBCLASS=vdev_online
+r
+tmux a -t 0
+whoami
+pkill zmirror; export ZEVENT_CLASS=hello ZEVENT_SUBCLASS=vdev_online ZEVENT_POOL=eva
+cd /var/lib/zmirror/
+rm cache.json
+python /#/zion/zmirror/zmirror.py clear-status
+python /#/zion/zmirror/zmirror.py clear-cache
+pkill zmirror; export ZEVENT_CLASS=hello ZEVENT_SUBCLASS=vdev_online ZEVENT_POOL=eva ZEVENT_VDEV_PATH=/dev/mapper/eva-b-main
+vim /var/lib/zmirror/cache.yml
+chmod 666 /var/lib/zmirror/*
+rm /var/lib/zmirror/cache.yml
+python /#/zion/zmirror/zmirror.py
+python /#/zion/zmirror/zmirror.py status
+ping eva.feu.mgmt.k44
+cd /var/run/zmirror
+cryptsetup open /dev/disk/by-partlabel/wall-e-s-main wall-e
+free -h
+zpool import wall-e -o readonly=on -R /mnt/wall-e
+zpool import wall-e -o readonly=on -R /mnt/wall-e -f
+zfs list | filter mobile
+zpool import mobile -o readonly=on -R /mnt/wall-e/ -f
+cd /mnt/wall-e/\#/audiobooks/sorted
+ls
+cd /data/files/
+cd´g
+cd g
+cd Musik/
+mkdir Audiobooks
+mv Audiobooks ../
+chown 4441:4441 .
+chmod g+w .
+rsync -av --no-owner --no-perms --no-group ./ /data/files/g/Audiobooks/
+l | grep "  "
+cd /
+zpool export mobile
+zpool export wall-e
+cryptsetup close wall-e
+mv Julius\ Caesar\ \ -\ William\ Shakespeare\ \(V\ Shakespeare\ Appreciated\) Julius\ Caesar\ -\ William\ Shakespeare\ \(V\ Shakespeare\ Appreciated\)
+mv King\ Lear\ \ -\ William\ Shakespeare\ \(V\ Shakespeare\ Appreciated\)/ King\ Lear\ -\ William\ Shakespeare\ \(V\ Shakespeare\ Appreciated\)/
+mv Othello\ \ -\ William\ Shakespeare\ \(V\ Shakespeare\ Appreciated\)/ Othello\ -\ William\ Shakespeare\ \(V\ Shakespeare\ Appreciated\)/
+mv Seeking\ Allah,\ Finding\ Jesus\ -\ \ Third\ Edition\ with\ Bonus\ Content,\ New\ Reflections\ -\ Nabeel\ Qureshi,\ Lee\ Strobel\ -\ foreword/ Seeking\ Allah,\ Finding\ Jesus\ -\ Third\ Edition\ with\ Bonus\ Content,\ New\ Reflections\ -\ Nabeel\ Qureshi,\ Lee\ Strobel\ -\ foreword/
+mv The\ Modern\ Scholar\ -\ \ Shakespeare\ -\ \ The\ Seven\ Major\ Tragedies\ -\ Professor\ Harold\ Bloom/ The\ Modern\ Scholar\ -\ \ Shakespeare\ -\ The\ Seven\ Major\ Tragedies\ -\ Professor\ Harold\ Bloom/
+mv Twelfth\ Night\ \ -\ William\ Shakespeare\ \(V\ Shakespeare\ Appreciated\)/ Twelfth\ Night\ -\ William\ Shakespeare\ \(V\ Shakespeare\ Appreciated\)/
+mv The\ Modern\ Scholar\ -\ \ Shakespeare\ -\ \ The\ Seven\ Major\ Tragedies\ -\ Professor\ Harold\ Bloom/ The\ Modern\ Scholar\ -\ Shakespeare\ -\ The\ Seven\ Major\ Tragedies\ -\ Professor\ Harold\ Bloom/
+mv The\ Modern\ Scholar\ -\ \ Shakespeare\ -\ The\ Seven\ Major\ Tragedies\ -\ Professor\ Harold\ Bloom/ The\ Modern\ Scholar\ -\ Shakespeare\ -\ The\ Seven\ Major\ Tragedies\ -\ Professor\ Harold\ Bloom/
+ls | filter "  "
+chown -R 4441:4441 .
+chmod -R g+w .
+chmod -R o-rwx .
+pkill zmirror_trigger; export ZEVENT_CLASS=hello ZEVENT_SUBCLASS=vdev_online ZEVENT_POOL=eva ZEVENT_VDEV_PATH=/dev/mapper/eva-b-main
+python /#/zion/zmirror/zmirror_trigger.py
+/#/zion/zmirror/src/zmirror_trigger.py
+python /#/zion/zmirror/src/zmirror_trigger.py
+env -i TEST=1 python /#/zion/zmirror/src/zmirror_trigger.py
+cd /#/zion; vim
+zpool online eva eva-b-main
+zpool offline eva eva-b-main
+lvdisplay
+cd /dev/mapper/
+pvcreate /dev/zvol/eva/test
+vgcreate vg-test
+vgcreate --help vg-test
+vgcreate vg-test /dev/zvol/eva/test
+lvcreate lv-test --help
+lvcreate lv-test vg-test
+lvcreate lv-test --size 100M vg-test
+lvcreate vg-test --size 100M lv-test
+lvcreate vg-test --size 100M pv-test
+lvcreate -n lv-test --size 100M vg-test
+lvchange
+lvchange --activate y /dev/vg-test/lv-test
+zfs get all eva/test
+zfs get all eva/test | sort
+sgpt --repl zfs.zvols
+lvchange --activate n /dev/vg-test/lv-test
+vgchange --activate n /dev/vg-test
+vgdisplay
+udevadm monitor --property --udev
+zfs set volmode=none eva/test
+udevadm trigger -v --subsystem-match=block '--sysname-match=/dev/zd256' --action=add
+udevadm trigger -v --subsystem-match=block '--sysname-match=/dev/zd256' --action=change
+udevadm trigger -v --subsystem-match=block '--sysname-match=/dev/zd*' --action=change
+udevadm trigger -v --subsystem-match=block '--sysname-match=/dev/zd*' --action=add
+vgchange --activate y /dev/vg-test
+pvscan
+pvscan --cache
+ls /dev/zvol/eva/test
+l /dev/zvol/eva/test
+zfs set volmode=default eva/test
+parted /dev/zvol/eva/test
+udevadm trigger
+parted /dev/zd256
+cat /sys/module/zfs/parameters/zvol_mode
+cat /sys/module/zfs/parameters/zvol_volmode
+dmesg | grep zd
+zfs destroy eva/test
+zfs create eva/test2 -V 1G
+pvcreate /dev/zvol/eva/test2
+vgcreate vg-test2 /dev/zvol/eva/test2
+PYTHONPATH=./src:
+cd /data/files/g/
+cd Audiobooks/
+cd Hunt,\ Gather,\ Parent\ -\ What\ Ancient\ Cultures\ Can\ Teach\ Us\ About\ Raising\ Children\ -\ Michaeleen\ Doucleff/
+open
+open .
+ifconfig
+rm /etc/zmirror/config.yml
+ln -sv /#/zion/zmirror/example-config.yml /etc/zmirror/config.yml
+cp /#/zion/example-config.yml /#/zion/zmirror/example-config.old.yml
+zpool create test2 -R /var/vmm/test2 /dev/zvol/eva/test2 -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none
+zpool create test2 -R /var/vmm/test2 /dev/zvol/eva/test2 -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none -f
+sgpt --repl python-logging
+zpool status test2
+zpool import test2; zpool export test2
+zpool import test2
+zpool export test2
+zfs create eva/zmirror -V 10G
+zpool create zmirror -R /var/vmm/zmirror /dev/zvol/eva/zmirror -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none -f
+zfs set volsize=100G eva/zmirror
+zpool set autoexpand=on zmirror
+zpool import zmirror -e
+zpool online -e zmirror
+zpool online -e zmirror zvol/eva/zmirror
+zpool status zmirror
+zfs create zmirror/partition -V 10G
+zfs list -r zmirror
+zfs create zmirror/sysfs-a-disk -V 5G
+zfs create zmirror/sysfs-b-disk -V 5G
+zpool status big
+zfs create zmirror/big-a-disk -V 10G
+zfs create zmirror/big-b-disk -V 10G
+zfs create zmirror/bak-delta-disk -V 20G
+zfs create zmirror/bak-gamma-disk -V 20G
+parted /dev/zvol/zmirror/sysfs-a-disk
+parted /dev/zvol/zmirror/sysfs-a-disk -- mklabel gpt
+parted /dev/zvol/zmirror/big-b-disk -- mklabel gpt; parted /dev/zvol/zmirror/big-b-disk -- mkpart big-sysfs-b 1M 100%
+parted /dev/zvol/zmirror/big-a-disk -- mklabel gpt; parted /dev/zvol/zmirror/big-a-disk -- mkpart big-sysfs-a 1M 100%
+parted /dev/zvol/zmirror/bak-delta-disk -- mklabel gpt; parted /dev/zvol/zmirror/bak-delta-disk -- mkpart test-bak-delta 1M 100%
+parted /dev/zvol/zmirror/bak-gamma-disk -- mklabel gpt; parted /dev/zvol/zmirror/bak-gamma-disk -- mkpart test-bak-gamma 1M 100%
+parted /dev/zvol/zmirror/big-a-disk -- mklabel gpt; parted /dev/zvol/zmirror/big-a-disk -- mkpart test-big-a 1M 100%
+parted /dev/zvol/zmirror/big-b-disk -- mklabel gpt; parted /dev/zvol/zmirror/big-b-disk -- mkpart test-big-b 1M 100%
+zpool create test-sysfs -R /var/vmm/test-sysfs mirror /dev/zvol/zmirror/sysfs-a-disk /dev/zvol/zmirror/sysfs-b-disk -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none
+zpool create testsysfs -R /var/vmm/test-sysfs mirror /dev/zvol/zmirror/sysfs-a-disk /dev/zvol/zmirror/sysfs-b-disk -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none
+zpool create test-sysfs mirror /dev/zvol/zmirror/sysfs-a-disk /dev/zvol/zmirror/sysfs-b-disk -R /var/vmm/test-sysfs -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none
+parted /dev/zvol/zmirror/sysfs-b-disk -- mklabel gpt; parted /dev/zvol/zmirror/sysfs-b-disk -- mkpart test-sysfs-b 1M 100%
+parted /dev/zvol/zmirror/sysfs-a-disk -- mklabel gpt; parted /dev/zvol/zmirror/sysfs-a-disk -- mkpart test-sysfs-a 1M 100%
+zpool create test-sysfs mirror /dev/disk/by-partlabel/test-sysfs-a /dev/disk/by-partlabel/test-sysfs-b  -R /var/vmm/test-sysfs -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none
+zpool create test-big mirror /dev/disk/by-partlabel/test-big-a /dev/disk/by-partlabel/test-big-b  -R /var/vmm/test-big -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none
+zpool create test-bak-delta /dev/disk/by-partlabel/test-bak-delta  -R /var/vmm/test-big -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none
+zfs create test-bak-delta -V 20G
+zfs create test-bak-delta/backups -V 20G
+zfs create test-bak-delta/backups -V 19G
+pvcreate /dev/zvol/test-bak-delta/backups
+vgcreate vg-test-bak-delta
+vgcreate vg-test-bak-delta /dev/zvol/test-bak-delta/backups
+lvcreate -n test-sysfs --size 5G vg-test-bak-delta
+lvcreate -n test-big --size 10G vg-test-bak-delta
+pvcreate /dev/disk/by-partlabel/test-bak-gamma
+vgcreate vg-test-bak-gamma /dev/disk/by-partlabel/test-bak-gamma
+lsblk | filter test
+lvremove /dev/vg-test-bak-delta/test-big
+lvremove /dev/vg-test-bak-delta/test-sysfs
+lvremove /dev/vg-test-bak-gamma/test-big
+lvremove /dev/vg-test-bak-gamma/test-sysfs
+vgremove /dev/vg-test-bak-delta
+pvremove /dev/disk/by-partlabel/test-bak-gamma
+pvremove /dev/disk/by-partlabel/test-bak-delta
+zpool destroy test-bak-delta
+cryptsetup luksFormat /dev/disk/by-partlabel/test-bak-delta --key-file /dev/disk/by-partlabel/eva-key
+cryptsetup luksFormat /dev/disk/by-partlabel/test-bak-gamma --key-file /dev/disk/by-partlabel/eva-key
+zpool destroy test-big
+zpool destroy test-sysfs
+cryptsetup luksFormat /dev/disk/by-partlabel/test-sysfs-a --key-file /dev/disk/by-partlabel/eva-key
+cryptsetup luksFormat /dev/disk/by-partlabel/test-sysfs-b --key-file /dev/disk/by-partlabel/eva-key
+cryptsetup luksFormat /dev/disk/by-partlabel/test-big-b --key-file /dev/disk/by-partlabel/eva-key
+cryptsetup luksFormat /dev/disk/by-partlabel/test-big-a --key-file /dev/disk/by-partlabel/eva-key
+cryptsetup open /dev/disk/by-partlabel/test-sysfs-a test-sysfs-a --key-file /dev/disk/by-partlabel/eva-key;
+cryptsetup open /dev/disk/by-partlabel/test-sysfs-b test-sysfs-b --key-file /dev/disk/by-partlabel/eva-key;
+l /dev/mapper
+cryptsetup open /dev/disk/by-partlabel/test-big-b test-big-b --key-file /dev/disk/by-partlabel/eva-key;
+cryptsetup open /dev/disk/by-partlabel/test-big-a test-big-a --key-file /dev/disk/by-partlabel/eva-key;
+cryptsetup open /dev/disk/by-partlabel/test-bak-gamma test-bak-gamma --key-file /dev/disk/by-partlabel/eva-key;
+cryptsetup open /dev/disk/by-partlabel/test-bak-delta test-bak-delta --key-file /dev/disk/by-partlabel/eva-key;
+zpool create test-bak-delta /dev/mapper/test-bak-delta -R /var/vmm/test-big -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none
+zpool export test-bak-delta
+zpool import test-bak-delta -R /var/vmm/test-bak-delta
+zfs create test-bak-delta/backups -V 18G
+parted /dev/sdd
+cd /var/run/vmm
+python vmm.py create --data_as_dataset --main_blockdev /dev/sdd g-moria-installer
+python vmm.py install --vmorg feu g-moria-installer
+python vmm.py install --data_as_dataset --main_blockdev /dev/sdd --vmorg feu g-moria-installer
+echo $NIX_PATH
+cd /#/zion/k44
+git add -A; git commit; git push local
+sgpt --repl mount
+cd k44
+nixos-install --flake ./feu/hosts/g-moria-installer#g-moria-installer --root /var/run/vmm/g-moria-installer --impure --no-root-passwd
+cd /#/zion/channels/nixpkgs
+nixos-install --help
+man nixos-install
+man nix-build
+nix-build --help
+nix-instantiate --help
+git pull
+cd .git
+chown -R _g:_g .
+cat .git
+rm -R nixpkgs
+git clone https://github.com/NixOS/nixpkgs.git --shared
+sgpt --repl python.file-objects
+cd nixpkgs
+git checkout nixos-24.11
+cd /var/
+cd run
+cd ..
+cd -
+cd /#/zion/nixk44/scripts/vmm/
+python vmm.py install --no_snapshot --data_as_dataset --main_blockdev /dev/sdd --vmorg feu g-moria-installer
+VMM_MOUNT_ROOT=/var/run/vmm python vmm.py install --no_snapshot --data_as_dataset --main_blockdev /dev/sdd --vmorg feu g-moria-installer
+tmux --help
+man tmux
+tmux kill-server
+history merge
+VMM_MOUNT_ROOT=/var/run/vmm python vmm.py unmount --vmorg feu g-moria-installer
+python vmm.py mount --vmorg feu g-moria-installer
+python vmm.py mount --data-as-dataset --vmorg feu g-moria-installer
+python vmm.py mount --data_as_dataset --vmorg feu g-moria-installer
+python vmm.py install --no_snapshot --data_as_dataset --vmorg feu g-moria-installer
+cd /#/zion
+git clone https://github.com/k44t/vmm --shared
+vmm enternrteai
+vmm entereanirt
+vmm enteri
+vmm enter
+which vmm
+which vmm | xargs cat
+nixos-enter --root /var/vmm/bahan
+vmm enter --data_as_dataset --vmorg feu g-moria-installer
+NIX_PATH=/#/zion/k44/feu:/#/zion/k44:/#/zion:/#/zion/channels:nixos-config=/#/zion/k44/feu/hosts/eva/eva.nix NIXPKGS_ALLOW_INSECURE=1 nixos-rebuild switch --impure;
+vmm enter --vmorg feu --data_as_dataset g-moria-installer
+vmm --help
+vmm mount --help
+vmm mount
+vmm get_mountpoint --no_snapshot --data_as_dataset --vmorg feu g-moria-installer
+vmm get-mountpoint --no_snapshot --data_as_dataset --vmorg feu g-moria-installer
+vmm mount --no_snapshot --data_as_dataset --vmorg feu g-moria-installer
+vmm mountpoint --silent --no_snapshot --data_as_dataset --vmorg feu g-moria-installer
+vmm mountpoint --no_snapshot --data_as_dataset --vmorg feu g-moria-installer
+sgpt --repl bash.args
+export NIX_PATH=/#/zion/k44/feu:/#/zion/k44:/#/zion:/#/zion/channels:nixos-config=/#/zion/k44/feu/hosts/eva/eva.nix
+vmm install --no_snapshot --data_as_dataset --vmorg feu g-moria-installer
+cd /dev/vg-test-bak-gamma/
+vmm enter --no_snapshot --data_as_dataset --vmorg feu g-moria-installer
+cd vmm
+git remote -v
+git remote rename origin github
+git add -A; git commit; git push github
+zfs destroy test-bak-delta/backups
+zfs create test-bak-delta/sysfs -V 5G
+zfs create test-bak-delta/big -V 10G
+cd /dev/mapper
+vgchange --activate n /dev/vg-test-bak-gamma/
+vgchange --activate n /dev/vg-test-bak-gamma
+vgremove /dev/vg-test-bak-gamma
+pvremove /dev/zvol/zmirror/bak-gamma-disk
+pvremove /dev/zvol/zmirror/bak-gamma-disk-part1
+pvremove /dev/mapper/test-bak-gamma
+zpool create test-bak-gamma /dev/mapper/test-bak-gamma -R /var/vmm/test-bak-gamma -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none
+zfs create test-bak-gamma/big -V 10G
+zfs create test-bak-gamma/sysfs -V 5G
+zpool destroy test-bak-gamma
+pvcreate /dev/mapper/test-bak-gamma
+pvcreate /dev/mapper/test-bak-gamma --help
+pvcreate /dev/mapper/test-bak-gamma --quiet
+pvcreate /dev/mapper/test-bak-gamma --yes
+vgcreate vg-test-bak-gamma /dev/mapper/test-bak-gamma
+lvcreate -n test-big --size 10G vg-test-bak-gamma
+vgchange --activate y /dev/vg-test-bak-gamma
+lvcreate -n test-sysfs --size 5G vg-test-bak-gamma
+vgs
+pvs
+lvs
+lvcreate -Zn -n test-sysfs --size 5G vg-test-bak-gamma
+lvcreate -Zn -n test-big --size 10G vg-test-bak-gamma
+l
+zpool create test-sysfs mirror /dev/mapper/test-sysfs-a /dev/mapper/test-sysfs-b /dev/vg-test-bak-gamma/test-sysfs /dev/zvol/test-bak-delta/sysfs -R /tmp/vmm/ -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none
+zpool create test-sysfs mirror /dev/mapper/test-sysfs-a /dev/mapper/test-sysfs-b -R /tmp/vmm/ -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none
+zpool create test-big mirror /dev/mapper/test-big-a /dev/mapper/test-big-b -R /tmp/vmm/ -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none
+zpool attach test-sysfs test-sysfs-a /dev/vg-test-bak-gamma/test-sysfs
+zpool attach test-sysfs test-sysfs-a /dev/zvol/test-bak-delta/sysfs
+zpool attach test-big test-big-a /dev/zvol/test-bak-delta/big
+zpool attach test-big test-big-a /dev/vg-test-bak-gamma/test-big
+zpool status test-big
+zpool status test-bak-delta
+zfs snapshot test-bak-delta/sysfs@$(now)
+zpool list
+pvdisplay
+python src/zmirror.py clear-cache
+zpool offline test-sysfs
+zpool status test-sysfs
+zmirror --help
+cat /var/lib/zmirror/cache.yml
+zpool offline test-sysfs test-sysfs-b
+zpool offline test-sysfs test-sysfs-a
+zpool online test-sysfs test-sysfs-a
+zmirror status
+lsblk
+vmm unmount g-moria-installer
+zpool status
+zpool online test-sysfs test-sysfs-b
+reboot now
+login
+tmux a -t 1
+tmux a -t 2
+tmux ls
+root
+tmux
+exit
+zpool import zmirror
+zfs list
+zpool import test-bak-delta -R /tmp/vmm/test-bak-delta
+mkdir /tmp/zmirror
+sudo -u _g -i
+history | grep zmirror
+history
+history > history.log
+history | rev
+history | rev --help
+sgpt --repl fish shell
+history | tail -r > history.log
+history | tail -r
+history | tail
+history | tac
