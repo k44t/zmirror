@@ -1356,3 +1356,32 @@
 }
 2025-01-30 14:54:29,025 - zmirror - INFO - writing cache
 2025-01-30 14:54:29,025 - zmirror - INFO - cache written.
+
+
+
+
+
+
+:01,904 zmirror.INFO: {
+  "UDEV_DATABASE_VERSION": "1",
+  "ACTION": "add",
+  "DEVPATH": "/devices/virtual/block/zd432",
+  "SUBSYSTEM": "block",
+  "DEVNAME": "/dev/zd432",
+  "DEVTYPE": "disk",
+  "DISKSEQ": "63",
+  "SEQNUM": "4570",
+  "MAJOR": "230",
+  "MINOR": "432",
+  "USEC_INITIALIZED": "650372605",
+  "PATH": "/nix/store/79qvwdgnwd25nd43g7xy3m7cnkbrd87f-udev-path/bin:/nix/store/79qvwdgnwd25nd43g7xy3m7cnkb
+rd87f-udev-path/sbin",
+  "ID_PART_TABLE_UUID": "050a61d3-4050-fb42-a951-9beb2053c7b5",
+  "ID_PART_TABLE_TYPE": "gpt",
+  "DEVLINKS": "/dev/disk/by-uuid/050a61d3-4050-fb42-a951-9beb2053c7b5 /dev/disk/by-diskseq/63 /dev/zvol/zmirror-bak-a/sysfs",
+  "TAGS": ":systemd:",
+  "CURRENT_TAGS": ":systemd:",
+  "ID_PROCESSING": "1",
+  "PYTHONNOUSERSITE": "true",
+  "LC_CTYPE": "C.UTF-8"
+}     <<<<<<<<< ->/#/zion/zmirror/src/zm

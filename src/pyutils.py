@@ -148,13 +148,17 @@ def load_yaml_cache(cache_file_path):
       if not isinstance(cache_dict, dict):
         cache_dict = dict()
   except BaseException as exception:
-    log.error(exception)
+    log.warning(exception)
     cache_dict = dict()
   return cache_dict
 
 
-def find_or_create_cache(cache_dict, typ, create_args=None, **kwargs):
+def find_or_create_cache(cache_dict, typ, create_args=None, identifier_prefix=None, **kwargs):
   identifier = typ.__name__
+  if identifier_prefix is not None:
+    for _, (_, value) in enumerate(identifier_prefix.items()):
+      identifier = identifier + "|" + value
+
   for _, (_, value) in enumerate(kwargs.items()):
     identifier = identifier + "|" + value
 

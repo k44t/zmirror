@@ -2,7 +2,7 @@ import os
 from pyutils import load_yaml_cache, load_yaml_config, save_yaml_cache, remove_yaml_cache, find_or_create_cache
 from pyutils import myexec as exec#pylint: disable=redefined-builtin
 from datetime import datetime
-from zmirror_dataclasses import ZFSBlockdevCache, EntityState, Since, LVMPhysicalVolume, ZFSBlockdev
+from zmirror_dataclasses import ZFSBackingBlockDeviceCache, EntityState, Since, LVMPhysicalVolume, ZFSBackingBlockDevice
 from zmirror_logging import log
 
 import zmirror_globals as globals
@@ -56,7 +56,7 @@ def index_entities(entity, parent, _ignored):
       globals.lvm_physical_volumes[entity.lvm_volume_group].append(entity)
     else:
       globals.lvm_physical_volumes[entity.lvm_volume_group] = [entity]
-  elif isinstance(entity, ZFSBlockdev):
+  elif isinstance(entity, ZFSBackingBlockDevice):
     if entity.pool in globals.zfs_blockdevs:
       globals.zfs_blockdevs[entity.pool].append(entity)
     else:
@@ -106,7 +106,7 @@ def iterate_content_tree(o, fn):
 
 def find_or_create_zfs_cache_by_vdev_path(cache_dictionary, zpool, vdev_path):
   vdev_name = vdev_path.removeprefix("/dev/mapper/").removeprefix("/dev/disk/by-partlabel/").removeprefix("/dev/")
-  return find_or_create_cache(cache_dictionary, ZFSBlockdevCache, pool=zpool, dev=vdev_name)
+  return find_or_create_cache(cache_dictionary, ZFSBackingBlockDeviceCache, pool=zpool, dev=vdev_name)
 
 def get_zpool_status(zpool_name):
   _, zpool_status, _, _ = exec(f"zpool status {zpool_name}")#pylint: disable=exec-used

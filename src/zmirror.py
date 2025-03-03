@@ -7,7 +7,7 @@ import sys
 import argparse
 import dateparser
 from zmirror_logging import log
-from zmirror_dataclasses import ZFSBlockdev, ZFSBlockdevCache, ZFSOperationState, ZFSBlockdevOutput
+from zmirror_dataclasses import ZFSBackingBlockDevice, ZFSBackingBlockDeviceCache, ZFSOperationState, ZFSBackingBlockDeviceOutput
 from pyutils import myexec, outs, copy_attrs
 from zmirror_utils import load_yaml_cache, load_yaml_config, find_or_create_cache, iterate_content_tree, remove_cache
 import zmirror_utils
@@ -80,8 +80,8 @@ def scrub(args):#pylint: disable=unused-argument
   cache_dictionary = load_yaml_cache(zmirror_utils.CACHE_FILE_PATH)
   log.info("starting zfs scrubs if necessary")
   def possibly_scrub(dev):
-    if isinstance(dev, ZFSBlockdev):
-      cache = find_or_create_cache(cache_dictionary, ZFSBlockdevCache, pool=dev.pool, dev=dev.dev)
+    if isinstance(dev, ZFSBackingBlockDevice):
+      cache = find_or_create_cache(cache_dictionary, ZFSBackingBlockDeviceCache, pool=dev.pool, dev=dev.dev)
       if dev.scrub_interval is not None:
         # parsing the schedule delta will result in a timestamp calculated from now
         allowed_delta = dateparser.parse(dev.scrub_interval)
@@ -111,9 +111,9 @@ def show_status(args):#pylint: disable=unused-argument
   stream = KdStream(outs)
   # log.info("starting zfs scrubs if necessary")
   def show(dev):
-    if isinstance(dev, ZFSBlockdev):
-      cache = find_or_create_cache(cache_dict, ZFSBlockdevCache, pool=dev.pool, dev=dev.dev)
-      out = ZFSBlockdevOutput(pool=dev.pool, dev=dev.dev)
+    if isinstance(dev, ZFSBackingBlockDevice):
+      cache = find_or_create_cache(cache_dict, ZFSBackingBlockDeviceCache, pool=dev.pool, dev=dev.dev)
+      out = ZFSBackingBlockDeviceOutput(pool=dev.pool, dev=dev.dev)
       copy_attrs(cache, out)
       copy_attrs(dev, out)
       stream.print_obj(out)

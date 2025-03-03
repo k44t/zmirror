@@ -14,9 +14,9 @@ def execute_commands():
   cmds = [x for x in commands if not (x in seen or seen.add(x))]
 
   for cmd in cmds:
-    execute_command(cmd)
+    _execute_command(cmd)
 
-def execute_command(command):
+def _execute_command(command):
   apply_commands = False
   if apply_commands:
     log.info(f"executing command: {command}")

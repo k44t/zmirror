@@ -7,6 +7,7 @@ from zmirror_logging import log
 # from zmirror_utils import set_entity_state, is_offline
 # import zmirror_utils as core
 import zmirror_globals as globals
+from dataclasses import dataclass, field
 
 
 
@@ -67,19 +68,20 @@ class ZMirror:
 class Partition:
   name: str
   state = Since(EntityState.UNKNOWN)
+  devpath: str = None
   parent: object = None
   last_online: datetime = None
-  on_children_offline: str = None
+  on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
   content = []
   description = str
 
   def id(self):
     return self.name
 
-  def on_child_offline(self):
+  def handle_child_offline(self):
     set_entity_state(self, EntityState.PRESENT)
 
-  def on_child_online(self):
+  def handle_child_online(self):
     set_entity_state(self, EntityState.ONLINE)
 
 
@@ -88,12 +90,12 @@ class Partition:
 class Disk:
 
   serial: str
+  devpath: str = None
 
   state = Since(EntityState.UNKNOWN, None)
   last_online: datetime = None
 
   content = []
-  on_offline: str = None
   description = str
 
 
@@ -105,14 +107,13 @@ class Disk:
 class VirtualDisk:
 
   fs_uuid: str
-  devpath: str
+  devpath: str = None
 
   parent: object = None
   state = Since(EntityState.UNKNOWN, None)
   last_online: datetime = None
 
   content = []
-  on_offline: str = None
   description = str
 
   def id(self):
@@ -129,8 +130,8 @@ class ZPool:
 
   state = Since(EntityState.UNKNOWN, None)
   last_online: datetime = None
+  on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
 
-  on_offline: str = None
   content = []
   description = str
 
@@ -138,28 +139,43 @@ class ZPool:
     return self.name
 
   def take_offline(self):
-    zmirror_commands.execute_command(f"zpool export {self.name}")
+    zmirror_commands.add_command(f"zpool export {self.name}")
 
   def take_online(self):
-    zmirror_commands.execute_command(f"zpool import {self.name}")
+    zmirror_commands.add_command(f"zpool import {self.name}")
 
 
 
 @yaml_data
 class ZFSVolume:
   name: str
+  pool: str = None
   parent: object = None
   state = Since(EntityState.UNKNOWN, None)
   last_online: datetime = None
-  on_offline: str = None
+  on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
   content = []
   description = str
 
   def id(self):
-    return f"{self.parent.name}|{self.name}"
+    if self.parent is not None:
+      return f"{self.parent.name}|{self.name}"
+    else:
+      return f"{self.pool}|{self.name}"
+
+  def get_pool(self):
+    if self.parent is not None:
+      return self.parent.name
+    else:
+      return self.pool
+
+      
 
   def get_devpath(self):
-    return f"/dev/zvol/{self.parent.name}/{self.name}"
+    if self.parent is not None:
+      return f"/dev/zvol/{self.parent.name}/{self.name}"
+    else:
+      return f"/dev/zvol/{self.pool}/{self.name}"
 
 
 
@@ -170,9 +186,8 @@ class LVMVolumeGroup:
   state = Since(EntityState.UNKNOWN, None)
   last_online: datetime = None
 
-  on_offline: str = None
-  on_children_offline: str = None
-  on_backing_offline: str = None
+  on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
+
   content = []
   description = str
 
@@ -181,16 +196,6 @@ class LVMVolumeGroup:
     for lvm_physical_volume in globals.lvm_physical_volumes[self.name]:
       set_entity_state(lvm_physical_volume, EntityState.DISCONNECTED)
 
-
-
-  def handle_children_offline(self):
-    if self.on_children_offline == "offline":
-      self.take_offline()
-
-  def on_child_offline(self):
-    for child in self.content:
-      if is_offline(child.state.what):
-        self.handle_children_offline()
 
   def handle_child_online(self):
     if self.state.what is not EntityState.ONLINE:
@@ -215,19 +220,28 @@ class LVMLogicalVolume:
   state = Since(EntityState.UNKNOWN, None)
   last_online: datetime = None
 
-  on_offline: str = None
-  on_children_offline: str = None
+  on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
   content = []
   description = str
 
+  def get_devpath(self):
+    if self.parent is not None:
+      return f"/dev/{self.parent.name}/{self.name}"
+    else:
+      return f"/dev/{self.vg}/{self.name}"
+
+
   def id(self):
-    return f"{self.parent.name}|{self.name}"
+    if self.parent is not None:
+      return f"{self.parent.name}|{self.name}"
+    else:
+      return f"{self.vg}|{self.name}"
 
   def take_offline(self):
-    zmirror_commands.execute_command(f"lvchange --activate n {self.parent.name}/{self.vg}")
+    zmirror_commands.add_command(f"lvchange --activate n {self.get_devpath()}")
 
   def take_online(self):
-    zmirror_commands.execute_command(f"lvchange --activate y {self.parent.name}/{self.vg}")
+    zmirror_commands.add_command(f"lvchange --activate y {self.get_devpath()}")
 
 
 
@@ -237,24 +251,11 @@ class LVMPhysicalVolume:
   lvm_volume_group: str
   parent: object = None
 
-  on_offline: str = None
   description = str
 
   def id(self):
     return self.pv_uuid
 
-  def on_group_offline(self):
-    set_entity_state(self, EntityState.PRESENT)
-    if self.parent is not None:
-      self.parent.on_child_offline()
-    else:
-      log.error("Bug: parent is missing")
-
-  def handle_parent_offline(self):
-    if self.parent is not None and self.parent.state is not None:
-      set_entity_state(self, self.parent.state.what)
-    else:
-      log.error("Bug: parent is missing or has no state")
 
 @yaml_data
 class DMCrypt:
@@ -263,8 +264,8 @@ class DMCrypt:
   parent: object = None
   state = Since(EntityState.UNKNOWN, None)
   last_online: datetime = None
+  on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
   content = []
-  on_offline: str = None
   description = str
 
   def id(self):
@@ -274,10 +275,10 @@ class DMCrypt:
     return f"/dev/mapper/{self.name}"
 
   def take_offline(self):
-    zmirror_commands.execute_command(f"cryptsetup close {self.name}")
+    zmirror_commands.add_command(f"cryptsetup close {self.name}")
 
   def take_online(self):
-    zmirror_commands.execute_command(f"cryptsetup open {self.parent.get_devpath()} {self.name} --key-file {self.key_file}")
+    zmirror_commands.add_command(f"cryptsetup open {self.parent.get_devpath()} {self.name} --key-file {self.key_file}")
 
 
 @yaml_enum
@@ -289,7 +290,7 @@ class ZFSOperationState(KiEnum):
 
 
 @yaml_data
-class ZFSBlockdevCache:
+class ZFSBackingBlockDeviceCache:
   pool: str
   dev: str
 
@@ -304,14 +305,14 @@ class ZFSBlockdevCache:
     return f"{self.pool}|{self.dev}"
 
 @yaml_data
-class ZFSBlockdev:
+class ZFSBackingBlockDevice:
   pool: str
   dev: str = None
   parent: object = None
 
-  on_scrubbed: str = None
-  on_resilvered: str = None
-  on_offline: str = None
+  on_scrubbed: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  on_resilvered: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  on_parent_online: list = field(default_factory=list) #pylint: disable=invalid-field-call
   scrub_interval: str = None
 
   def id(self):
@@ -322,20 +323,17 @@ class ZFSBlockdev:
     if action == "offline":
       self.take_offline()
 
-  def handle_offline(self):
-    action = self.on_offline
-    if action == "offline-parent":
-      if self.parent is not None and hasattr(self.parent, "take_offline"):
-        self.parent.take_offline()
+  def handle_parent_online(self):
+    raise NotImplementedError
 
   def take_offline(self):
-    zmirror_commands.execute_command(f"zpool offline {self.pool} {self.dev}")
+    zmirror_commands.add_command(f"zpool offline {self.pool} {self.dev}")
 
   def take_online(self):
-    zmirror_commands.execute_command(f"zpool online {self.pool} {self.dev}")
+    zmirror_commands.add_command(f"zpool online {self.pool} {self.dev}")
 
   def start_scrub(self):
-    zmirror_commands.execute_command(f"zpool scrub {self.pool}")
+    zmirror_commands.add_command(f"zpool scrub {self.pool}")
 
   def handle_resilvered(self):
     action = self.on_resilvered
@@ -350,6 +348,6 @@ class ZFSBlockdev:
 
 
 @yaml_data
-class ZFSBlockdevOutput(ZFSBlockdev, ZFSBlockdevCache):
+class ZFSBackingBlockDeviceOutput(ZFSBackingBlockDevice, ZFSBackingBlockDeviceCache):
   def __to_kd__(self, kd_stream: KdStream):
     kd_stream.print_partial_obj(self, ["pool", "dev", "state", "operation", "last_resilvered", "last_scrubbed"])

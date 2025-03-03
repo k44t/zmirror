@@ -1,0 +1,5 @@
+{
+  "ZEVENT_SUBCLASS": "scrub_start",
+  "ZEVENT_VDEV_PATH": "/dev/disk/by-partlabel/partition-a",
+  "ZEVENT_POOL": "zpool-a"
+}

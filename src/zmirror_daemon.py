@@ -6,12 +6,13 @@ import socket
 import os
 import threading
 import json
+import zmirror_commands
 from zmirror_logging import log
 from zmirror_utils import load_cache, save_cache, load_config, find_or_create_zfs_cache_by_vdev_path,  load_config_for_cache
 import zmirror_utils as core
 from zmirror_actions import handle_entity_online, handle_entity_offline
 from pyutils import find_or_create_cache
-from zmirror_dataclasses import ZFSBlockdevCache, ZFSOperationState, EntityState, Disk, LVMLogicalVolume, DMCrypt, VirtualDisk, Partition, Since, set_entity_state
+from zmirror_dataclasses import ZFSBackingBlockDeviceCache, ZFSOperationState, EntityState, Disk, LVMLogicalVolume, DMCrypt, VirtualDisk, Partition, Since, ZFSVolume, set_entity_state
 from ki_utils import to_kd
 
 import zmirror_globals as globals
@@ -40,7 +41,7 @@ def handle(env):
       log.info(f"zpool {cache.pool} exported")
       if zpool in globals.zfs_blockdevs:
         for dev in globals.zfs_blockdevs[zpool]:
-          cache = find_or_create_cache(cache_dictionary, ZFSBlockdevCache, pool=zpool, dev=dev)
+          cache = find_or_create_cache(cache_dictionary, ZFSBackingBlockDeviceCache, pool=zpool, dev=dev)
           handle_entity_offline(cache, now)
         event_handled = True
 
@@ -57,7 +58,7 @@ def handle(env):
         found = True
         dev = match.group(1)
 
-        cache = find_or_create_cache(cache_dictionary, ZFSBlockdevCache, pool=zpool, dev=dev)
+        cache = find_or_create_cache(cache_dictionary, ZFSBackingBlockDeviceCache, pool=zpool, dev=dev)
         cache.operation = Since(ZFSOperationState.NONE, now)
         if zevent == "scrub_finish":
           log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing finished")
@@ -135,7 +136,7 @@ def handle(env):
     if action == "add" or action == "remove":
       if devtype == "disk":
         if "ID_SERIAL" in env:
-          cache = find_or_create_cache(cache_dictionary, Disk, serial=env["ID_SERIAL"])
+          cache = find_or_create_cache(cache_dictionary, Disk, serial=env["ID_SERIAL"], create_args={"devpath": env["DEVNAME"]})
           udev_event_action(cache, action, now)
           log.info(f"{cache.__class__.__name__} {cache.serial}: {to_kd(cache.state)}")
           event_handled = True
@@ -157,20 +158,38 @@ def handle(env):
 
         # virtual device
         elif "DEVPATH" in env and env["DEVPATH"].startswith("/devices/virtual/block/"):
-          if "ID_FS_UUID" in env:
-            cache = find_or_create_cache(cache_dictionary, VirtualDisk, fs_uuid=env["ID_FS_UUID"])
+          if env["DEVPATH"].startswith("/devices/virtual/block/zd"):
+            devlinks = env["DEVLINKS"].split(" ")
+            for devlink in devlinks:
+              match = re.match(r'/dev/zvol/(?P<pool>[^/]+)/(?P<volume>.+)$', devlink)
+              if match and not re.match(r'-part[0-9]+$', match.group("volume")):
+                pool_name = match.group("pool")
+                volume_name = match.group("volume")
+
+
+                cache = find_or_create_cache(cache_dictionary, ZFSVolume, pool=pool_name, name=volume_name)
+                udev_event_action(cache, action, now)
+                log.info(f"{cache.__class__.__name__} {cache.get_pool()}/{cache.name}: {to_kd(cache.state)}")
+                event_handled = True
+                
+          elif "ID_FS_UUID" in env:
+            cache = find_or_create_cache(cache_dictionary, VirtualDisk, fs_uuid=env["ID_FS_UUID"], create_args={"devpath": env["DEVNAME"]})
             udev_event_action(cache, action, now)
             log.info(f"{cache.__class__.__name__} {cache.fs_uuid}: {to_kd(cache.state)}")
             event_handled = True
           else:
-            log.warning("need a filesystem uuid `to identify virtual blockdevices")
+            log.warning("need a filesystem uuid or a zvol devlink (if applicable) to identify virtual blockdevices")
+        else:
+          log.info("nothing to do for disk event")
 
       elif devtype == "partition":
-        cache = find_or_create_cache(cache_dictionary, Partition, name=env["PARTNAME"])
+        cache = find_or_create_cache(cache_dictionary, Partition, name=env["PARTNAME"], create_args={"devpath": env["DEVNAME"]})
         udev_event_action(cache, action, now)
         log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
+    zmirror_commands.execute_commands()
     if not event_handled:
       log.warning("event not handled by zmirror")
+
 
 
 

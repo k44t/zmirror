@@ -17,7 +17,7 @@ content:
 
   # a zpool cannot be taken offline, once all of its backing blockdevs have disappeared (reboot manually)
   - !ZPool 
-    name: test-sysfs
+    name: zmirror-sysfs
 
 
 
@@ -32,69 +32,70 @@ content:
   - !Partition
 
     # partition names for zmirror must be unique
-    name: test-sysfs-a
-
+    name: zmirror-sysfs-a
     
     content:
       - !DMCrypt
 
         # name of dm-crypt
-        name: test-sysfs-a
+        name: zmirror-sysfs-a
         
-        key-file: /dev/disk/by-partlabel/eva-key
+        key-file: ./test/zmirror-key
 
-        on_children_offline: offline
+        on_parent_online:
+          - online
+
+        on_children_offline: 
+          - offline
 
         content:
           # the zfs blockdev inside the partition
-          - !ZFSBlockdev
+          - !ZFSBackingBlockDevice
             # name for the zfs pool
-            pool: test-sysfs
+            pool: zmirror-sysfs
           
-            # the name of the zfs blockdev
-            dev: test-sysfs-a-main
-          
-            # what to do when a scrub finishes
-            on_scrubbed: offline
-            # or just offline
+            # the name of the zfs-backing blockdev as it appears in `zpool status`
+            dev: zmirror-sysfs-a
+
+            on_parent_online: 
+              - import-pool
+              - online
 
             scrub_interval: 3 weeks
 
-            # what to do when a resilver finishes
-            on_resilvered: scrub
 
 
   - !Partition
 
     # partition names used by zmirror must be unique
-    name: test-sysfs-b-main
+    name: zmirror-sysfs-b
 
     
     content:
       - !DMCrypt
 
         # name of dm-crypt
-        name: test-sysfs-b-main
+        name: zmirror-sysfs-b
         
-        key-file: /dev/disk/by-partlabel/eva-key
+        key-file: ./test/zmirror-key
 
-        on_children_offline: offline
+        on_children_offline: 
+          - offline
+
+        on_parent_online:
+          - online
 
         content:
-          # the zfs blockdev inside the partition
-          - !ZFSBlockdev
-            # name for the zfs pool
-            pool: test-sysfs
+          - !ZFSBackingBlockDevice
           
-            # the name of the zfs blockdev
-            dev: test-sysfs-b-main
+            dev: zmirror-sysfs-b
+            pool: zmirror-sysfs
           
-            # what to do when a scrub finishes
-            on_scrubbed: offline
-            # or just offline
+            on_scrubbed:
+              - offline
 
-            # what to do when a resilver finishes
-            on_resilvered: scrub
+            on_parent_online: 
+              - online
 
             scrub_interval: 1 week
 
@@ -110,7 +111,7 @@ content:
 
 
   - !ZPool
-    name: test-big
+    name: zmirror-big
 
 
 
@@ -121,35 +122,38 @@ content:
   - !Partition
 
     # partition names for zmirror must be unique
-    name: test-big-a
+    name: zmirror-big-a
 
     content:
       - !DMCrypt
 
         # name of dm-crypt
-        name: test-big-a
+        name: zmirror-big-a
         
-        key-file: /dev/disk/by-partlabel/eva-key
+        key-file: ./test/zmirror-key
 
-        on_children_offline: offline
+        on_children_offline: 
+          - offline
+        
+        on_parent_online:
+          - online
 
         content:
           # the zfs blockdev inside the partition
-          - !ZFSBlockdev
+          - !ZFSBackingBlockDevice
+          
+            # the name of the zfs-backing blockdev
+            dev: zmirror-big-a
 
             # name for the zfs pool
-            pool: test-big-a
+            pool: zmirror-big
           
-            # the name of the zfs blockdev
-            dev: test-big-a
-          
-            # what to do when a scrub finishes
-            on_scrubbed: offline
+            on_parent_online:
+              - import-pool
+              - online
 
             scrub_interval: 3 weeks
 
-            # what to do when a resilver finishes
-            on_resilvered: offline-until-scrub
 
 
 
@@ -158,36 +162,34 @@ content:
   - !Partition
 
     # partition names used by zmirror must be unique
-    name: test-big-b
+    name: zmirror-big-b
 
     
     content:
       - !DMCrypt
 
         # name of dm-crypt
-        name: test-big-b
+        name: zmirror-big-b
         
-        key-file: /dev/disk/by-partlabel/eva-key
+        key-file: ./test/zmirror-key
 
-        on_children_offline: offline
+        on_children_offline: 
+          - offline
 
         content:
-          # the zfs blockdev inside the partition
-          - !ZFSBlockdev
-            # name for the zfs pool
-            pool: test-big
-          
-            # the name of the zfs blockdev
-            dev: test-big-b
-          
-            # what to do when a scrub finishes
-            on_scrubbed: offline
-            # or just offline
 
-            # what to do when a resilver finishes
-            on_resilvered: scrub
+          - !ZFSBackingBlockDevice
+          
+            dev: zmirror-big-b
 
-            scrub_interval: 1 week
+            pool: zmirror-big
+          
+
+            on_parent_online:
+              - online
+
+            scrub_interval: 3 week
+
 
 
 
@@ -195,132 +197,177 @@ content:
 
 
   - !Partition
-    name: test-bak-gamma
+    name: zmirror-bak-a
 
     content:
       - !DMCrypt
-
-        # name of dm-crypt
-        name: test-bak-gamma
+        name: zmirror-bak-a
+        key-file: ./test/zmirror-key
         
-        key-file: /dev/disk/by-partlabel/eva-key
-
-        content: 
-          - !LVMPhysicalVolume
-            
-            # pvdisplay
-            pv_uuid: Zjo2cC-STQR-o5Eq-mdJs-HID0-wa9i-yudslS
-            lvm_volume_group: vg-test-bak-gamma
-
-
-            # when the group goes offline, then the volume is considered (virtually) offline!
-            # this is the n-to-1 relation
-            # 
-            #
-            # call on_group_offline() --> parent.on_child_offline()
-
-
-
-
-
-
-
-
-  - !LVMVolumeGroup
-    name: vg-test-bak-delta
-    on_offline_children: offline
-    
-    content:
-      - !LVMLogicalVolume 
-        name: sysfs
-
-        on_offline_children: offline
-        content:
-          - !ZFSBlockdev
-            pool: sysfs
-            dev: vg-test-bak-delta/sysfs
-
-            on_scrubbed: offline
-                
-            # what to do when a resilver finishes
-            on_resilvered: offline-for-scrub
-              
-
-      - !LVMLogicalVolume 
-        name: big
-        on_offline_children: offline
-        content: 
-          - !ZFSBlockdev
-            pool: big
-            dev: vg-bak-delta/big
-
-            on_scrubbed: offline
-            
-            # what to do when a resilver finishes
-            on_resilvered: offline-for-scrub
-
-
-
-
-
-  # test-bak-delta
-  - !Partition
-    name: test-bak-delta
-
-    content:
-      - !DMCrypt
-        name: test-bak-delta
-        key-file: /dev/disk/by-partlabel/eva-key
+        on_parent_online:
+          - online
+        
+        on_children_offline: 
+          - offline
 
         content: 
           # zfs blockdev inside the partition
-          - !ZFSBlockdev
-            # name for the zfs pool
-            pool: test-bak-delta
+          - !ZFSBackingBlockDevice
+            
+            dev: zmirror-bak-a
+            
+            # name of the zfs pool
+            pool: zmirror-bak-a
           
-            # the name of the zfs blockdev
-            dev: test-bak-delta
-          
-            # or just offline
-            on_scrubbed: offline-parent
+            on_parent_online:
+              - online
 
             scrub-interval: 3 weeks
 
 
-
-
-
-
-
-  # once a zpool is being exported, we must generate a "virtual event", because now all backing blockdevs are considered to be offline (so their parent's on_child_offline method must be called)
   - !ZPool
-    name: test-bak-delta
+    name: zmirror-bak-a
 
-    # zfs: test-bak-delta
-
-    on_offline_children: offline
+    on_children_offline: 
+      - offline
 
     content:
       
       - !ZFSVolume
         name: sysfs
-        on_offline_children: snapshot
+
+        on_children_offline: 
+          - snapshot
+          - offline
+        
         content:
           # it is important that all physical volumes are configured
-          - !ZFSBlockdev
-            # pvdisplay
-            name: bak-delta
-            pool: test-sysfs
+          - !ZFSBackingBlockDevice
+            pool: zmirror-sysfs
+            dev: zvol/zmirror-bak-a/sysfs
+
+            on_scrubbed: 
+              - offline
+
+            on_resilvered: 
+              - offline
+
+            on_parent_online:
+              - online
       
       - !ZFSVolume
         name: big
-        on_offline_children: snapshot
+        
+        on_children_offline: 
+          - snapshot
+          - offline
+        
+        content:
+          
+          - !ZFSBackingBlockDevice
+            
+            dev: zvol/zmirror-bak-a/big
+            pool: zmirror-big
+
+            on_parent_online:
+              - online
+
+            on_scrubbed: 
+              - offline
+
+            on_resilvered: 
+              - offline
+
+
+
+
+
+
+
+
+  - !Partition
+    name: zmirror-bak-b
+
+    content:
+      - !DMCrypt
+        name: zmirror-bak-b
+        key-file: ./test/zmirror-key
+
+        on_parent_online:
+          - online
+
+        on_children_offline: 
+          - offline
+
+        content: 
+
+          - !ZFSBackingBlockDevice
+
+            dev: zmirror-bak-b
+
+            pool: zmirror-bak-b
+          
+            on_parent_online:
+              - online
+
+
+
+
+
+
+
+  # once a zpool is being exported, we must generate a "virtual event", because now all backing blockdevs are considered to be offline (so their parent's handle_child_offline method must be called)
+  - !ZPool
+    name: zmirror-bak-b
+
+    on_children_offline: 
+      - offline
+
+    content:
+      
+      - !ZFSVolume
+        name: sysfs
+        on_children_offline: 
+          - snapshot
+          - offline
+        content:
+
+          - !ZFSBackingBlockDevice
+            dev: zvol/zmirror-bak-b/sysfs
+            pool: zmirror-sysfs
+            
+            on_parent_online: 
+              - online
+          
+            on_scrubbed: 
+              - offline
+
+            on_resilvered: 
+              - offline
+      
+      - !ZFSVolume
+        name: big
+        on_children_offline: 
+          - snapshot
+          - offline
         content:
           # it is important that all physical volumes are configured
-          - !ZFSBlockdev
+          - !ZFSBackingBlockDevice
             # pvdisplay
-            name: bak-delta
-            pool: test-big
+            dev: zvol/zmirror-bak-b/big
+            pool: zmirror-big
+
+            on_parent_online: 
+              - online
+          
+            on_scrubbed: 
+              - offline
+
+            on_resilvered: 
+              - offline
+
+
+
 
 
 

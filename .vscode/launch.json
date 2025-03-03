@@ -25,13 +25,5 @@
     "console": "integratedTerminal",
     "args": ["daemon"]
   },
-  {
-    "name": "zmirror daemon",
-    "type": "debugpy",
-    "request": "launch",
-    "program": "src/zmirror.py",
-    "console": "integratedTerminal",
-    "args": ["daemon"]
-  },
   ]
 }
