@@ -6,17 +6,28 @@
   "configurations": [
 
   
-  {
-    "name": "zmirror tests",
-    "env": {
-        "PYTHONPATH": "${workspaceFolder}/src"
+    {
+      "name": "zmirror tests group1",
+      "env": {
+          "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "type": "debugpy",
+      "request": "launch",
+      "program": "test/status/zfs/group1/test_group1.py",
+      "console": "integratedTerminal",
+      "args": [""]
     },
-    "type": "debugpy",
-    "request": "launch",
-    "program": "test/status/zfs/group1/test_group1.py",
-    "console": "integratedTerminal",
-    "args": [""]
-  },
+    {
+      "name": "zmirror tests group2",
+      "env": {
+          "PYTHONPATH": "${workspaceFolder}/src"
+      },
+      "type": "debugpy",
+      "request": "launch",
+      "program": "test/status/zfs/group2/test_group2.py",
+      "console": "integratedTerminal",
+      "args": ["-k", "TestExampleConfig"]
+    },
   {
     "name": "zmirror daemon",
     "type": "debugpy",

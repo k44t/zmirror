@@ -1,6 +1,6 @@
 {
   "DEVTYPE": "disk",
   "ACTION": "add",
-  "ID_SERIAL": "0123456789abcdef",
+  "ID_SERIAL": "zmirror-sysfs-a",
   "DEVNAME": "/dev/sda"
 }

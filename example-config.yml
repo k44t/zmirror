@@ -15,10 +15,10 @@ content:
 
 
 
+
   # a zpool cannot be taken offline, once all of its backing blockdevs have disappeared (reboot manually)
   - !ZPool 
     name: zmirror-sysfs
-
 
 
 
@@ -90,9 +90,6 @@ content:
           
             dev: zmirror-sysfs-b
             pool: zmirror-sysfs
-          
-            on_scrubbed:
-              - offline
 
             on_parent_online: 
               - online
@@ -195,36 +192,6 @@ content:
 
 
 
-
-  - !Partition
-    name: zmirror-bak-a
-
-    content:
-      - !DMCrypt
-        name: zmirror-bak-a
-        key-file: ./test/zmirror-key
-        
-        on_parent_online:
-          - online
-        
-        on_children_offline: 
-          - offline
-
-        content: 
-          # zfs blockdev inside the partition
-          - !ZFSBackingBlockDevice
-            
-            dev: zmirror-bak-a
-            
-            # name of the zfs pool
-            pool: zmirror-bak-a
-          
-            on_parent_online:
-              - online
-
-            scrub-interval: 3 weeks
-
-
   - !ZPool
     name: zmirror-bak-a
 
@@ -283,32 +250,37 @@ content:
 
 
 
-
-
   - !Partition
-    name: zmirror-bak-b
+    name: zmirror-bak-a
 
     content:
       - !DMCrypt
-        name: zmirror-bak-b
+        name: zmirror-bak-a
         key-file: ./test/zmirror-key
-
+        
         on_parent_online:
           - online
-
+        
         on_children_offline: 
           - offline
 
         content: 
-
+          # zfs blockdev inside the partition
           - !ZFSBackingBlockDevice
-
-            dev: zmirror-bak-b
-
-            pool: zmirror-bak-b
+            
+            dev: zmirror-bak-a
+            
+            # name of the zfs pool
+            pool: zmirror-bak-a
           
             on_parent_online:
               - online
+
+            scrub-interval: 3 weeks
+
+
+
+
 
 
 
@@ -367,6 +339,36 @@ content:
               - offline
 
 
+
+
+
+
+
+
+  - !Partition
+    name: zmirror-bak-b
+
+    content:
+      - !DMCrypt
+        name: zmirror-bak-b
+        key-file: ./test/zmirror-key
+
+        on_parent_online:
+          - online
+
+        on_children_offline: 
+          - offline
+
+        content: 
+
+          - !ZFSBackingBlockDevice
+
+            dev: zmirror-bak-b
+
+            pool: zmirror-bak-b
+          
+            on_parent_online:
+              - online
 
 
 

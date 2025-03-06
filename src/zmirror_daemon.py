@@ -6,6 +6,7 @@ import socket
 import os
 import threading
 import json
+import traceback
 import zmirror_commands
 from zmirror_logging import log
 from zmirror_utils import load_cache, save_cache, load_config, find_or_create_zfs_cache_by_vdev_path,  load_config_for_cache
@@ -171,6 +172,7 @@ def handle(env):
                 udev_event_action(cache, action, now)
                 log.info(f"{cache.__class__.__name__} {cache.get_pool()}/{cache.name}: {to_kd(cache.state)}")
                 event_handled = True
+                break
                 
           elif "ID_FS_UUID" in env:
             cache = find_or_create_cache(cache_dictionary, VirtualDisk, fs_uuid=env["ID_FS_UUID"], create_args={"devpath": env["DEVNAME"]})
@@ -186,6 +188,21 @@ def handle(env):
         cache = find_or_create_cache(cache_dictionary, Partition, name=env["PARTNAME"], create_args={"devpath": env["DEVNAME"]})
         udev_event_action(cache, action, now)
         log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
+    elif action == "change" and "DM_ACTIVATION" in env and env["DM_ACTIVATION"] == "1":
+      devlinks = env["DEVLINKS"].split(" ")
+      for devlink in devlinks:
+        match = re.match(r'/dev/mapper/([^/]+)$', devlink)
+        if match:
+          dm_name = match.group(1)
+
+
+          cache = find_or_create_cache(cache_dictionary, DMCrypt, name=dm_name)
+          handle_entity_online(cache, now)
+          log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
+          event_handled = True
+
+          break
+      
     zmirror_commands.execute_commands()
     if not event_handled:
       log.warning("event not handled by zmirror")
@@ -232,7 +249,7 @@ def handle_event(event_queue: queue.Queue):
       handle(event)
     except Exception as ex:
       log.error(f"failed to handle event: {str(event)}")
-      log.error(f"Exception: {ex}")
+      log.error(f"Exception : {traceback.format_exc()} --- {str(ex)}")
     finally:
       if event_queue.empty():
         save_cache()
@@ -290,6 +307,7 @@ def daemon(args):# pylint: disable=unused-argument
   # Create a thread-safe list
   handle_event_thread = threading.Thread(target=handle_event, args=(event_queue, ))
   handle_event_thread.start()
+  # TODO: closing the handle event thread is not implemented
 
   try:
     while True:

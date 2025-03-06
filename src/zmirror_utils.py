@@ -37,14 +37,21 @@ def load_config_for_id(identifier):
 def entity_id(entity):
   return "|".join((entity.__class__.__name__, entity.id()))
 
-def load_cache():
+def load_cache(cache_path=CACHE_FILE_PATH):
   global cache_dict#pylint: disable=global-statement
   cache_dict = load_yaml_cache(CACHE_FILE_PATH)
+  return cache_dict
 
-def load_config():
+def load_config(config_path=CONFIG_FILE_PATH):
   global config#pylint: disable=global-statement
-  config = load_yaml_config(CONFIG_FILE_PATH)
+  global config_dict#pylint: disable=global-statement
+  config_dict = dict()
+  globals.lvm_physical_volumes = dict()
+  globals.zfs_blockdevs = dict()
+  config = load_yaml_config(config_path)
   iterate_content_tree3(config, index_entities, None, None)
+  return config
+
 
 def index_entities(entity, parent, _ignored):
   if hasattr(entity, "parent"):

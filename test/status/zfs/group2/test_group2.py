@@ -4,9 +4,9 @@
 # (c) copyright 2025 Alexander Poeschl
 # All rights reserved.
 # ******************************************************************************
-# @file test_group1.py
+# @file test_group2.py
 # @author Alexander Poeschl <apoeschlfreelancing@kwanta.net>, Michael Poeschl
-# @brief Pytests group1 for zmirror
+# @brief Pytests group2 for zmirror
 # ******************************************************************************
 import pytest
 import time
@@ -50,7 +50,8 @@ def get_zpool_status_stub(args):
 
 
 
-def trigger_event(name):
+def trigger_event():
+  name = inspect.currentframe().f_back.f_code.co_name
   event = load_event(name + ".json")
   handle(event)
 
@@ -63,14 +64,27 @@ def load_event(json_file):
 def do_nothing(*args):
   pass
 
+def load_dummy_cache(*args):
+  zmirror_utils.cache_dict = load_yaml_cache("./test/status/zfs/group2/test_cache.yml")
+
+
+zmirror_utils.load_cache = load_dummy_cache
+zmirror_utils.write_cache = do_nothing
+
+def assert_commands(cmds): 
+  assert (
+      cmds == zmirror_commands.commands
+  )
 
 # this group of tests all require the daemon running, hence they are grouped
-class Test_Group1_TestMethods():
+class TestExampleConfig():
 
 
   # event_queue = None
-
-        
+  @classmethod
+  def setup_class(cls):
+    zmirror_core.load_config(config_path="./example-config.yml")
+    zmirror_core.load_cache(cache_path="./test/cache.yml")
 
 
   def setup_method(self, method):
@@ -100,31 +114,102 @@ class Test_Group1_TestMethods():
   # # tatsächliches gerät wird angeschlossen
 
   # disk taucht auf (udev: add)
-  def test_disk_add(self):
+  def test_disk_online(self):
 
-    assert disk_id not in zmirror_core.cache_dict
 
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
 
-    dev: Disk = zmirror_core.cache_dict[disk_id]
-    
-    assert(dev is not None)
-    assert(dev.state.what == EntityState.ONLINE)
-
-    # assert("zpool offline xyz" in zmirror_commands.commands)
+    # zmirror needs to do nothing (issue no commands)
 
 
   # partition taucht auf (udev: add)
-  def test_partition_add(self):
+  def test_partition_online(self):
     
-    assert partition_id not in zmirror_core.cache_dict
 
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
 
-    dev: Partition = zmirror_core.cache_dict[partition_id]
-    
-    assert(dev is not None)
-    assert(dev.state.what == EntityState.ONLINE)
+
+    assert_commands([
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-a zmirror-sysfs-a --key_file ./test/zmirror-key"
+    ])
+
+
+
+
+
+  def test_dmcrypt_zmirror_sysfs_a_online(self):
+    trigger_event()
+
+    assert_commands([
+      "zpool import zmirror-sysfs",
+      "zpool online zmirror-sysfs zmirror-sysfs-a"
+    ])
+  
+
+  def test_zpool_sysfs_online(self):
+    pass
+
+  # sysfs-b: dmcrypts partition und so
+
+  def test_zpool_sysfs_backing_blockdev_sysfs_b_online(self):
+    pass
+
+  def test_zpool_sysfs_backing_blockdev_sysfs_b_resilver_start(self):
+    pass
+  
+  def test_zpool_sysfs_backing_blockdev_sysfs_b_resilver_finish(self):
+    pass
+  
+
+
+    # TODO: implement scheduler: */*/14 03:00
+    # TODO: implement cache file path configurable (and different path when testing)
+    # TODO: implement scrubbing interval
+  
+  def test_trigger_scrub(self):
+    scrub(None)
+    assert_commands([
+      "zpool scrub zmirror-sysfs"
+    ])
+
+  def scrub_started(self):
+    pass
+
+  def scrub_finished(self):
+    pass
+
+  # bak-a sysfs
+  def resilver_finished(self):
+    assert_commands([
+      "zpool offline zmirror-sysfs zvol/zmirror-bak-a/sysfs"
+    ])
+  
+  def zpool_sysfs_bak_a_backing_zvol_offline(self):
+    assert_commands([
+      "zfs snapshot zmirror-bak-a/sysfs@timestamp"#TODO
+      # this command only works once the inner device has actually been taken offline (no longer in use), or else the blockdev will just remain available as linux tracks usage...
+      "zfs set volmode=none zmirror-bak-a/sysfs"
+    ])
+
+  def zvol_offline_event(self):
+    pass
+
+  
+  def big_zvol_offline_event(self):
+    assert_commands([
+      "zpool export zmirror-bak-a"
+    ])
+  
+  def zpool_zmirror_bak_a_is_offline(self):
+    # at this point the zmirror-bak-a ZFSBackingBlockDevice must be considered offline. i.e. the pool export event should trigger an offline event on each backingblockdev if we implemented this correctly
+    assert_commands([
+      "cryptsetup close zmirror-bak-a"
+    ])
+
+  def dmcrypt_has_been_offline(self):
+    pass
+  
+
 
   # # zmirror command: zpool online vdev
   # vdev wird im zpool aktiviert (vdev_online)
@@ -211,67 +296,6 @@ class Test_Group1_TestMethods():
     assert(dev.state.what == EntityState.DISCONNECTED)
     assert(dev.last_online != None)
     assert(dev.last_online < datetime.now())
-
-  # virtual disk taucht auf (udev: add)
-  def test_virtual_disk_add(self):
-    
-    zmirror_core.cache_dict = dict()
-    assert virtual_disk_id not in zmirror_core.cache_dict
-
-    trigger_event(inspect.currentframe().f_code.co_name)
-
-    assert virtual_disk_id in zmirror_core.cache_dict
-    
-    dev: VirtualDisk = zmirror_core.cache_dict[virtual_disk_id]
-    
-    
-    assert(dev is not None)
-    assert(dev.state.what == EntityState.ONLINE)
-
-  # virtual disk verschwindet (udev: remove)
-  def test_virtual_disk_remove(self):
-    
-    assert virtual_disk_id in zmirror_core.cache_dict
-
-    trigger_event(inspect.currentframe().f_code.co_name)
-
-    dev: VirtualDisk = zmirror_core.cache_dict[virtual_disk_id]
-    
-    assert(dev is not None)
-    assert(dev.state.what == EntityState.DISCONNECTED)
-    assert(dev.last_online != None)
-    assert(dev.last_online < datetime.now())
-
-  # logical volume taucht auf (udev: add)
-  def test_logical_volume_add(self):
-    
-    zmirror_core.cache_dict = dict()
-    assert logical_volume_id not in zmirror_core.cache_dict
-
-    trigger_event(inspect.currentframe().f_code.co_name)
-    
-    assert logical_volume_id in zmirror_core.cache_dict
-
-    dev: LVMLogicalVolume = zmirror_core.cache_dict[logical_volume_id]
-    
-    
-    assert(dev is not None)
-    assert(dev.state.what == EntityState.ONLINE)
-
-  # logical volume verschwindet (udev: remove)
-  def test_logical_volume_remove(self):
-    
-    assert logical_volume_id in zmirror_core.cache_dict
-
-    trigger_event(inspect.currentframe().f_code.co_name)
-
-    dev: LVMLogicalVolume = zmirror_core.cache_dict[logical_volume_id]
-    
-    assert(dev is not None)
-    assert(dev.state.what == EntityState.DISCONNECTED)
-    assert(dev.last_online != None)
-    assert(dev.last_online < datetime.now())
-
 
   # zfs_volume taucht auf (udev: add)
   def test_zfs_volume_add(self):

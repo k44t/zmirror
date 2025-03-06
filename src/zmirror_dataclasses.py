@@ -260,7 +260,7 @@ class LVMPhysicalVolume:
 @yaml_data
 class DMCrypt:
   name: str
-  key_file: str
+  key_file: str = None
   parent: object = None
   state = Since(EntityState.UNKNOWN, None)
   last_online: datetime = None
@@ -324,7 +324,7 @@ class ZFSBackingBlockDevice:
       self.take_offline()
 
   def handle_parent_online(self):
-    raise NotImplementedError
+    log.error("NOT IMPLEMENTED")
 
   def take_offline(self):
     zmirror_commands.add_command(f"zpool offline {self.pool} {self.dev}")

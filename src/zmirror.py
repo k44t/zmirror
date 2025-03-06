@@ -9,7 +9,7 @@ import dateparser
 from zmirror_logging import log
 from zmirror_dataclasses import ZFSBackingBlockDevice, ZFSBackingBlockDeviceCache, ZFSOperationState, ZFSBackingBlockDeviceOutput
 from pyutils import myexec, outs, copy_attrs
-from zmirror_utils import load_yaml_cache, load_yaml_config, find_or_create_cache, iterate_content_tree, remove_cache
+from zmirror_utils import find_or_create_cache, iterate_content_tree, remove_cache, load_config, load_cache
 import zmirror_utils
 import zmirror_commands as commands
 from zmirror_daemon import daemon
@@ -91,7 +91,7 @@ def scrub(args):#pylint: disable=unused-argument
             commands.add_command(f"zpool scrub {dev.pool}")
         else:
           log.info(f"zfs pool '{dev.pool}' dev '{dev.dev}' does not have to be scrubbed")
-  zmirror = load_yaml_config(config_file_path=zmirror_utils.CONFIG_FILE_PATH)
+  load_config()
   iterate_content_tree(zmirror, possibly_scrub)
   commands.execute_commands()
 
@@ -107,7 +107,7 @@ def clear_cache(args):#pylint: disable=unused-argument
 
 
 def show_status(args):#pylint: disable=unused-argument
-  cache_dict = load_yaml_cache(zmirror_utils.CACHE_FILE_PATH)
+  cache_dict = load_cache()
   stream = KdStream(outs)
   # log.info("starting zfs scrubs if necessary")
   def show(dev):
@@ -118,7 +118,7 @@ def show_status(args):#pylint: disable=unused-argument
       copy_attrs(dev, out)
       stream.print_obj(out)
       stream.stream.newlines(3)
-  zmirror = load_yaml_config(config_file_path=zmirror_utils.CONFIG_FILE_PATH)
+  zmirror = load_config()
   iterate_content_tree(zmirror, show)
 
 
