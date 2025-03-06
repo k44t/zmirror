@@ -13,7 +13,7 @@ from zmirror_utils import load_cache, save_cache, load_config, find_or_create_zf
 import zmirror_utils as core
 from zmirror_actions import handle_entity_online, handle_entity_offline
 from pyutils import find_or_create_cache
-from zmirror_dataclasses import ZFSBackingBlockDeviceCache, ZFSOperationState, EntityState, Disk, LVMLogicalVolume, DMCrypt, VirtualDisk, Partition, Since, ZFSVolume, set_entity_state
+from zmirror_dataclasses import ZFSBackingBlockDeviceCache, ZFSOperationState, EntityState, Disk, LVMLogicalVolume, DMCrypt, VirtualDisk, Partition, Since, ZFSVolume, ZPool, set_entity_state
 from ki_utils import to_kd
 
 import zmirror_globals as globals
@@ -36,24 +36,30 @@ def handle(env):
     log.info(f"handling zfs event: {zevent}")
     zpool = env["ZEVENT_POOL"]
 
-
     if zevent == "pool_export":
-
       log.info(f"zpool {cache.pool} exported")
+
+      zpool_cache = find_or_create_cache(cache_dictionary, ZPool, name=zpool)
+      handle_entity_offline(zpool_cache, now)
+
       if zpool in globals.zfs_blockdevs:
         for dev in globals.zfs_blockdevs[zpool]:
-          cache = find_or_create_cache(cache_dictionary, ZFSBackingBlockDeviceCache, pool=zpool, dev=dev)
-          handle_entity_offline(cache, now)
-        event_handled = True
+          dev_cache = find_or_create_cache(cache_dictionary, ZFSBackingBlockDeviceCache, pool=zpool, dev=dev)
+          handle_entity_offline(dev_cache, now)
 
+
+      event_handled = True
     # zpool event
-    elif zevent in ["scrub_finish", "scrub_start", "pool_export"]:
+    elif zevent in ["scrub_finish", "scrub_start", "scrub_abort", "pool_import"]:
       log.info(f"zpool {zpool}: {zevent}")
       zpool_status = core.get_zpool_status(zpool)
 
       regex = re.compile(r'^ {12}([-a-zA-Z0-9_]+) +(ONLINE) +[0-9]+ +[0-9]+ +[0-9]+ *.*$', \
                          re.MULTILINE)
 
+      if zevent == "pool_import":
+        zpool_cache = find_or_create_cache(cache_dictionary, ZPool, name=zpool)
+        handle_entity_online(zpool_cache, now)
       found = False
       for match in regex.finditer(zpool_status):
         found = True
@@ -75,10 +81,13 @@ def handle(env):
           log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing started")
           cache.operation.what = ZFSOperationState.SCRUBBING
           event_handled = True
-        # TODO: figure out what the event is actually called (it's just a guess that its called cancel)
-        elif zevent == "scrub_cancel":
+        elif zevent == "scrub_abort":
           log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing cancelled")
           cache.operation.what = ZFSOperationState.NONE
+          event_handled = True
+        elif zevent == "pool_import":
+          log.info(f"zdev {cache.pool}:{cache.dev}: pool imported, device online")
+          handle_entity_online(cache, now)
           event_handled = True
       if found is False:
         log.error("likely bug: zpool event but no devices online")
@@ -173,7 +182,6 @@ def handle(env):
                 log.info(f"{cache.__class__.__name__} {cache.get_pool()}/{cache.name}: {to_kd(cache.state)}")
                 event_handled = True
                 break
-                
           elif "ID_FS_UUID" in env:
             cache = find_or_create_cache(cache_dictionary, VirtualDisk, fs_uuid=env["ID_FS_UUID"], create_args={"devpath": env["DEVNAME"]})
             udev_event_action(cache, action, now)
@@ -202,7 +210,6 @@ def handle(env):
           event_handled = True
 
           break
-      
     zmirror_commands.execute_commands()
     if not event_handled:
       log.warning("event not handled by zmirror")

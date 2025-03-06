@@ -16,19 +16,12 @@ def handle_scrubbed(entity):
 def handle_parent_online(parent, child):
   if hasattr(child, "handle_parent_online"):
     child.handle_parent_online()
-  else:
-    if hasattr(child, "content"):
-      for grand_child in child.content:
-        handle_parent_online(child, grand_child)
+
 
 
 def handle_parent_offline(parent, child):
   if hasattr(child, "handle_parent_offline"):
     child.handle_parent_offline()
-  else:
-    if hasattr(child, "content"):
-      for grand_child in child.content:
-        handle_parent_offline(child, grand_child)
 
 
 def handle_child_online(parent):
@@ -49,11 +42,8 @@ def handle_entity_online(entity, now: datetime):
   if entity.state.what != EntityState.ONLINE:
     set_entity_state(entity, EntityState.ONLINE)
     config = load_config_for_cache(entity)
-    if config is not None:
-      for child in config.content:
-        handle_parent_online(config, child)
-      if hasattr(config, "parent") and config.parent is not None:
-        handle_child_online(config.parent)
+    if config is not None and hasattr(config, "handle_online"):
+      config.handle_online()
 
 # updates the entity cache info as it goes offline
 # triggers child actions
@@ -62,8 +52,5 @@ def handle_entity_offline(entity, now: datetime):
   if entity.state.what != EntityState.DISCONNECTED:
     set_entity_state(entity, EntityState.DISCONNECTED)
     config = load_config_for_cache(entity)
-    if config is not None:
-      for child in config.content:
-        handle_parent_offline(config, child)
-      if hasattr(config, "parent") and config.parent is not None:
-        handle_child_offline(config.parent)
+    if config is not None and hasattr(config, "handle_offline"):
+      config.handle_offline()
