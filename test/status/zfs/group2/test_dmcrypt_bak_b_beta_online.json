@@ -1,6 +1,0 @@
-{
-  "DEVTYPE": "disk",
-  "ACTION": "change",
-  "DM_ACTIVATION": "1",
-  "DEVLINKS": "/dev/mapper/sysfs-a"
-}

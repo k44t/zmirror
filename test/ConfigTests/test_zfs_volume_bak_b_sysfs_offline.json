@@ -1,0 +1,6 @@
+{
+  "DEVTYPE": "disk",
+  "ACTION": "remove",
+  "DEVLINKS": "/dev/disk/by-uuid/050a61d3-4050-fb42-a951-9beb2053c7b5 /dev/disk/by-diskseq/63 /dev/zvol/zmirror-bak-b/sysfs",
+  "DEVPATH": "/devices/virtual/block/zd3"
+}

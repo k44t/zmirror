@@ -1,6 +1,0 @@
-{
-  "DEVTYPE": "disk",
-  "ACTION": "add",
-  "DEVLINKS": "/dev/disk/by-uuid/050a61d3-4050-fb42-a951-9beb2053c7b5 /dev/disk/by-diskseq/63 /dev/zvol/zpool-a/path/zfs-volume",
-  "DEVPATH": "/devices/virtual/block/zd432"
-}

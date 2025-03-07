@@ -1,0 +1,6 @@
+{
+  "DEVTYPE": "partition",
+  "ACTION": "add",
+  "PARTNAME": "zmirror-sysfs-b",
+  "DEVNAME": "/dev/sdb1"
+}

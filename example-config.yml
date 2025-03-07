@@ -67,8 +67,11 @@ content:
           - online
 
         # when all children are offline (in this case there is only one,
-        # namely one of the mirrors that b)
+        # namely one of the mirrors that backs the zmirror-sysfs zpool)
+        # thes this dmcrypt should be closed
         on_children_offline: 
+        
+          # synonm: offline == close
           - offline
 
         content:

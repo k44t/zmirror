@@ -1,0 +1,6 @@
+{
+  "DEVTYPE": "partition",
+  "ACTION": "add",
+  "PARTNAME": "zmirror-bak-b-alpha",
+  "DEVNAME": "/dev/sde1"
+}

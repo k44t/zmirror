@@ -1,0 +1,6 @@
+{
+  "DEVTYPE": "disk",
+  "ACTION": "add",
+  "ID_SERIAL": "zmirror-sysfs-b",
+  "DEVNAME": "/dev/sdb"
+}

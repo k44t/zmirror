@@ -1,0 +1,5 @@
+{
+  "ZEVENT_SUBCLASS": "resilver_start",
+  "ZEVENT_VDEV_PATH": "/dev/zvol/zmirror-bak-a/sysfs",
+  "ZEVENT_POOL": "zmirror-sysfs"
+}
