@@ -50,7 +50,8 @@ def get_zpool_status_stub(args):
 
 
 
-def trigger_event(name):
+def trigger_event():
+  name = inspect.currentframe().f_back.f_code.co_name
   event = load_event(name + ".json")
   handle(event)
 
@@ -104,7 +105,7 @@ class Test_Group1_TestMethods():
 
     assert disk_id not in zmirror_core.cache_dict
 
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
 
     dev: Disk = zmirror_core.cache_dict[disk_id]
     
@@ -119,18 +120,39 @@ class Test_Group1_TestMethods():
     
     assert partition_id not in zmirror_core.cache_dict
 
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
 
     dev: Partition = zmirror_core.cache_dict[partition_id]
     
     assert(dev is not None)
     assert(dev.state.what == EntityState.ONLINE)
 
+
+  def test_zpool_online(self):
+    assert zpool_id not in zmirror_core.cache_dict
+    trigger_event()
+    assert zpool_id in zmirror_core.cache_dict
+    dev: ZPool = zmirror_core.cache_dict[zpool_id]
+    
+    assert(dev is not None)
+    assert(dev.state.what == EntityState.ONLINE)
+
+  def test_zpool_offline(self):
+    trigger_event()
+    assert zpool_id in zmirror_core.cache_dict
+    dev: ZPool = zmirror_core.cache_dict[zpool_id]
+    
+    assert(dev is not None)
+    assert(dev.state.what == EntityState.DISCONNECTED)
+  
+
+
+
   # # zmirror command: zpool online vdev
   # vdev wird im zpool aktiviert (vdev_online)
   def test_zdev_online(self):
     assert zfs_blockdev_id not in zmirror_core.cache_dict
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
     assert zfs_blockdev_id in zmirror_core.cache_dict
     dev: ZFSBackingBlockDeviceCache = zmirror_core.cache_dict[zfs_blockdev_id]
     
@@ -140,7 +162,7 @@ class Test_Group1_TestMethods():
 
   # vdev beginnt zu resilvern (resilver_start)
   def test_resilver_start(self):
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
     dev: ZFSBackingBlockDeviceCache = zmirror_core.cache_dict[zfs_blockdev_id]
     
     assert(dev is not None)
@@ -148,7 +170,7 @@ class Test_Group1_TestMethods():
 
   # vdev resilver ist abgeschlossen (resilver_finish)
   def test_resilver_finish(self):
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
     dev: ZFSBackingBlockDeviceCache = zmirror_core.cache_dict[zfs_blockdev_id]
     
     assert(dev is not None)
@@ -157,7 +179,7 @@ class Test_Group1_TestMethods():
   # # zmirror started scrub
   # pool scrub startet (scrub_start)
   def test_scrub_start(self):
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
     dev: ZFSBackingBlockDeviceCache = zmirror_core.cache_dict[zfs_blockdev_id]
     
     assert(dev is not None)
@@ -165,7 +187,7 @@ class Test_Group1_TestMethods():
 
   # pool scrub ist abgeschlossen (scrub_finish)
   def test_scrub_finish(self):
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
     dev: ZFSBackingBlockDeviceCache = zmirror_core.cache_dict[zfs_blockdev_id]
     
     assert(dev is not None)
@@ -174,7 +196,7 @@ class Test_Group1_TestMethods():
   # # tatsächliches gerät wird abgetrennt
   # partition verschwindet (udev: remove)
   def test_partition_remove(self):
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
 
     dev: Partition = zmirror_core.cache_dict[partition_id]
     
@@ -185,7 +207,7 @@ class Test_Group1_TestMethods():
 
   # disk verschwindet (udev: remove)
   def test_disk_remove(self):
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
 
     dev: Disk = zmirror_core.cache_dict[disk_id]
     
@@ -203,7 +225,7 @@ class Test_Group1_TestMethods():
   def test_zdev_disconnected(self):
     assert zfs_blockdev_id in zmirror_core.cache_dict
     
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
 
     dev: ZFSBackingBlockDevice = zmirror_core.cache_dict[zfs_blockdev_id]
     
@@ -218,7 +240,7 @@ class Test_Group1_TestMethods():
     zmirror_core.cache_dict = dict()
     assert virtual_disk_id not in zmirror_core.cache_dict
 
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
 
     assert virtual_disk_id in zmirror_core.cache_dict
     
@@ -233,7 +255,7 @@ class Test_Group1_TestMethods():
     
     assert virtual_disk_id in zmirror_core.cache_dict
 
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
 
     dev: VirtualDisk = zmirror_core.cache_dict[virtual_disk_id]
     
@@ -248,7 +270,7 @@ class Test_Group1_TestMethods():
     zmirror_core.cache_dict = dict()
     assert logical_volume_id not in zmirror_core.cache_dict
 
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
     
     assert logical_volume_id in zmirror_core.cache_dict
 
@@ -263,7 +285,7 @@ class Test_Group1_TestMethods():
     
     assert logical_volume_id in zmirror_core.cache_dict
 
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
 
     dev: LVMLogicalVolume = zmirror_core.cache_dict[logical_volume_id]
     
@@ -279,7 +301,7 @@ class Test_Group1_TestMethods():
     zmirror_core.cache_dict = dict()
     assert zfs_volume_id not in zmirror_core.cache_dict
 
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
 
     assert zfs_volume_id in zmirror_core.cache_dict
     
@@ -294,7 +316,7 @@ class Test_Group1_TestMethods():
     
     assert zfs_volume_id in zmirror_core.cache_dict
 
-    trigger_event(inspect.currentframe().f_code.co_name)
+    trigger_event()
 
     dev: ZFSVolume = zmirror_core.cache_dict[zfs_volume_id]
     

@@ -4,6 +4,10 @@
 # enable logging of the environment variables for all reltest-systemnt events
 log_env: yes
 
+# When disable_commands is enabled, then zmirror never executes any commands 
+# but only logs the commands that it would execute.
+disable_commands: no
+
 
 content:
 
@@ -15,33 +19,53 @@ content:
 
 
 
-
-  # a zpool cannot be taken offline, once all of its backing blockdevs have disappeared (reboot manually)
+  # This zpool contains my root filesystem. It also contains my most important data (my projects)
+  #
+  # the configuration below displays my mirroring and backup strategy.
   - !ZPool 
     name: zmirror-sysfs
 
 
+  # a zpool cannot be taken offline, once all of its backing blockdevs have 
+  # disappeared. In such a case you have to reboot to get the ZFS kernel
+  # module into a state which allows you to reimport the zpool.
 
 
 
-
-
-  # partitions are considered top-level in this configuration. 
-  # we could implement disks and below partitions, but since both disks and partitions cannot be taken offline (only their containers can if that is the case)
-  # we don't need to implement this
+  # the disk zmirror-sysfs-a is one of the disks that back the zmirror-sysfs zpool
+  # it is an NVMe drive built into my computer
+  # this is the partition (on the drive) that contains a mirror of the data of the zmirror-sysfs-zpool
   - !Partition
 
     # partition names for zmirror must be unique
     name: zmirror-sysfs-a
     
     content:
+
+
+      # we use DMCrypt over ZFS native encryption for two reasons:
+      #
+      # -a) while it encrypts file content, it does not encrypt filenames
+      #   and other metadata
+      # -b) zfs send/receive currently corrupts data from encrypted datasets
+      #   (see https://github.com/openzfs/zfs/issues/12014)
+      #
       - !DMCrypt
 
         # name of dm-crypt
         name: zmirror-sysfs-a
         
+        # zmirror can only work with key-files as of now.
         key-file: ./test/zmirror-key
+        # if somebody was willing to write a python function
+        # that acquires the key either from the user (systemd-ask-password)
+        # or from some encryption system (smart card?) you
+        # are very welcome. The zmirror daemon runs as root.
 
+        # the parent-child relationship is always directly visible in this
+        # configuration. I.e. the parent of this DMCrypt *is* the partition
+        # and the children of this DMCrypt (or rather the only child in this
+        # case)
         on_parent_online:
           - online
 
@@ -57,14 +81,21 @@ content:
             # the name of the zfs-backing blockdev as it appears in `zpool status`
             dev: zmirror-sysfs-a
 
-            on_parent_online: 
+            on_parent_online:
+
+              # this has no effect if the pool is already imported
               - import-pool
+
+              # this has no effect if the command before imported the pool
+              # i.e. this only has an effect if the pool was already imported
               - online
 
             scrub_interval: 3 weeks
 
 
 
+  # the disk zmirror-sysfs-b is always connected to my computer
+  # it serves as a failover in case zmirror-sysfs-a has a hardware error
   - !Partition
 
     # partition names used by zmirror must be unique
@@ -100,6 +131,51 @@ content:
 
 
 
+  # The sysfs zpool contains (in addition to the OS and config files) my most 
+  # important projects files. Hence I have a 2TB nvme drive named zmirror-sysfs-s
+  # (s stands for "s"afe) which I carry around with myself and which I connect 
+  # when I'm working on my computer
+  # 
+  # This mitigates the risk of losing my most
+  # recent changes due to a break-in while I'm away.
+  #
+  # This is the partition that contains one of the zpool's (zmirror-sysfs)
+  # mirrors.
+  - !Partition
+
+    # partition names used by zmirror must be unique
+    name: zmirror-sysfs-s
+
+    
+    content:
+      - !DMCrypt
+
+        # name of dm-crypt
+        name: zmirror-sysfs-s
+        
+        key-file: ./test/zmirror-key
+
+        on_children_offline: 
+          - offline
+
+        on_parent_online:
+          - online
+
+        content:
+          - !ZFSBackingBlockDevice
+          
+            dev: zmirror-sysfs-s
+            pool: zmirror-sysfs
+
+            on_parent_online: 
+              - online
+
+            scrub_interval: 1 week
+
+
+
+
+
 
 
 
@@ -109,8 +185,6 @@ content:
 
   - !ZPool
     name: zmirror-big
-
-
 
 
 
@@ -147,7 +221,6 @@ content:
           
             on_parent_online:
               - import-pool
-              - online
 
             scrub_interval: 3 weeks
 
@@ -195,28 +268,83 @@ content:
   - !ZPool
     name: zmirror-bak-a
 
+    # when all volumes configured below are offline (WARNING: see explanation 
+    # below on how we implemented this) the zpool should be exported.
     on_children_offline: 
-      - offline
+      # TODO: implement synonym export == offline
+      - export
 
     content:
       
+      # since zmirror needs udev/zed events to process state changes we use
+      # the fact that we can make zvols invisible to the system to generate
+      # those events. In other words zmirror issues
+      #
+      # :: zfs set volmode=none zmirror-bak-a/sysfs
+      # 
+      # which makes the volume disappear as a blockdev. Then we catch the 
+      # udev event and then we consider the volume offline.
+      # 
+      # it is important to note that the blockdev will only disappear when
+      # it is not in use anymore. Only then will the udev events be sent and
+      # only then can zmirror act apropriately.
+      # 
+      # When both `zmirror-bak-a/sysfs` and `zmirror-bak-a/big` are (cosidered)
+      # offline, zmirror will export the pool (as configured above).
       - !ZFSVolume
         name: sysfs
 
-        on_children_offline: 
-          - snapshot
+        on_children_offline:
           - offline
         
+        # when the zpool zmirror-bak-a comes online, zmirror will issue the
+        # the command:
+        #
+        # :: zfs set volmode=full zmirror-bak-a/sysfs
+        # 
+        # which causes the volume to become visible to the system like a any
+        # other blockdev (e.g. /dev/zd224)
+        # 
+        # Then zmirror catches the respective udev event and changes its
+        # internal state of the volume to online.
+        on_parent_online:
+          - online
+        
         content:
-          # it is important that all physical volumes are configured
+
           - !ZFSBackingBlockDevice
             pool: zmirror-sysfs
             dev: zvol/zmirror-bak-a/sysfs
 
-            on_scrubbed: 
+            on_resilvered:
+              # when a resilver is done, we want to snapshot the zfs volume
+              # backing the zpool
+              - snapshot-parent
+
+              # VERY IMPORTANT
+              # 
+              # zmirror-bak-a is backed by a rotating magnetic disk which
+              # is rather slow compared to the NVMe disks that back
+              # zmirror-sysfs or the SSDs that back zmirror-big.
+              # 
+              # This is no problem during resilver as any WRITE issued for
+              # the zmirror-sysfs zpool will only go to the disks that are not 
+              # resilvering.
+              #
+              # But the moment that the resilver finishes, the WRITE speed
+              # of the WHOLE zpool would drop down to the speed of the rotating 
+              # disk. To avoid this, we take the backing blockdev offline right
+              # away.
               - offline
 
-            on_resilvered: 
+            # above problem is unavoidable during a scrub, since for scrubbing
+            # this blockdev must be online within the zmirror-sysfs zpool. 
+            # Consequently we do scrubbing at night when lowered pool speed
+            # is less of an issue. And to avoid keeping the 
+            # zmirror-sysfs zpool's WRITE speed as low as the speed of the 
+            # rotating disk (which is backing zmirror-bak-a) we take the
+            # blockdev offline right away.
+            on_scrubbed:
               - offline
 
             on_parent_online:
@@ -226,8 +354,10 @@ content:
         name: big
         
         on_children_offline: 
-          - snapshot
           - offline
+
+        on_parent_online:
+          - online
         
         content:
           
@@ -243,6 +373,7 @@ content:
               - offline
 
             on_resilvered: 
+              - snapshot-parent
               - offline
 
 
@@ -250,6 +381,30 @@ content:
 
 
 
+
+  # zmirror-bak-a is my first backup disk (I actually have more than are 
+  # configured in this config). These backup disks are physically distributed, 
+  # that is I store them in multiple locations outside my home. In this way I 
+  # mitigate the risk of a local catastrophy such as a fire
+  #
+  # This disk contains but a single zpool (which is backed only by this disk)
+  # The consequence is that I cannot scrub this pool.
+  #
+  # So on this particular backup disk I am not protected against bitrot
+  # I do minimize the risk however by storing this disk in an EMP protected bag
+  # which also protects the disk against other electromagnetic radiation 
+  # (that is one of the causes of bitrot)
+  #
+  # but since zmirror creates snapshots whenever I synchronize this disk
+  # and since zmirror scrubs the latest data whenever I synchronize this disk
+  # bitrot can only damage older snapshots, never the newest one
+  #
+  # and this even protects older data, since both the sysfs and the big pool
+  # actually do contain (a limited number of) snapshots of older data that I curate manually
+  # and all the data inside the big and the sysfs zpools have parity (are mirrored) 
+  # and can be scrubbed and restored
+  #
+  # this is the partition that contains the zpool data
   - !Partition
     name: zmirror-bak-a
 
@@ -274,7 +429,7 @@ content:
             pool: zmirror-bak-a
           
             on_parent_online:
-              - online
+              - import-pool
 
             scrub-interval: 3 weeks
 
@@ -288,12 +443,22 @@ content:
 
 
 
-  # once a zpool is being exported, we must generate a "virtual event", because now all backing blockdevs are considered to be offline (so their parent's handle_child_offline method must be called)
+  # This pool is fully protected against bitrot, since it is backed by 
+  # two disks. For this to work it is necessary that (at least every now and
+  # then) you connect both backing disks at the same time and ensure that
+  # they will be scrubbed (as this zmirror config does every 3 weeks as long 
+  # as you keep the disks connected over night)
   - !ZPool
     name: zmirror-bak-b
 
     on_children_offline: 
       - offline
+    
+    # this zpool (in contrast to sysfs or big) will only be imported once all 
+    # its backing blockdevices are present in the system.
+    on_all_backing_block_devices_present:
+      # synonym: import == online
+      - import
 
     content:
       
@@ -308,19 +473,19 @@ content:
             dev: zvol/zmirror-bak-b/sysfs
             pool: zmirror-sysfs
             
-            on_parent_online: 
+            on_parent_online:
               - online
           
-            on_scrubbed: 
+            on_scrubbed:
               - offline
 
-            on_resilvered: 
+            on_resilvered:
+              - snapshot-parent
               - offline
       
       - !ZFSVolume
         name: big
-        on_children_offline: 
-          - snapshot
+        on_children_offline:
           - offline
         content:
           # it is important that all physical volumes are configured
@@ -329,13 +494,14 @@ content:
             dev: zvol/zmirror-bak-b/big
             pool: zmirror-big
 
-            on_parent_online: 
+            on_parent_online:
               - online
           
-            on_scrubbed: 
+            on_scrubbed:
               - offline
 
-            on_resilvered: 
+            on_resilvered:
+              - snapshot-parent
               - offline
 
 
@@ -344,13 +510,18 @@ content:
 
 
 
-
+  # this is the main partition of the first disk that is backing zmirror-bak-b
+  # We could have used full disks here, since zfs recommends using full disks
+  # to back its pools. But there is no consistent way to name disks, while it
+  # is quite possible to name partitions. It simply results in a more easy to
+  # understand configuration if you can use names instead of serial numbers
+  # and performance is not an issue anyways.
   - !Partition
-    name: zmirror-bak-b
+    name: zmirror-bak-b-alpha
 
     content:
       - !DMCrypt
-        name: zmirror-bak-b
+        name: zmirror-bak-b-alpha
         key-file: ./test/zmirror-key
 
         on_parent_online:
@@ -363,14 +534,43 @@ content:
 
           - !ZFSBackingBlockDevice
 
-            dev: zmirror-bak-b
+            dev: zmirror-bak-b-alpha
 
             pool: zmirror-bak-b
           
             on_parent_online:
               - online
 
+            scrub_interval: 3 weeks
 
+
+  # this is the main partition of hte second disk that is backing zmirror-bak-b
+  - !Partition
+    name: zmirror-bak-b-beta
+
+    content:
+      - !DMCrypt
+        name: zmirror-bak-b-beta
+        key-file: ./test/zmirror-key
+
+        on_parent_online:
+          - online
+
+        on_children_offline: 
+          - offline
+
+        content: 
+
+          - !ZFSBackingBlockDevice
+
+            dev: zmirror-bak-b-beta
+
+            pool: zmirror-bak-b
+          
+            on_parent_online:
+              - online
+            
+            scrub_interval: 3 weeks
 
 
 
