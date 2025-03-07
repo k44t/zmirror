@@ -1,22 +1,19 @@
 --- !ZMirror
 
 
-# enable logging of the environment variables for all reltest-systemnt events
+# enable logging of the environment variables for all udev and zed events
 log_env: yes
 
 # When disable_commands is enabled, then zmirror never executes any commands 
-# but only logs the commands that it would execute.
+# but only logs the commands that it would execute. This is helpful when you
+# want to interact want to test things and/or manually interact with the 
+# devices without zmirror 
 disable_commands: no
 
 
+# under here all top-level entities (such as disks, partitions, lvm volume groups
+# or zpools) are configured
 content:
-
-
-
-
-
-
-
 
 
   # This zpool contains my root filesystem. It also contains my most important data (my projects)
@@ -37,7 +34,7 @@ content:
   # this is the partition (on the drive) that contains a mirror of the data of the zmirror-sysfs-zpool
   - !Partition
 
-    # partition names for zmirror must be unique
+    # IMPORTANT: partition names that will be used by zmirror MUST be unique
     name: zmirror-sysfs-a
     
     content:
@@ -52,7 +49,7 @@ content:
       #
       - !DMCrypt
 
-        # name of dm-crypt
+        # IMPORT: the names of DM crypts in your system MUST be unique
         name: zmirror-sysfs-a
         
         # zmirror can only work with key-files as of now.
@@ -69,11 +66,17 @@ content:
         on_parent_online:
           - online
 
+        # when all children are offline (in this case there is only one,
+        # namely one of the mirrors that b)
         on_children_offline: 
           - offline
 
         content:
-          # the zfs blockdev inside the partition
+          
+          # this might be considered a virtual entity. It basically tells zmirror
+          # that the data inside the partition is the data backing the zpools
+          # (or in other words, that the partition is the blockdev that backs
+          # the zpool)
           - !ZFSBackingBlockDevice
             # name for the zfs pool
             pool: zmirror-sysfs
@@ -98,14 +101,12 @@ content:
   # it serves as a failover in case zmirror-sysfs-a has a hardware error
   - !Partition
 
-    # partition names used by zmirror must be unique
     name: zmirror-sysfs-b
 
     
     content:
       - !DMCrypt
 
-        # name of dm-crypt
         name: zmirror-sysfs-b
         
         key-file: ./test/zmirror-key
@@ -143,14 +144,12 @@ content:
   # mirrors.
   - !Partition
 
-    # partition names used by zmirror must be unique
     name: zmirror-sysfs-s
 
     
     content:
       - !DMCrypt
 
-        # name of dm-crypt
         name: zmirror-sysfs-s
         
         key-file: ./test/zmirror-key
@@ -177,12 +176,6 @@ content:
 
 
 
-
-
-
-
-
-
   - !ZPool
     name: zmirror-big
 
@@ -192,13 +185,11 @@ content:
 
   - !Partition
 
-    # partition names for zmirror must be unique
     name: zmirror-big-a
 
     content:
       - !DMCrypt
 
-        # name of dm-crypt
         name: zmirror-big-a
         
         key-file: ./test/zmirror-key
@@ -210,13 +201,10 @@ content:
           - online
 
         content:
-          # the zfs blockdev inside the partition
           - !ZFSBackingBlockDevice
           
-            # the name of the zfs-backing blockdev
             dev: zmirror-big-a
 
-            # name for the zfs pool
             pool: zmirror-big
           
             on_parent_online:
@@ -231,14 +219,12 @@ content:
 
   - !Partition
 
-    # partition names used by zmirror must be unique
     name: zmirror-big-b
 
     
     content:
       - !DMCrypt
 
-        # name of dm-crypt
         name: zmirror-big-b
         
         key-file: ./test/zmirror-key
@@ -265,11 +251,18 @@ content:
 
 
 
+  # this is one of the two pools which contains zfs volumes that mirror
+  # the zpools zmirror-sysfs and zmirror-big
   - !ZPool
     name: zmirror-bak-a
 
     # when all volumes configured below are offline (WARNING: see explanation 
     # below on how we implemented this) the zpool should be exported.
+    # 
+    # WARNING: this kind of configuration only makes sense if you use the
+    # zpool zmirror-bak-a ONLY as a container for volumes that are managed
+    # by zmirror. In any other case you want to tell zmirror to never
+    # export the pool and instead handle that manually
     on_children_offline: 
       # TODO: implement synonym export == offline
       - export
@@ -420,12 +413,10 @@ content:
           - offline
 
         content: 
-          # zfs blockdev inside the partition
           - !ZFSBackingBlockDevice
             
             dev: zmirror-bak-a
             
-            # name of the zfs pool
             pool: zmirror-bak-a
           
             on_parent_online:
@@ -488,9 +479,7 @@ content:
         on_children_offline:
           - offline
         content:
-          # it is important that all physical volumes are configured
           - !ZFSBackingBlockDevice
-            # pvdisplay
             dev: zvol/zmirror-bak-b/big
             pool: zmirror-big
 
