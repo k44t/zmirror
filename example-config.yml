@@ -186,6 +186,7 @@ content:
               on_parent_online: 
                 - online
 
+              # after the disk has been scrubbed we want to trim it to preserve performance
               on_scrubbed:
                 - trim
 
