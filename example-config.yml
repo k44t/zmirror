@@ -400,8 +400,39 @@ content:
 
 
 
-  # this is one of the two pools which contains zfs volumes that mirror
-  # the zpools zmirror-sysfs and zmirror-big
+  # this is one of the multiple backup pools (only two are configured in this
+  # example) which contains zfs volumes that mirror the zpools zmirror-sysfs 
+  # and zmirror-big.
+  #
+  # These pools exist for backup purposes only.
+  # zmirror creates ZFS snapshots to save the state after every backup (I need to
+  # manually remove some of the older ones every now and then to ensure I have 
+  # enough space).
+  # 
+  # This kind of configuration gives me real backups.
+  # 
+  # The only risks that are not mitigated by it are 
+  # 
+  # -1. bugs in ZFS that make me lose some or all of the data inside the backups.
+  # -2. hackers that maliciously delete my backup data WHILE the backup disk
+  #   is connected
+  # 
+  # Ad 1. I feel the risk of ZFS having or introducing such bugs and my OS
+  # distributing such bugs into the stable release is very low, too low in fact
+  # for me to worry about them.
+  # 
+  # Ad 2. can only be mitigated by using backup media that will be written once
+  # and only be read again in case of needing to restore. An example would be 
+  # burning blurays (Millenium Disks). Another example would be magnetic tape.
+  # 
+  # You could combine zmirror with magnetic tape. But it would probably make more
+  # sense to use a simpler filesystem for magnetic tapes which you will always
+  # be able to restore if you have the relevant hardware (while it might be quite
+  # difficult to retrive data from an old ZFS version or the like). So zmirror's
+  # functionality would then be not for you.
+  # 
+  # In any case, the kind of failure protection this zmirror configuration gives me
+  # is enough for my own needs.
   - !ZPool
     name: zmirror-bak-a
 
@@ -525,17 +556,17 @@ content:
 
 
   # zmirror-bak-a is my first backup disk (I actually have more than are 
-  # configured in this config). These backup disks are physically distributed, 
+  # configured in this example). These backup disks are physically distributed, 
   # that is I store them in multiple locations outside my home. In this way I 
-  # mitigate the risk of a local catastrophy such as a fire
+  # mitigate the risk of a local catastrophy such as a fire.
   #
   # This disk contains but a single zpool (which is backed only by this disk)
   # The consequence is that I cannot scrub this pool.
   #
-  # So on this particular backup disk I am not protected against bitrot
-  # I do minimize the risk however by storing this disk in an EMP protected bag
-  # which also protects the disk against other electromagnetic radiation 
-  # (that is one of the causes of bitrot)
+  # This particular backup disk is not protected against bitrot.
+  # Hence I minimize the risk of bitrot by storing the disk in an EMP protected bag
+  # which also protects the disk against electromagnetic radiation in general
+  # (one of the causes of bitrot)
   #
   # but since zmirror creates snapshots whenever I synchronize this disk
   # and since zmirror scrubs the latest data whenever I synchronize this disk
@@ -546,7 +577,7 @@ content:
   # and all the data inside the big and the sysfs zpools have parity (are mirrored) 
   # and can be scrubbed and restored
   #
-  # this is the partition that contains the zpool data
+  # this is the partition that contains the zpool's data
   - !Partition
     name: zmirror-bak-a
 
