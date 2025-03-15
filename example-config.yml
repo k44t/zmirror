@@ -31,7 +31,7 @@ content:
 
   # the disk zmirror-sysfs-a is one of the disks that back the zmirror-sysfs zpool
   # it is an NVMe drive built into my computer
-  # this is the partition (on the drive) that contains a mirror of the data of the zmirror-sysfs-zpool
+  # and this is the partition (on the drive) that contains a mirror of the data of the zmirror-sysfs-zpool
   - !Partition
 
     # IMPORTANT: partition names that will be used by zmirror MUST be unique
@@ -96,41 +96,162 @@ content:
               # i.e. this only has an effect if the pool was already imported
               - online
 
+            on_scrubbed:
+              - trim
+
             scrub_interval: 3 weeks
 
 
 
-  # the disk zmirror-sysfs-b is always connected to my computer
+  # the disk zmirror-sysfs-b is an NVMe disk that is connected to my computer
+  # via USB c
   # it serves as a failover in case zmirror-sysfs-a has a hardware error
-  - !Partition
+  - !Disk
 
-    name: zmirror-sysfs-b
+    # the uuid of the gpt partition table
+    uuid: abcdefg01234
 
-    
+    # the linux kernel is not aware that my usb-c NVMe enclosure does in fact
+    # support the trim command.
+    #
+    # WARNING: ONLY set this to true if you absolutely know that your en supports
+    # trim.
+    # 
+    # you can find out using
+    #
+    # :: sg_vpd -a /dev/sdX | grep "map"
+    # 
+    #   
+    # A report like
+    #
+    # >> 
+    #   Maximum unmap LBA count: 0 [Unmap command not implemented]
+    #   Maximum unmap block descriptor count: 0 [Unmap command not implemented]
+    #   Optimal unmap granularity: 0 blocks [not reported]
+    #
+    # means that trim is not supported, so stop there. 
+
+    # A report like:
+
+    # >>  
+    #   Maximum unmap LBA count: 0x1400000
+    #   Maximum unmap block descriptor count: 0x1
+    #   Optimal unmap granularity: 0x1
+    # 
+    # means that trim is supported.
+    force_enable_trim: yes
+    # 
+    # what zmirror does to enable trim is catch every udev add or change event for 
+    # the disk and do
+    # 
+    # :: echo "unmap" > /sys/block/sdX/device/scsi_disk/0:0:0:0/provisioning_mode
+    # 
+    # as well as compute the maximum number of discard bytes and tell the kernel:
+    # 
+    # :: echo 10737418240 > /sys/block/sdX/queue/discard_max_bytes
+
+
+
     content:
-      - !DMCrypt
 
-        name: zmirror-sysfs-b
-        
-        key-file: ./test/zmirror-key
+    - !Partition
 
-        on_children_offline: 
-          - offline
+      # the partition name must be unique even if you configure a partition as the content
+      # of a disk in zmirror. This is because we still rely on udev events and those do
+      # not contain the disk to which a udev event belongs. 
+      #
+      # unique names also always make debugging your configuration easier.
+      name: zmirror-sysfs-b
 
-        on_parent_online:
-          - online
+      
+      content:
+        - !DMCrypt
 
-        content:
-          - !ZFSBackingBlockDevice
+          name: zmirror-sysfs-b
           
-            dev: zmirror-sysfs-b
-            pool: zmirror-sysfs
+          key_file: ./test/zmirror-key
 
-            on_parent_online: 
-              - online
+          on_children_offline: 
+            - offline
 
-            scrub_interval: 1 week
+          on_parent_online:
+            - online
 
+          content:
+            - !ZFSBackingBlockDevice
+            
+              dev: zmirror-sysfs-b
+              pool: zmirror-sysfs
+
+              on_parent_online: 
+                - online
+
+              on_scrubbed:
+                - trim
+
+              scrub_interval: 1 week
+
+
+
+
+
+  # the disk zmirror-sysfs-c is equal in hardware and configuration to
+  # zmirror-sysfs-b.
+  #
+  # I switch out c and b every other day. Their task is to mirror the
+  # internal drive and be a failover. Having only one of them connected
+  # at any one time means, that I have a full and recent copy of my data
+  # in case an overvoltagecondition destroys my PC and both the internal
+  # NVMe drive and the external NVMe drive that is currently connected.
+  #
+  # Both zmirror-sysfs-b and zmirror-sysfs-c operate in full PCIe 4.0
+  # speed, so they are just as fast as the internal NVMe drive.
+  - !Disk
+
+    # the uuid of the gpt partition table
+    uuid: abcdefg012345
+
+    force_enable_trim: yes
+
+
+    content:
+
+    - !Partition
+
+      # the partition name must be unique even if you configure a partition as the content
+      # of a disk in zmirror. This is because we still rely on udev events and those do
+      # not contain the disk to which a udev event belongs. 
+      #
+      # unique names also always make debugging your configuration easier.
+      name: zmirror-sysfs-c
+
+      
+      content:
+        - !DMCrypt
+
+          name: zmirror-sysfs-c
+          
+          key_file: ./test/zmirror-key
+
+          on_children_offline: 
+            - offline
+
+          on_parent_online:
+            - online
+
+          content:
+            - !ZFSBackingBlockDevice
+            
+              dev: zmirror-sysfs-c
+              pool: zmirror-sysfs
+
+              on_parent_online: 
+                - online
+
+              on_scrubbed:
+                - trim
+
+              scrub_interval: 1 week
 
 
 
@@ -138,41 +259,65 @@ content:
   # The sysfs zpool contains (in addition to the OS and config files) my most 
   # important projects files. Hence I have a 2TB nvme drive named zmirror-sysfs-s
   # (s stands for "s"afe) which I carry around with myself and which I connect 
-  # when I'm working on my computer
+  # when I'm working on my computer.
   # 
-  # This mitigates the risk of losing my most
-  # recent changes due to a break-in while I'm away.
+  # This NVMe drive is a different spec (2242) than sysfs-a, b and c. It has a smaller
+  # form factor, so it fits into a smaller USB drive big encloser. But it also is 
+  # slower (PCIe 1.0) than the other three. Hence I take it offline after a resilver.
+  # 
+  # This mitigates the risk of losing my most recent changes due to a break-in 
+  # while I'm away.
   #
   # This is the partition that contains one of the zpool's (zmirror-sysfs)
   # mirrors.
-  - !Partition
+  - !Disk
 
-    name: zmirror-sysfs-s
+    # the uuid of the gpt partition table
+    uuid: abcdefg0123456
 
-    
     content:
-      - !DMCrypt
+      - !Partition
 
         name: zmirror-sysfs-s
+
         
-        key-file: ./test/zmirror-key
-
-        on_children_offline: 
-          - offline
-
-        on_parent_online:
-          - online
-
         content:
-          - !ZFSBackingBlockDevice
-          
-            dev: zmirror-sysfs-s
-            pool: zmirror-sysfs
+          - !DMCrypt
 
-            on_parent_online: 
+            name: zmirror-sysfs-s
+            
+            key_file: ./test/zmirror-key
+
+            on_children_offline: 
+              - offline
+
+            on_parent_online:
               - online
 
-            scrub_interval: 1 week
+            content:
+              - !ZFSBackingBlockDevice
+              
+                dev: zmirror-sysfs-s
+                pool: zmirror-sysfs
+
+                on_parent_online: 
+                  - online
+                
+                # This NVMe drive is a different spec (2242) than sysfs-a, b and c. It has a smaller
+                # form factor, so it fits into a smaller USB drive big encloser. But it also is 
+                # slower (PCIe 1.0) than the other three. Hence I take it offline after a resilver.
+                on_resilvered:
+                  - offline
+
+                on_scrubbed:
+                  - trim
+                
+                # because of the slower speed (same reason as above) I take it offline when the operation
+                # is done.
+                on_trimmed:
+                  - offline
+
+                scrub_interval: 1 week
 
 
 
@@ -195,7 +340,7 @@ content:
 
         name: zmirror-big-a
         
-        key-file: ./test/zmirror-key
+        key_file: ./test/zmirror-key
 
         on_children_offline: 
           - offline
@@ -230,7 +375,7 @@ content:
 
         name: zmirror-big-b
         
-        key-file: ./test/zmirror-key
+        key_file: ./test/zmirror-key
 
         on_children_offline: 
           - offline
@@ -407,7 +552,8 @@ content:
     content:
       - !DMCrypt
         name: zmirror-bak-a
-        key-file: ./test/zmirror-key
+        
+        key_file: ./test/zmirror-key
         
         on_parent_online:
           - online
@@ -514,7 +660,8 @@ content:
     content:
       - !DMCrypt
         name: zmirror-bak-b-alpha
-        key-file: ./test/zmirror-key
+        
+        key_file: ./test/zmirror-key
 
         on_parent_online:
           - online
@@ -543,7 +690,8 @@ content:
     content:
       - !DMCrypt
         name: zmirror-bak-b-beta
-        key-file: ./test/zmirror-key
+        
+        key_file: ./test/zmirror-key
 
         on_parent_online:
           - online
