@@ -574,6 +574,9 @@ content:
   #
   # and this even protects older data, since both the sysfs and the big pool
   # actually do contain (a limited number of) snapshots of older data that I curate manually
+  # and daily, weekly, monthly and yearly snapshots that are curated automatically
+  # by my nixOS
+  #
   # and all the data inside the big and the sysfs zpools have parity (are mirrored) 
   # and can be scrubbed and restored
   #
