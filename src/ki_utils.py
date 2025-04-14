@@ -135,7 +135,7 @@ class StringBuilder:
 
 class KiEnum(Enum):
 
-  def __to_kd__(self, ki_stream):
+  def __kiify__(self, ki_stream):
     ki_stream.stream.print_raw("#" + self.name.lower().replace("_", "-"))
 
 
@@ -222,8 +222,8 @@ class KdStream:
       self.stream.dedent()
     elif obj is None:
       self.stream.print_raw("nil")
-    elif hasattr(obj, "__to_kd__") and callable(obj.__to_kd__):
-      obj.__to_kd__(self)
+    elif hasattr(obj, "__kiify__") and callable(obj.__kiify__):
+      obj.__kiify__(self)
     else:
       self.print_python_obj(obj)
 

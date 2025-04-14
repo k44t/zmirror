@@ -751,3 +751,129 @@ content:
 
 
 
+  # this zpool is being used to backup my bluray disks
+  # 
+  # it is the slowest pool I have and it is backed by
+  # rotating disks only. The disks are powered on via an internal USB
+  # relay board which connects/disconnects the SATA power for the
+  # devices on command. So the moment I power them on using a shell command,
+  # zmirror will recognize them and online the pool. 
+  #
+  # And this of course I will only do whenever I need to make another backup 
+  # of a bluray disk. Because after creating a backup I tend to reencode
+  # the movies into a more spaceefficient format onto the `big` pool.
+  # This is because I personally am happy with x246 encoded 1080p videos. 
+  # I don't really need 4K... But who knows? So I'll back up my blurays which
+  # like all optical media have a tendency of becoming unreadable after
+  # some years...
+  #
+  # it is in this example config because it shows how 
+  # to combine two smaller disks into a single striped disk
+  # which can be used to mirror a bigger disk using a zpool mirror
+  - !ZPool
+    name: zmirror-blubak
+
+
+
+  # this is the main partition of the first (the big) disk that is backing 
+  # the zpool zmirror-blubak
+  - !Partition
+    name: zmirror-blubak-alpha
+
+    content:
+      - !DMCrypt
+        name: zmirror-blubak-alpha
+        
+        key_file: ./test/zmirror-key
+
+        on_parent_online:
+          - online
+
+        on_children_offline: 
+          - offline
+
+        content: 
+
+          - !ZFSBackingBlockDevice
+
+            dev: zmirror-blubak-alpha
+
+            pool: zmirror-blubak
+          
+            on_parent_online:
+              - online
+
+            scrub_interval: 3 weeks
+
+  # this is the dm_raid that is backed by two physical devices
+  # combined into a striped disk (raid0)
+  # 
+  # once all required backing `DMRaidBackingDevice`s are present
+  # zmirror executes `mdmadm --assemble /dev/mdX /dev/mapper/x /dev/mapper/y`
+  # which onlines the raid0
+  - !DMRaid
+    name: zmirror-blubak-beta
+
+
+    content:
+      - !ZFSBackingBlockDevice
+        pool: zmirror-blubak
+
+        # the ...1 at the end stands there because when zfs partitions the disk
+        # (/dev/mapper/zmirror-blubak-beta which is a symlik to /dev/mdX
+        # it creates a partition with index 1 and a partition with index 9
+        # and then it uses the partition with index 1 to store its data 
+        dev: zmirror-blubak-beta1
+  
+  # this is the main partition of the second disk that is backing the zpool
+  # zmirror-blubak
+  # 
+  # the speciality of the second and third disk is, that they are (about) half as 
+  # big as the first disk, and so we combined them into a striped raid0.
+  - !Partition
+    name: zmirror-blubak-beta-05a
+
+    content:
+      - !DMCrypt
+        name: zmirror-blubak-beta-05a
+
+        
+        key_file: ./test/zmirror-key
+
+        on_parent_online:
+          - online
+
+        on_children_offline: 
+          - offline
+
+        content: 
+
+          - !DMRaidBackingDevice
+          
+            name: zmirror-blubak-beta
+
+            required: yes
+
+
+  - !Partition
+    name: zmirror-blubak-beta-05b
+
+    content:
+      - !DMCrypt
+        name: zmirror-blubak-beta-05b
+
+        
+        key_file: ./test/zmirror-key
+
+        on_parent_online:
+          - online
+
+        on_children_offline: 
+          - offline
+
+        content: 
+
+          - !DMRaidBackingDevice
+            raid-name: zmirror-blubak-beta
+            required: yes
+

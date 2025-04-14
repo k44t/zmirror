@@ -31,7 +31,7 @@ class When:
     self.when = when
     self.what = what
 
-  def __to_kd__(self, kd_stream: KdStream):
+  def __kiify__(self, kd_stream: KdStream):
     if self.when is not None:
       kd_stream.stream.print_raw(self.__class__.__name__)
       kd_stream.stream.print_raw(" ")
@@ -349,5 +349,5 @@ class ZFSBackingBlockDevice:
 
 @yaml_data
 class ZFSBackingBlockDeviceOutput(ZFSBackingBlockDevice, ZFSBackingBlockDeviceCache):
-  def __to_kd__(self, kd_stream: KdStream):
+  def __kiify__(self, kd_stream: KdStream):
     kd_stream.print_partial_obj(self, ["pool", "dev", "state", "operation", "last_resilvered", "last_scrubbed"])
