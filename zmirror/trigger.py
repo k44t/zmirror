@@ -9,17 +9,25 @@ import socket
 import json
 import os
 
-
-from zmirror_logging import log
+from .util import require_path
+from .logging import log
 
 # Define the path for the Unix socket
-SOCKET_PATH = "/var/run/zmirror/zmirror_service.socket"
+path = os.getenv("ZMIRROR_SOCKET")
+if path is None:
+  import argparse
+  parser = argparse.ArgumentParser(prog="zmirror-trigger")
+  parser.add_argument("--socket-path", type=str, help="the path to the unix socket (used by zmirror.trigger)", default="/var/run/zmirror/zmirror_service.socket")
+  args = parser.parse_args()
+  path = args.socket_path
+
+require_path(path, "no zmirror socket at")
 
 # Create a UDS (Unix Domain Socket)
 client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
 # Connect the socket to the path where the server is listening
-client.connect(SOCKET_PATH)
+client.connect(path)
 
 
 

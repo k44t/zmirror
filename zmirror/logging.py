@@ -28,10 +28,9 @@ def log_func_end():
 
 
 
-LOGFILE_PATH = '/var/lib/zmirror/log.st'
+# LOGFILE_PATH = '/var/lib/zmirror/log.st'
 
 def __init__():
-  os.makedirs(os.path.dirname(LOGFILE_PATH), exist_ok = True)
 
 
   # Configure the root logger
@@ -78,15 +77,15 @@ def __init__():
     else:
       modified_message = message
     if level == logging.ERROR:
-        log.original_error(modified_message)
+        logger.original_error(modified_message)
     elif level == logging.INFO:
-        log.original_info(modified_message)
+        logger.original_info(modified_message)
     elif level == logging.DEBUG:
-        log.original_debug(modified_message)
+        logger.original_debug(modified_message)
     elif level == logging.WARNING:
-        log.original_warning(modified_message)
+        logger.original_warning(modified_message)
     elif level == logging.CRITICAL:
-        log.original_critical(modified_message)
+        logger.original_critical(modified_message)
   def customized_error(message, *args, **kwargs):
     customized_logger(logging.ERROR, message, *args, **kwargs)
   def customized_info(message, *args, **kwargs):
@@ -110,7 +109,8 @@ def __init__():
     journal_handler.setLevel(logging.INFO)
     logging.getLogger().addHandler(journal_handler)
   else:
-    logging.getLogger().addHandler(logging.handlers.RotatingFileHandler(LOGFILE_PATH, maxBytes=65535))
+    # os.makedirs(os.path.dirname(LOGFILE_PATH), exist_ok = True)
+    # logging.getLogger().addHandler(logging.handlers.RotatingFileHandler(LOGFILE_PATH, maxBytes=65535))
     logger.warning("systemd log not available")
   return logger
 

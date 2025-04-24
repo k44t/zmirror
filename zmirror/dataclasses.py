@@ -1,13 +1,15 @@
 
 
 from datetime import datetime
-from ki_utils import yaml_data, yaml_enum, KiEnum, KdStream
-import zmirror_commands
-from zmirror_logging import log
+from dataclasses import dataclass, field
+
+
+from kpyutils.kiify import yaml_data, yaml_enum, KiEnum, KdStream
+from .logging import log
 # from zmirror_utils import set_entity_state, is_offline
 # import zmirror_utils as core
-import zmirror_globals as globals
-from dataclasses import dataclass, field
+from . import commands as commands
+from . import config as config
 
 
 
@@ -26,8 +28,6 @@ class When:
   when: datetime
 
   def __init__(self, what, when=None):
-    if when is None:
-      when = datetime.now()
     self.when = when
     self.what = what
 
@@ -36,8 +36,13 @@ class When:
       kd_stream.stream.print_raw(self.__class__.__name__)
       kd_stream.stream.print_raw(" ")
       kd_stream.print_obj(self.when)
-      kd_stream.stream.print_raw(" ")
-    kd_stream.print_obj(self.what)
+      kd_stream.stream.indent()
+      kd_stream.stream.newline()
+      kd_stream.print_obj(self.what)
+      kd_stream.stream.dedent()
+    else:
+      kd_stream.print_obj(self.what)
+
 
 
 @yaml_data
@@ -64,6 +69,27 @@ class ZMirror:
   log_env: bool
   content = []
 
+
+@yaml_data
+class DMRaid:
+  name: str
+  state = Since(EntityState.UNKNOWN)
+  content = []
+  backing_layout = []
+  description: str = None
+
+@yaml_data
+class BackingSet:
+  online_if_present: bool = False
+  elements = []
+
+@yaml_data
+class DMRaidBackingDevice:
+  raid_name: str
+  state = Since(EntityState.UNKNOWN)
+  description: str = None
+
+
 @yaml_data
 class Partition:
   name: str
@@ -73,7 +99,7 @@ class Partition:
   last_online: datetime = None
   on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
   content = []
-  description = str
+  description: str = None
 
   def id(self):
     return self.name
@@ -89,7 +115,8 @@ class Partition:
 @yaml_data
 class Disk:
 
-  serial: str
+  uuid: str = None
+  serial: str = None
   devpath: str = None
 
   state = Since(EntityState.UNKNOWN, None)
@@ -100,7 +127,13 @@ class Disk:
 
 
   def id(self):
-    return self.serial
+    if self.serial is not None:
+      return self.serial
+    elif self.uuid is not None:
+      return self.uuid
+    else:
+      raise ValueError("disk has no identifier")
+
 
 
 @yaml_data
@@ -134,15 +167,16 @@ class ZPool:
 
   content = []
   description = str
+  backing_layout = []
 
   def id(self):
     return self.name
 
   def take_offline(self):
-    zmirror_commands.add_command(f"zpool export {self.name}")
+    commands.add_command(f"zpool export {self.name}")
 
   def take_online(self):
-    zmirror_commands.add_command(f"zpool import {self.name}")
+    commands.add_command(f"zpool import {self.name}")
 
 
 
@@ -193,7 +227,7 @@ class LVMVolumeGroup:
 
   def handle_offline(self):
     set_entity_state(self, EntityState.DISCONNECTED)
-    for lvm_physical_volume in globals.lvm_physical_volumes[self.name]:
+    for lvm_physical_volume in config.lvm_physical_volumes[self.name]:
       set_entity_state(lvm_physical_volume, EntityState.DISCONNECTED)
 
 
@@ -238,10 +272,10 @@ class LVMLogicalVolume:
       return f"{self.vg}|{self.name}"
 
   def take_offline(self):
-    zmirror_commands.add_command(f"lvchange --activate n {self.get_devpath()}")
+    commands.add_command(f"lvchange --activate n {self.get_devpath()}")
 
   def take_online(self):
-    zmirror_commands.add_command(f"lvchange --activate y {self.get_devpath()}")
+    commands.add_command(f"lvchange --activate y {self.get_devpath()}")
 
 
 
@@ -275,10 +309,10 @@ class DMCrypt:
     return f"/dev/mapper/{self.name}"
 
   def take_offline(self):
-    zmirror_commands.add_command(f"cryptsetup close {self.name}")
+    commands.add_command(f"cryptsetup close {self.name}")
 
   def take_online(self):
-    zmirror_commands.add_command(f"cryptsetup open {self.parent.get_devpath()} {self.name} --key-file {self.key_file}")
+    commands.add_command(f"cryptsetup open {self.parent.get_devpath()} {self.name} --key-file {self.key_file}")
 
 
 @yaml_enum
@@ -327,13 +361,13 @@ class ZFSBackingBlockDevice:
     log.error("NOT IMPLEMENTED")
 
   def take_offline(self):
-    zmirror_commands.add_command(f"zpool offline {self.pool} {self.dev}")
+    commands.add_command(f"zpool offline {self.pool} {self.dev}")
 
   def take_online(self):
-    zmirror_commands.add_command(f"zpool online {self.pool} {self.dev}")
+    commands.add_command(f"zpool online {self.pool} {self.dev}")
 
   def start_scrub(self):
-    zmirror_commands.add_command(f"zpool scrub {self.pool}")
+    commands.add_command(f"zpool scrub {self.pool}")
 
   def handle_resilvered(self):
     action = self.on_resilvered
@@ -351,3 +385,6 @@ class ZFSBackingBlockDevice:
 class ZFSBackingBlockDeviceOutput(ZFSBackingBlockDevice, ZFSBackingBlockDeviceCache):
   def __kiify__(self, kd_stream: KdStream):
     kd_stream.print_partial_obj(self, ["pool", "dev", "state", "operation", "last_resilvered", "last_scrubbed"])
+
+
+

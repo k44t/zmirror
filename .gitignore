@@ -1,4 +1,7 @@
 **/*.pyc
 **/__pycache__
-
+*.code-workspace
+.vscode
 doc/Zmirror.one
+.venv
+dist

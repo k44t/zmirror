@@ -87,13 +87,8 @@ content:
             # the name of the zfs-backing blockdev as it appears in `zpool status`
             dev: zmirror-sysfs-a
 
+            # whether to take the device online when it appears
             on_parent_online:
-
-              # this has no effect if the pool is already imported
-              - import-pool
-
-              # this has no effect if the command before imported the pool
-              # i.e. this only has an effect if the pool was already imported
               - online
 
             on_scrubbed:
@@ -327,6 +322,19 @@ content:
 
   - !ZPool
     name: zmirror-big
+
+    backing_layout:
+      # a backing must contain all blockdevices that are necessary to import the pool
+      - !BackingSet
+
+        # when big-a appears zmirror-big should be taken online
+        online_if_present: yes
+
+        # since zmirror-big-b is a mirror of zmirror-big-a only one must be present for the pool to be imported
+        elements: [zmirror-big-a]
+
+      - !BackingSet
+        elements: [zmirror-big-b]
 
 
 
@@ -811,8 +819,25 @@ content:
   # once all required backing `DMRaidBackingDevice`s are present
   # zmirror executes `mdmadm --assemble /dev/mdX /dev/mapper/x /dev/mapper/y`
   # which onlines the raid0
+  #
+  # and zmirror introduces a udev rule that ensures that /dev/mdX will also appear as
+  # /dev/mapper/zmirror-blubak-beta
+  # and its partitions as
+  # /dev/mapper/zmirror-blubak-beta1 (...beta2, ...beta3)
   - !DMRaid
     name: zmirror-blubak-beta
+
+
+    backing_layout:
+      # a backing must contain all blockdevices that are necessary to import raid
+      - !BackingSet
+
+        # when this set has fully appeared the raid should be taken online
+        online_if_present: yes
+
+        # since zmirror-big-b is a mirror of zmirror-big-a only one must be present for the pool to be imported
+        elements: [zmirror-blubak-beta-05a, zmirror-blubak-beta-05b]
+
 
 
     content:
@@ -850,9 +875,7 @@ content:
 
           - !DMRaidBackingDevice
           
-            name: zmirror-blubak-beta
-
-            required: yes
+            raid-name: zmirror-blubak-beta
 
 
   - !Partition
@@ -875,5 +898,4 @@ content:
 
           - !DMRaidBackingDevice
             raid-name: zmirror-blubak-beta
-            required: yes
 

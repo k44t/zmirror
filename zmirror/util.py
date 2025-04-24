@@ -6,8 +6,8 @@ import sys
 import ctypes
 import yaml
 
-from zmirror_logging import log
-from ki_utils import TabbedShiftexStream, KdStream
+from .logging import log
+from kpyutils.kiify import TabbedShiftexStream, KdStream
 
 
 def exec_background(command):
@@ -194,11 +194,11 @@ def load_yaml_config(config_file_path):
 outs = TabbedShiftexStream(sys.stdout)
 
 
-def print_config(config):
+def print_headlined(headline, config):
   stream = KdStream(outs)
 
   outs.newlines(3)
-  outs.print("config")
+  outs.print(headline)
   outs.print("#####################")
   outs.newlines(2)
 
@@ -224,3 +224,9 @@ def copy_attrs(lft, rgt):
   for prop in dir(lft):
     if not prop.startswith("_"):
       setattr(rgt, prop, getattr(lft, prop))
+
+
+
+def require_path(path, msg):
+  if path is None or not os.path.exists(path):
+    raise ValueError(f"{msg}: {path}")

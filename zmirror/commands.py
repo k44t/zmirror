@@ -1,5 +1,5 @@
-from pyutils import myexec as exec#pylint: disable=redefined-builtin
-from zmirror_logging import log
+from .util import myexec as exec#pylint: disable=redefined-builtin
+from .logging import log
 
 
 

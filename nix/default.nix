@@ -20,10 +20,10 @@ in {
     SUBSYSTEM=="block", RUN+="${zmirror-trigger}"
     
     SUBSYSTEM=="block", ACTION=="add|change", PROGRAM="${ pkgs.writeScriptBin "extract-raid-name" (''#!${pkgs.bash}/bin/bash
-    '' + builtins.readFile ./src-bash/extract-raid-name.sh) }/bin/extract-raid-name", ENV{ZMIRROR_MD_NAME}="%c", SYMLINK+="mapper/%c"
+    '' + builtins.readFile ./scripts/extract-raid-name.sh) }/bin/extract-raid-name", ENV{ZMIRROR_MD_NAME}="%c", SYMLINK+="mapper/%c"
 
     SUBSYSTEM=="block", ACTION=="add|change", PROGRAM="${ pkgs.writeScriptBin "extract-raid-part-name" (''#!${pkgs.bash}/bin/bash
-    '' + builtins.readFile ./src-bash/extract-raid-part-name.sh) }/bin/extract-raid-part-name", SYMLINK+="mapper/%c"
+    '' + builtins.readFile ./scripts/extract-raid-part-name.sh) }/bin/extract-raid-part-name", SYMLINK+="mapper/%c"
   '';
 
   # KERNEL=="md*", SUBSYSTEM=="block", ACTION=="add|change", ENV{UDISKS_MD_NAME}=="*", PROGRAM="${ pkgs.writeScriptBin "extract-raid-name" (builtins.readFile ./src-bash/extract-raid-name.sh) }/bin/extract-raid-name %E{UDISKS_MD_NAME}", SYMLINK+="mapper/%c"

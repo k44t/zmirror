@@ -7,22 +7,23 @@ import os
 import threading
 import json
 import traceback
-import zmirror_commands
-from zmirror_logging import log
-from zmirror_utils import load_cache, save_cache, load_config, find_or_create_zfs_cache_by_vdev_path,  load_config_for_cache
-import zmirror_utils as core
-from zmirror_actions import handle_entity_online, handle_entity_offline
-from pyutils import find_or_create_cache
-from zmirror_dataclasses import ZFSBackingBlockDeviceCache, ZFSOperationState, EntityState, Disk, LVMLogicalVolume, DMCrypt, VirtualDisk, Partition, Since, ZFSVolume, ZPool, set_entity_state
-from ki_utils import to_kd
 
-import zmirror_globals as globals
+
+
+from . import commands
+from .logging import log
+from .entities import *
+from . import entities as core
+from .actions import handle_entity_online, handle_entity_offline
+from .dataclasses import ZFSBackingBlockDeviceCache, ZFSOperationState, EntityState, Disk, LVMLogicalVolume, DMCrypt, VirtualDisk, Partition, Since, ZFSVolume, ZPool, set_entity_state
+from kpyutils.kiify import to_kd
+
+from . import config as globals
 
 
 
 
 def handle(env):
-  cache_dictionary = core.cache_dict
   cache = None
 
   log.info("handling event")
@@ -39,12 +40,12 @@ def handle(env):
     if zevent == "pool_export":
       log.info(f"zpool {cache.pool} exported")
 
-      zpool_cache = find_or_create_cache(cache_dictionary, ZPool, name=zpool)
+      zpool_cache = find_or_create_cache(ZPool, name=zpool)
       handle_entity_offline(zpool_cache, now)
 
       if zpool in globals.zfs_blockdevs:
         for dev in globals.zfs_blockdevs[zpool]:
-          dev_cache = find_or_create_cache(cache_dictionary, ZFSBackingBlockDeviceCache, pool=zpool, dev=dev)
+          dev_cache = find_or_create_cache(ZFSBackingBlockDeviceCache, pool=zpool, dev=dev)
           handle_entity_offline(dev_cache, now)
 
 
@@ -58,23 +59,23 @@ def handle(env):
                          re.MULTILINE)
 
       if zevent == "pool_import":
-        zpool_cache = find_or_create_cache(cache_dictionary, ZPool, name=zpool)
+        zpool_cache = find_or_create_cache(ZPool, name=zpool)
         handle_entity_online(zpool_cache, now)
       found = False
       for match in regex.finditer(zpool_status):
         found = True
         dev = match.group(1)
 
-        cache = find_or_create_cache(cache_dictionary, ZFSBackingBlockDeviceCache, pool=zpool, dev=dev)
+        cache = find_or_create_cache(ZFSBackingBlockDeviceCache, pool=zpool, dev=dev)
         cache.operation = Since(ZFSOperationState.NONE, now)
         if zevent == "scrub_finish":
           log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing finished")
           cache.last_scrubbed = now
 
 
-          config = load_config_for_cache(cache)
+          entity = load_config_for_cache(cache)
           if hasattr(config, "handle_scrubbed"):
-            config.handle_scrubbed()
+            entity.handle_scrubbed()
 
           event_handled = True
         elif zevent == "scrub_start":
@@ -105,7 +106,7 @@ def handle(env):
         # ZEVENT:: /dev/{sda3}
         # ZEVENT:: /dev/disk/by-partlabel/mypartlabel
       vdev_path = env["ZEVENT_VDEV_PATH"]
-      cache = find_or_create_zfs_cache_by_vdev_path(cache_dictionary, zpool, vdev_path)
+      cache = find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path)
       if zevent == "vdev_online":
         log.info(f"zdev {cache.pool}:{cache.dev} went online")
         handle_entity_online(cache, now)
@@ -123,7 +124,7 @@ def handle(env):
     # zool-vdev event
     elif zevent in ["resilver_start", "resilver_finish"]:
       vdev_path = env["ZEVENT_VDEV_PATH"]
-      cache = find_or_create_zfs_cache_by_vdev_path(cache_dictionary, zpool, vdev_path)
+      cache = find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path)
       cache.operation = Since(ZFSOperationState.NONE, now)
       if zevent == "resilver_start":
         cache.operation = Since(ZFSOperationState.RESILVERING, now)
@@ -132,9 +133,9 @@ def handle(env):
         cache.operation = Since(ZFSOperationState.NONE, now)
         cache.last_resilvered = now
 
-        config = load_config_for_cache(cache)
-        if hasattr(config, "handle_resilvered"):
-          config.handle_resilvered()
+        entity = load_config_for_cache(cache)
+        if hasattr(entity, "handle_resilvered"):
+          entity.handle_resilvered()
 
         event_handled = True
 
@@ -146,7 +147,7 @@ def handle(env):
     if action == "add" or action == "remove":
       if devtype == "disk":
         if "ID_SERIAL" in env:
-          cache = find_or_create_cache(cache_dictionary, Disk, serial=env["ID_SERIAL"], create_args={"devpath": env["DEVNAME"]})
+          cache = find_or_create_cache(Disk, serial=env["ID_SERIAL"], create_args={"devpath": env["DEVNAME"]})
           udev_event_action(cache, action, now)
           log.info(f"{cache.__class__.__name__} {cache.serial}: {to_kd(cache.state)}")
           event_handled = True
@@ -154,14 +155,14 @@ def handle(env):
         # lvm logical volumes
         # these events also have DM_NAME
         elif "DM_LV_NAME" in env:
-          cache = find_or_create_cache(cache_dictionary, LVMLogicalVolume, \
+          cache = find_or_create_cache(LVMLogicalVolume, \
                                        vg=env["DM_VG_NAME"], name=env["DM_LV_NAME"])
           udev_event_action(cache, action, now)
           log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
           event_handled = True
         # dm_crypts
         elif "DM_NAME" in env:
-          cache = find_or_create_cache(cache_dictionary, DMCrypt, name=env["DM_NAME"])
+          cache = find_or_create_cache(DMCrypt, name=env["DM_NAME"])
           udev_event_action(cache, action, now)
           log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
           event_handled = True
@@ -177,13 +178,13 @@ def handle(env):
                 volume_name = match.group("volume")
 
 
-                cache = find_or_create_cache(cache_dictionary, ZFSVolume, pool=pool_name, name=volume_name)
+                cache = find_or_create_cache(ZFSVolume, pool=pool_name, name=volume_name)
                 udev_event_action(cache, action, now)
                 log.info(f"{cache.__class__.__name__} {cache.get_pool()}/{cache.name}: {to_kd(cache.state)}")
                 event_handled = True
                 break
           elif "ID_FS_UUID" in env:
-            cache = find_or_create_cache(cache_dictionary, VirtualDisk, fs_uuid=env["ID_FS_UUID"], create_args={"devpath": env["DEVNAME"]})
+            cache = find_or_create_cache(VirtualDisk, fs_uuid=env["ID_FS_UUID"], create_args={"devpath": env["DEVNAME"]})
             udev_event_action(cache, action, now)
             log.info(f"{cache.__class__.__name__} {cache.fs_uuid}: {to_kd(cache.state)}")
             event_handled = True
@@ -193,7 +194,7 @@ def handle(env):
           log.info("nothing to do for disk event")
 
       elif devtype == "partition":
-        cache = find_or_create_cache(cache_dictionary, Partition, name=env["PARTNAME"], create_args={"devpath": env["DEVNAME"]})
+        cache = find_or_create_cache(Partition, name=env["PARTNAME"], create_args={"devpath": env["DEVNAME"]})
         udev_event_action(cache, action, now)
         log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
     elif action == "change" and "DM_ACTIVATION" in env and env["DM_ACTIVATION"] == "1":
@@ -204,13 +205,12 @@ def handle(env):
           dm_name = match.group(1)
 
 
-          cache = find_or_create_cache(cache_dictionary, DMCrypt, name=dm_name)
+          cache = find_or_create_cache(DMCrypt, name=dm_name)
           handle_entity_online(cache, now)
           log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
           event_handled = True
 
           break
-    zmirror_commands.execute_commands()
     if not event_handled:
       log.warning("event not handled by zmirror")
 
@@ -254,6 +254,7 @@ def handle_event(event_queue: queue.Queue):
     event = event_queue.get()
     try:
       handle(event)
+      commands.execute_commands()
     except Exception as ex:
       log.error(f"failed to handle event: {str(event)}")
       log.error(f"Exception : {traceback.format_exc()} --- {str(ex)}")
@@ -280,12 +281,11 @@ def handle_event(event_queue: queue.Queue):
 # so this is just a description for the next milestone
 def daemon(args):# pylint: disable=unused-argument
 
-  load_cache()
-  load_config()
+  init_config(cache_path=args.cache_path, config_path=args.config_path)
 
 
+  socket_path = args.socket_path
   # Define the path for the Unix socket
-  socket_path = "/var/run/zmirror/zmirror_service.socket"
 
   # Make sure the socket does not already exist
   try:

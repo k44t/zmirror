@@ -6,14 +6,15 @@ import traceback
 import sys
 import argparse
 import dateparser
-from zmirror_logging import log
-from zmirror_dataclasses import ZFSBackingBlockDevice, ZFSBackingBlockDeviceCache, ZFSOperationState, ZFSBackingBlockDeviceOutput
-from pyutils import myexec, outs, copy_attrs
-from zmirror_utils import find_or_create_cache, iterate_content_tree, remove_cache, load_config, load_cache
-import zmirror_utils
-import zmirror_commands as commands
-from zmirror_daemon import daemon
-from ki_utils import KdStream
+
+
+from .logging import log
+from .dataclasses import ZFSBackingBlockDevice, ZFSBackingBlockDeviceCache, ZFSOperationState, ZFSBackingBlockDeviceOutput
+from .util import myexec, outs, copy_attrs
+from .entities import *
+from . import commands as commands
+from .daemon import daemon
+from kpyutils.kiify import KdStream
 
 
 
@@ -77,11 +78,11 @@ exec = myexec#pylint: disable=redefined-builtin
 
 # zmirror scrub
 def scrub(args):#pylint: disable=unused-argument
-  cache_dictionary = load_yaml_cache(zmirror_utils.CACHE_FILE_PATH)
+  init_config(config_path=args.config_path, cache_path=args.cache_path)
   log.info("starting zfs scrubs if necessary")
   def possibly_scrub(dev):
     if isinstance(dev, ZFSBackingBlockDevice):
-      cache = find_or_create_cache(cache_dictionary, ZFSBackingBlockDeviceCache, pool=dev.pool, dev=dev.dev)
+      cache = find_or_create_cache(ZFSBackingBlockDeviceCache, pool=dev.pool, dev=dev.dev)
       if dev.scrub_interval is not None:
         # parsing the schedule delta will result in a timestamp calculated from now
         allowed_delta = dateparser.parse(dev.scrub_interval)
@@ -91,8 +92,7 @@ def scrub(args):#pylint: disable=unused-argument
             commands.add_command(f"zpool scrub {dev.pool}")
         else:
           log.info(f"zfs pool '{dev.pool}' dev '{dev.dev}' does not have to be scrubbed")
-  load_config()
-  iterate_content_tree(zmirror, possibly_scrub)
+  iterate_content_tree(config.config_root, possibly_scrub)
   commands.execute_commands()
 
 
@@ -101,25 +101,28 @@ def scrub(args):#pylint: disable=unused-argument
 
 
 def clear_cache(args):#pylint: disable=unused-argument
-  remove_cache()
+  remove_cache(args.cache_path)
 
 
 
 
 def show_status(args):#pylint: disable=unused-argument
-  cache_dict = load_cache()
+  init_config(cache_path=args.cache_path, config_path = args.config_path)
   stream = KdStream(outs)
   # log.info("starting zfs scrubs if necessary")
   def show(dev):
     if isinstance(dev, ZFSBackingBlockDevice):
-      cache = find_or_create_cache(cache_dict, ZFSBackingBlockDeviceCache, pool=dev.pool, dev=dev.dev)
+      cache = find_or_create_cache(ZFSBackingBlockDeviceCache, pool=dev.pool, dev=dev.dev)
       out = ZFSBackingBlockDeviceOutput(pool=dev.pool, dev=dev.dev)
       copy_attrs(cache, out)
       copy_attrs(dev, out)
       stream.print_obj(out)
       stream.stream.newlines(3)
-  zmirror = load_config()
-  iterate_content_tree(zmirror, show)
+    else:
+      # stream.print_obj(dev)
+      pass
+    
+  iterate_content_tree(config.config_root, show)
 
 
 def testufcntionr():
@@ -128,9 +131,16 @@ def testufcntionr():
   print("hello")
 
 
-def run_command(args):
+def env_var_or(v, d):
+  r = os.getenv(v)
+  if r is None:
+    return d
+  else:
+    return r
 
-  parser = argparse.ArgumentParser(description="zmirror")
+def main():
+
+  parser = argparse.ArgumentParser(prog="zmirror")
   subparser = parser.add_subparsers(required=True)
 
 
@@ -144,8 +154,12 @@ def run_command(args):
 
 
   shared_parser = argparse.ArgumentParser(add_help=False)
-  shared_parser.add_argument("--config-file", type=str, help="the path to the config file", default= "/etc/zmirror/config.yml")
-  shared_parser.add_argument("--state-dir", type=str, help="the path to the state directory", default= "/var/lib/zmirror")
+
+  shared_parser.add_argument("--config-path", type=str, help="the path to the config file", default=env_var_or("ZMIRROR_CONFIG_PATH", "./zmirror-config.yml"))
+
+  shared_parser.add_argument("--cache-path", type=str, help="the path to the cache file", default=env_var_or("ZMIRROR_CACHE_PATH", "./zmirror-cache.yml"))
+
+  shared_parser.add_argument("--socket-path", type=str, help="the path to the unix socket (used by zmirror.trigger)", default=env_var_or("ZMIRROR_SOCKET_PATH", "./zmirror.socket"))
   # shared_parser.add_argument("runtime-dir", type=str, help="the path to the runtime directory", default= "/var/run/zmirror")
 
 
@@ -170,8 +184,8 @@ def run_command(args):
 
   args = parser.parse_args()
 
-  zmirror_utils.CACHE_FILE_PATH = args.state_dir + "/cache.yml"
-  zmirror_utils.CONFIG_FILE_PATH = args.config_file
+  # if args.cache_path is None:
+  #  args.cache_path = args.state_dir + "/cache.yml"
 
   try:
     args.func(args)
@@ -182,6 +196,7 @@ def run_command(args):
 
     outs.newlines(3)
     outs.print("error")
+    outs.newline()
     outs.print("################")
     outs.newlines(2)
     outs.print(error_message)
@@ -191,4 +206,4 @@ def run_command(args):
 
 
 if __name__ == "__main__":
-  run_command(sys.argv)
+  main()

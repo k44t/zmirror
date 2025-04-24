@@ -11,19 +11,13 @@
 import os
 import json
 import inspect
-from datetime import datetime
 import pytest
-import zmirror_commands
-from zmirror_dataclasses import EntityState, ZFSBackingBlockDeviceCache, ZFSOperationState, ZFSBackingBlockDevice, ZFSVolume, Disk, Partition
-
-import zmirror_utils as zmirror_core
-from zmirror_daemon import handle
-from zmirror import myexec, scrub
-from pyutils import load_yaml_cache
 
 
-pyexec = exec
-exec = myexec #pylint: disable=redefined-builtin
+
+
+
+import zmirror.entities as entities
 
 
 
@@ -35,6 +29,18 @@ def open_local(file, mode):
 def get_zpool_status_stub(args): #pylint: disable=unused-argument
   with open_local("scrub_status.txt", "r") as file:
     return file.read()
+
+
+# we use a stub method. this is only relevant for the scrub events
+entities.get_zpool_status = get_zpool_status_stub
+
+
+# only now must we import all the other zmirror modules, so that they will use the stub
+from zmirror.daemon import handle
+import zmirror.commands
+from zmirror.dataclasses import *
+import zmirror.config
+from zmirror.zmirror import scrub
 
 
 
@@ -51,16 +57,14 @@ def load_event(json_file):
 def do_nothing(*args): #pylint: disable=unused-argument
   pass
 
-def load_dummy_cache(**args): #pylint: disable=unused-argument
-  zmirror_core.cache_dict = load_yaml_cache("./test/status/zfs/group2/test_cache.yml")
 
 
-zmirror_core.load_cache = load_dummy_cache
-zmirror_core.write_cache = do_nothing
+# zmirror_core.load_cache = load_dummy_cache
+# zmirror_core.write_cache = do_nothing
 
 def assert_commands(cmds):
   assert (
-      cmds == zmirror_commands.commands
+      cmds == commands.commands
   )
 
 # this group of tests all require the daemon running, hence they are grouped
@@ -70,15 +74,11 @@ class TestExampleConfig():
   # event_queue = None
   @classmethod
   def setup_class(cls):
-    zmirror_core.load_config(config_path="./example-config.yml")
-    zmirror_core.load_cache(cache_path="./test/cache.yml")
+    entities.init_config(config_path="./example-config.yml", cache_path="./test/status/zfs/group2/test_cache.yml")
 
 
   def setup_method(self, method): #pylint: disable=unused-argument
-    # we use a stub method. this is only relevant for the scrub events
-    zmirror_core.get_zpool_status = get_zpool_status_stub
-    zmirror_core.execute_commands = do_nothing
-
+    pass
     # core.config_file_path = os.pardir(__file__) + "/config.yml"
     # load_config()
     # core.cache_file_path = "./run/test/state/cache.yml"
@@ -92,7 +92,7 @@ class TestExampleConfig():
     # terminate_thread(self.daemon_thread)
     # silent_remove(core.cache_file_path)
     # pass
-    zmirror_commands.commands = []
+    commands.commands = []
 
 
 

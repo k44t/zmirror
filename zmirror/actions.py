@@ -1,8 +1,8 @@
 from datetime import datetime
 
-from zmirror_dataclasses import EntityState, set_entity_state, is_offline
-from zmirror_utils import load_config_for_cache
-import zmirror_utils as core
+from .dataclasses import EntityState, set_entity_state, is_offline
+from .entities import load_config_for_cache
+from . import entities as core
 
 
 def get_config_actions(text):
