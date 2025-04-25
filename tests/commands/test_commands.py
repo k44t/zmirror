@@ -8,55 +8,33 @@
 # @author Alexander Poeschl <apoeschlfreelancing@kwanta.net>, Michael Poeschl
 # @brief Pytests group2 for zmirror
 # ******************************************************************************
-import os
-import json
-import inspect
+
 import pytest
 
 
+from util.util_stage1 import *
 
 
 
-import zmirror.entities as entities
-
-
-
-
-def open_local(file, mode):
-  filepath = os.path.join(os.path.dirname(__file__), file)
-  return open(filepath, mode, encoding='utf-8')
-
-def get_zpool_status_stub(args): #pylint: disable=unused-argument
-  with open_local("scrub_status.txt", "r") as file:
-    return file.read()
-
-
-# we use a stub method. this is only relevant for the scrub events
-entities.get_zpool_status = get_zpool_status_stub
-
-
-# only now must we import all the other zmirror modules, so that they will use the stub
 from zmirror.daemon import handle
 import zmirror.commands
 from zmirror.dataclasses import *
 import zmirror.config
 from zmirror.zmirror import scrub
+import zmirror.entities as entities
+
+
+from util.util_stage2 import *
 
 
 
-def trigger_event():
-  name = inspect.currentframe().f_back.f_code.co_name
-  event = load_event(name + ".json")
-  handle(event)
 
-def load_event(json_file):
-  with open_local(json_file, "r") as f:
-    src = f.read()
-  return json.loads(src)
 
-def do_nothing(*args): #pylint: disable=unused-argument
-  pass
-
+@pytest.fixture(scope="class", autouse=True)
+def setup_before_all_methods():
+  # Code to execute once before all test methods in each class
+  insert_zpool_status_stub()
+  prepare_config_and_cache()
 
 
 # zmirror_core.load_cache = load_dummy_cache

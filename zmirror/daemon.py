@@ -38,14 +38,14 @@ def handle(env):
     zpool = env["ZEVENT_POOL"]
 
     if zevent == "pool_export":
-      log.info(f"zpool {cache.pool} exported")
+      log.info(f"zpool {zpool} exported")
 
       zpool_cache = find_or_create_cache(ZPool, name=zpool)
       handle_entity_offline(zpool_cache, now)
 
       if zpool in globals.zfs_blockdevs:
         for dev in globals.zfs_blockdevs[zpool]:
-          dev_cache = find_or_create_cache(ZFSBackingBlockDeviceCache, pool=zpool, dev=dev)
+          dev_cache = find_or_create_cache(ZFSBackingBlockDeviceCache, pool=zpool, dev=dev.dev)
           handle_entity_offline(dev_cache, now)
 
 

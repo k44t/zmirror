@@ -117,7 +117,7 @@ def find_or_create_cache(typ, create_args=None, identifier_prefix=None, **kwargs
 
 def find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path):
   vdev_name = vdev_path.removeprefix("/dev/mapper/").removeprefix("/dev/disk/by-partlabel/").removeprefix("/dev/")
-  return find_or_create_cache(config.cache_dict, ZFSBackingBlockDeviceCache, pool=zpool, dev=vdev_name)
+  return find_or_create_cache(ZFSBackingBlockDeviceCache, pool=zpool, dev=vdev_name)
 
 def get_zpool_status(zpool_name):
   _, zpool_status, _, _ = exec(f"zpool status {zpool_name}")#pylint: disable=exec-used

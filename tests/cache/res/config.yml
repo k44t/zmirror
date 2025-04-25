@@ -6,7 +6,11 @@ content:
         content:
           - !ZFSBackingBlockDevice
               pool: zpool-a
-              dev: pooldev-a
+              dev: partition-a
+              description: this is zpool a
+          - !ZFSBackingBlockDevice
+              pool: zpool-a
+              dev: partition-b
               description: this is zpool a
     - !ZPool 
         name: zpool-a

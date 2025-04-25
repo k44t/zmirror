@@ -1,31 +1,23 @@
-#!/bin/python3
-# ******************************************************************************
-# - *-coding: utf-8 -*-
-# (c) copyright 2025 Alexander Poeschl
-# All rights reserved.
-# ******************************************************************************
-# @file test_group1.py
-# @author Alexander Poeschl <apoeschlfreelancing@kwanta.net>, Michael Poeschl
-# @brief Pytests group1 for zmirror
-# ******************************************************************************
+
+from util.util_stage1 import *
+
+
+# must be called before importing the other zmirror modules, so they will use the stub
+insert_zpool_status_stub()
+
+# only now must we import all the other zmirror modules, so that they will use the stub
+from zmirror.daemon import handle
+import zmirror.commands
+from zmirror.dataclasses import *
+import zmirror.config
+from zmirror.zmirror import scrub
+import zmirror.entities as entities
+import zmirror.commands as commands
+
+
+from util.util_stage2 import *
+
 import pytest
-import time
-from zmirror_dataclasses import *
-from zmirror_logging import *
-from pyutils import *
-import zmirror_utils as zmirror_core
-from zmirror_daemon import handle
-import threading
-from zmirror import *
-import os
-import json
-import inspect
-from datetime import datetime
-import zmirror_commands as zmirror_commands
-
-
-pyexec = exec
-exec = myexec
 
 
 
@@ -40,29 +32,14 @@ logical_volume_id = "LVMLogicalVolume|vg-alpha|lv-1"
 
 
 
-def open_local(file, mode):
-  filepath = os.path.join(os.path.dirname(__file__), file)
-  return open(filepath, mode)
-
-def get_zpool_status_stub(args):
-  with open_local("scrub_status.txt", "r") as file:
-    return file.read()
 
 
+@pytest.fixture(scope="class", autouse=True)
+def setup_before_all_methods():
+  # Code to execute once before all test methods in each class
+  insert_zpool_status_stub()
+  prepare_config_and_cache()
 
-def trigger_event():
-  name = inspect.currentframe().f_back.f_code.co_name
-  event = load_event(name + ".json")
-  handle(event)
-
-def load_event(json_file):
-  with open_local(json_file, "r") as f:
-    src = f.read()
-  return json.loads(src)
-#     self.event_queue.put(event)
-
-def do_nothing(*args):
-  pass
 
 
 # this group of tests all require the daemon running, hence they are grouped
@@ -75,10 +52,6 @@ class Test_Group1_TestMethods():
 
 
   def setup_method(self, method):
-    # we use a stub method. this is only relevant for the scrub events
-    zmirror_core.get_zpool_status = get_zpool_status_stub
-    zmirror_core.execute_commands = do_nothing
-
     # core.config_file_path = os.pardir(__file__) + "/config.yml"
     # load_config()
     # core.cache_file_path = "./run/test/state/cache.yml"
@@ -94,7 +67,7 @@ class Test_Group1_TestMethods():
     # terminate_thread(self.daemon_thread)
     # silent_remove(core.cache_file_path)
     # pass
-    zmirror_commands.commands = []
+    commands.commands = []
 
 
 
@@ -103,11 +76,11 @@ class Test_Group1_TestMethods():
   # disk taucht auf (udev: add)
   def test_disk_add(self):
 
-    assert disk_id not in zmirror_core.cache_dict
+    assert disk_id not in config.cache_dict
 
     trigger_event()
 
-    dev: Disk = zmirror_core.cache_dict[disk_id]
+    dev: Disk = config.cache_dict[disk_id]
     
     assert(dev is not None)
     assert(dev.state.what == EntityState.ONLINE)
@@ -118,29 +91,29 @@ class Test_Group1_TestMethods():
   # partition taucht auf (udev: add)
   def test_partition_add(self):
     
-    assert partition_id not in zmirror_core.cache_dict
+    assert partition_id not in config.cache_dict
 
     trigger_event()
 
-    dev: Partition = zmirror_core.cache_dict[partition_id]
+    dev: Partition = config.cache_dict[partition_id]
     
     assert(dev is not None)
     assert(dev.state.what == EntityState.ONLINE)
 
 
   def test_zpool_online(self):
-    assert zpool_id not in zmirror_core.cache_dict
+    assert zpool_id not in config.cache_dict
     trigger_event()
-    assert zpool_id in zmirror_core.cache_dict
-    dev: ZPool = zmirror_core.cache_dict[zpool_id]
+    assert zpool_id in config.cache_dict
+    dev: ZPool = config.cache_dict[zpool_id]
     
     assert(dev is not None)
     assert(dev.state.what == EntityState.ONLINE)
 
   def test_zpool_offline(self):
     trigger_event()
-    assert zpool_id in zmirror_core.cache_dict
-    dev: ZPool = zmirror_core.cache_dict[zpool_id]
+    assert zpool_id in config.cache_dict
+    dev: ZPool = config.cache_dict[zpool_id]
     
     assert(dev is not None)
     assert(dev.state.what == EntityState.DISCONNECTED)
@@ -151,10 +124,19 @@ class Test_Group1_TestMethods():
   # # zmirror command: zpool online vdev
   # vdev wird im zpool aktiviert (vdev_online)
   def test_zdev_online(self):
-    assert zfs_blockdev_id not in zmirror_core.cache_dict
+    # it is already in the cache_dict because when we imported the pool
+    # it came in through zpool status
+    assert zfs_blockdev_id in config.cache_dict
+    dev: ZFSBackingBlockDeviceCache = config.cache_dict[zfs_blockdev_id]
+    assert dev.state.what == EntityState.DISCONNECTED
+
     trigger_event()
-    assert zfs_blockdev_id in zmirror_core.cache_dict
-    dev: ZFSBackingBlockDeviceCache = zmirror_core.cache_dict[zfs_blockdev_id]
+
+    assert zfs_blockdev_id in config.cache_dict
+
+    dev2: ZFSBackingBlockDeviceCache = config.cache_dict[zfs_blockdev_id]
+
+    assert dev is dev2
     
     assert(dev is not None)
     assert(dev.state.what == EntityState.ONLINE)
@@ -163,7 +145,7 @@ class Test_Group1_TestMethods():
   # vdev beginnt zu resilvern (resilver_start)
   def test_resilver_start(self):
     trigger_event()
-    dev: ZFSBackingBlockDeviceCache = zmirror_core.cache_dict[zfs_blockdev_id]
+    dev: ZFSBackingBlockDeviceCache = config.cache_dict[zfs_blockdev_id]
     
     assert(dev is not None)
     assert(dev.operation.what== ZFSOperationState.RESILVERING)
@@ -171,7 +153,7 @@ class Test_Group1_TestMethods():
   # vdev resilver ist abgeschlossen (resilver_finish)
   def test_resilver_finish(self):
     trigger_event()
-    dev: ZFSBackingBlockDeviceCache = zmirror_core.cache_dict[zfs_blockdev_id]
+    dev: ZFSBackingBlockDeviceCache = config.cache_dict[zfs_blockdev_id]
     
     assert(dev is not None)
     assert(dev.operation.what == ZFSOperationState.NONE)
@@ -180,7 +162,7 @@ class Test_Group1_TestMethods():
   # pool scrub startet (scrub_start)
   def test_scrub_start(self):
     trigger_event()
-    dev: ZFSBackingBlockDeviceCache = zmirror_core.cache_dict[zfs_blockdev_id]
+    dev: ZFSBackingBlockDeviceCache = config.cache_dict[zfs_blockdev_id]
     
     assert(dev is not None)
     assert(dev.operation.what == ZFSOperationState.SCRUBBING)
@@ -188,7 +170,7 @@ class Test_Group1_TestMethods():
   # pool scrub ist abgeschlossen (scrub_finish)
   def test_scrub_finish(self):
     trigger_event()
-    dev: ZFSBackingBlockDeviceCache = zmirror_core.cache_dict[zfs_blockdev_id]
+    dev: ZFSBackingBlockDeviceCache = config.cache_dict[zfs_blockdev_id]
     
     assert(dev is not None)
     assert(dev.operation.what == ZFSOperationState.NONE)
@@ -198,18 +180,18 @@ class Test_Group1_TestMethods():
   def test_partition_remove(self):
     trigger_event()
 
-    dev: Partition = zmirror_core.cache_dict[partition_id]
+    dev: Partition = config.cache_dict[partition_id]
     
     assert(dev is not None)
     assert(dev.state.what == EntityState.DISCONNECTED)
-    assert(dev.last_online != None)
+    assert(dev.last_online is not None)
     assert(dev.last_online < datetime.now())
 
   # disk verschwindet (udev: remove)
   def test_disk_remove(self):
     trigger_event()
 
-    dev: Disk = zmirror_core.cache_dict[disk_id]
+    dev: Disk = config.cache_dict[disk_id]
     
     assert(dev is not None)
     assert(dev.state.what == EntityState.DISCONNECTED)
@@ -223,11 +205,11 @@ class Test_Group1_TestMethods():
 
 
   def test_zdev_disconnected(self):
-    assert zfs_blockdev_id in zmirror_core.cache_dict
+    assert zfs_blockdev_id in config.cache_dict
     
     trigger_event()
 
-    dev: ZFSBackingBlockDevice = zmirror_core.cache_dict[zfs_blockdev_id]
+    dev: ZFSBackingBlockDevice = config.cache_dict[zfs_blockdev_id]
     
     assert(dev is not None)
     assert(dev.state.what == EntityState.DISCONNECTED)
@@ -237,14 +219,14 @@ class Test_Group1_TestMethods():
   # virtual disk taucht auf (udev: add)
   def test_virtual_disk_add(self):
     
-    zmirror_core.cache_dict = dict()
-    assert virtual_disk_id not in zmirror_core.cache_dict
+    config.cache_dict = dict()
+    assert virtual_disk_id not in config.cache_dict
 
     trigger_event()
 
-    assert virtual_disk_id in zmirror_core.cache_dict
+    assert virtual_disk_id in config.cache_dict
     
-    dev: VirtualDisk = zmirror_core.cache_dict[virtual_disk_id]
+    dev: VirtualDisk = config.cache_dict[virtual_disk_id]
     
     
     assert(dev is not None)
@@ -253,11 +235,11 @@ class Test_Group1_TestMethods():
   # virtual disk verschwindet (udev: remove)
   def test_virtual_disk_remove(self):
     
-    assert virtual_disk_id in zmirror_core.cache_dict
+    assert virtual_disk_id in config.cache_dict
 
     trigger_event()
 
-    dev: VirtualDisk = zmirror_core.cache_dict[virtual_disk_id]
+    dev: VirtualDisk = config.cache_dict[virtual_disk_id]
     
     assert(dev is not None)
     assert(dev.state.what == EntityState.DISCONNECTED)
@@ -267,14 +249,14 @@ class Test_Group1_TestMethods():
   # logical volume taucht auf (udev: add)
   def test_logical_volume_add(self):
     
-    zmirror_core.cache_dict = dict()
-    assert logical_volume_id not in zmirror_core.cache_dict
+    config.cache_dict = dict()
+    assert logical_volume_id not in config.cache_dict
 
     trigger_event()
     
-    assert logical_volume_id in zmirror_core.cache_dict
+    assert logical_volume_id in config.cache_dict
 
-    dev: LVMLogicalVolume = zmirror_core.cache_dict[logical_volume_id]
+    dev: LVMLogicalVolume = config.cache_dict[logical_volume_id]
     
     
     assert(dev is not None)
@@ -283,11 +265,11 @@ class Test_Group1_TestMethods():
   # logical volume verschwindet (udev: remove)
   def test_logical_volume_remove(self):
     
-    assert logical_volume_id in zmirror_core.cache_dict
+    assert logical_volume_id in config.cache_dict
 
     trigger_event()
 
-    dev: LVMLogicalVolume = zmirror_core.cache_dict[logical_volume_id]
+    dev: LVMLogicalVolume = config.cache_dict[logical_volume_id]
     
     assert(dev is not None)
     assert(dev.state.what == EntityState.DISCONNECTED)
@@ -298,14 +280,14 @@ class Test_Group1_TestMethods():
   # zfs_volume taucht auf (udev: add)
   def test_zfs_volume_add(self):
     
-    zmirror_core.cache_dict = dict()
-    assert zfs_volume_id not in zmirror_core.cache_dict
+    config.cache_dict = dict()
+    assert zfs_volume_id not in config.cache_dict
 
     trigger_event()
 
-    assert zfs_volume_id in zmirror_core.cache_dict
+    assert zfs_volume_id in config.cache_dict
     
-    dev: ZFSVolume = zmirror_core.cache_dict[zfs_volume_id]
+    dev: ZFSVolume = config.cache_dict[zfs_volume_id]
     
     
     assert(dev is not None)
@@ -314,11 +296,11 @@ class Test_Group1_TestMethods():
   # zfs_volume verschwindet (udev: remove)
   def test_zfs_volume_remove(self):
     
-    assert zfs_volume_id in zmirror_core.cache_dict
+    assert zfs_volume_id in config.cache_dict
 
     trigger_event()
 
-    dev: ZFSVolume = zmirror_core.cache_dict[zfs_volume_id]
+    dev: ZFSVolume = config.cache_dict[zfs_volume_id]
     
     assert(dev is not None)
     assert(dev.state.what == EntityState.DISCONNECTED)
