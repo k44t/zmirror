@@ -247,6 +247,7 @@ class Test_Group1_TestMethods():
     assert(dev.last_online < datetime.now())
 
   # logical volume taucht auf (udev: add)
+  """
   def test_logical_volume_add(self):
     
     config.cache_dict = dict()
@@ -275,7 +276,7 @@ class Test_Group1_TestMethods():
     assert(dev.state.what == EntityState.DISCONNECTED)
     assert(dev.last_online != None)
     assert(dev.last_online < datetime.now())
-
+  """
 
   # zfs_volume taucht auf (udev: add)
   def test_zfs_volume_add(self):

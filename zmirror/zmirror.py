@@ -138,7 +138,7 @@ def env_var_or(v, d):
   else:
     return r
 
-def main():
+def main(args=None):
 
   parser = argparse.ArgumentParser(prog="zmirror")
   subparser = parser.add_subparsers(required=True)
@@ -182,7 +182,7 @@ def main():
   scrub_parser = subparser.add_parser('scrub', parents=[shared_parser], help='start pending scrubs')
   scrub_parser.set_defaults(func=scrub)
 
-  args = parser.parse_args()
+  args = parser.parse_args(args=args)
 
   # if args.cache_path is None:
   #  args.cache_path = args.state_dir + "/cache.yml"

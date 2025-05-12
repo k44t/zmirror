@@ -15,7 +15,7 @@ from .logging import log
 from .entities import *
 from . import entities as core
 from .actions import handle_entity_online, handle_entity_offline
-from .dataclasses import ZFSBackingBlockDeviceCache, ZFSOperationState, EntityState, Disk, LVMLogicalVolume, DMCrypt, VirtualDisk, Partition, Since, ZFSVolume, ZPool, set_entity_state
+from .dataclasses import ZFSBackingBlockDeviceCache, ZFSOperationState, EntityState, Disk, DMCrypt, Partition, Since, ZFSVolume, ZPool, set_entity_state # , LVMLogicalVolume, VirtualDisk, 
 from kpyutils.kiify import to_kd
 
 from . import config as globals
@@ -146,20 +146,21 @@ def handle(env):
 
     if action == "add" or action == "remove":
       if devtype == "disk":
-        if "ID_SERIAL" in env:
-          cache = find_or_create_cache(Disk, serial=env["ID_SERIAL"], create_args={"devpath": env["DEVNAME"]})
+        if "ID_PART_TABLE_UUID" in env:
+          cache = find_or_create_cache(Disk, uuid=env["ID_PART_TABLE_UUID"])
           udev_event_action(cache, action, now)
-          log.info(f"{cache.__class__.__name__} {cache.serial}: {to_kd(cache.state)}")
+          log.info(f"{cache.__class__.__name__} {cache.uuid}: {to_kd(cache.state)}")
           event_handled = True
 
         # lvm logical volumes
         # these events also have DM_NAME
-        elif "DM_LV_NAME" in env:
-          cache = find_or_create_cache(LVMLogicalVolume, \
-                                       vg=env["DM_VG_NAME"], name=env["DM_LV_NAME"])
-          udev_event_action(cache, action, now)
-          log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
-          event_handled = True
+        #  elif "DM_LV_NAME" in env:
+        #  cache = find_or_create_cache(LVMLogicalVolume, \
+        #                               vg=env["DM_VG_NAME"], name=env["DM_LV_NAME"])
+        #  udev_event_action(cache, action, now)
+        #  log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
+        #  event_handled = True
+
         # dm_crypts
         elif "DM_NAME" in env:
           cache = find_or_create_cache(DMCrypt, name=env["DM_NAME"])
@@ -183,18 +184,18 @@ def handle(env):
                 log.info(f"{cache.__class__.__name__} {cache.get_pool()}/{cache.name}: {to_kd(cache.state)}")
                 event_handled = True
                 break
-          elif "ID_FS_UUID" in env:
-            cache = find_or_create_cache(VirtualDisk, fs_uuid=env["ID_FS_UUID"], create_args={"devpath": env["DEVNAME"]})
-            udev_event_action(cache, action, now)
-            log.info(f"{cache.__class__.__name__} {cache.fs_uuid}: {to_kd(cache.state)}")
-            event_handled = True
+          # elif "ID_FS_UUID" in env:
+          #  cache = find_or_create_cache(VirtualDisk, fs_uuid=env["ID_FS_UUID"])
+          #  udev_event_action(cache, action, now)
+          #  log.info(f"{cache.__class__.__name__} {cache.fs_uuid}: {to_kd(cache.state)}")
+          #  event_handled = True
           else:
             log.warning("need a filesystem uuid or a zvol devlink (if applicable) to identify virtual blockdevices")
         else:
           log.info("nothing to do for disk event")
 
       elif devtype == "partition":
-        cache = find_or_create_cache(Partition, name=env["PARTNAME"], create_args={"devpath": env["DEVNAME"]})
+        cache = find_or_create_cache(Partition, name=env["PARTNAME"])
         udev_event_action(cache, action, now)
         log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
     elif action == "change" and "DM_ACTIVATION" in env and env["DM_ACTIVATION"] == "1":

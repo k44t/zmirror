@@ -66,28 +66,12 @@ class EntityState(KiEnum):
 
 @yaml_data
 class ZMirror:
-  log_env: bool
-  content = []
+  log_events: bool = False
+  disable_commands: bool = False
+  maintenance_schedule: str = None
 
-
-@yaml_data
-class DMRaid:
-  name: str
-  state = Since(EntityState.UNKNOWN)
-  content = []
-  backing_layout = []
-  description: str = None
-
-@yaml_data
-class BackingSet:
-  online_if_present: bool = False
-  elements = []
-
-@yaml_data
-class DMRaidBackingDevice:
-  raid_name: str
-  state = Since(EntityState.UNKNOWN)
-  description: str = None
+  content: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  notes: str = None
 
 
 @yaml_data
@@ -98,8 +82,8 @@ class Partition:
   parent: object = None
   last_online: datetime = None
   on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
-  content = []
-  description: str = None
+  content: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  notes: str = None
 
   def id(self):
     return self.name
@@ -116,44 +100,21 @@ class Partition:
 class Disk:
 
   uuid: str = None
-  serial: str = None
-  devpath: str = None
 
   state = Since(EntityState.UNKNOWN, None)
   last_online: datetime = None
 
-  content = []
-  description = str
+  content: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  notes: str = None
 
 
   def id(self):
-    if self.serial is not None:
-      return self.serial
-    elif self.uuid is not None:
+    if self.uuid is not None:
       return self.uuid
     else:
       raise ValueError("disk has no identifier")
 
 
-
-@yaml_data
-class VirtualDisk:
-
-  fs_uuid: str
-  devpath: str = None
-
-  parent: object = None
-  state = Since(EntityState.UNKNOWN, None)
-  last_online: datetime = None
-
-  content = []
-  description = str
-
-  def id(self):
-    return self.fs_uuid
-
-  def get_devpath(self):
-    return self.devpath
 
 
 
@@ -165,9 +126,9 @@ class ZPool:
   last_online: datetime = None
   on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
 
-  content = []
-  description = str
-  backing_layout = []
+  content: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  backed_by: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  notes: str = None
 
   def id(self):
     return self.name
@@ -179,6 +140,15 @@ class ZPool:
     commands.add_command(f"zpool import {self.name}")
 
 
+@yaml_data
+class MirrorBackingReference:
+  devices: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  notes: str = None
+
+@yaml_data
+class SimpleBackingReference:
+  device: str
+  notes: str = None
 
 @yaml_data
 class ZFSVolume:
@@ -188,8 +158,8 @@ class ZFSVolume:
   state = Since(EntityState.UNKNOWN, None)
   last_online: datetime = None
   on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
-  content = []
-  description = str
+  content: list = field(default_factory=list)  #pylint: disable=invalid-field-call
+  notes: str = None
 
   def id(self):
     if self.parent is not None:
@@ -212,85 +182,6 @@ class ZFSVolume:
       return f"/dev/zvol/{self.pool}/{self.name}"
 
 
-
-@yaml_data
-class LVMVolumeGroup:
-  name: str
-
-  state = Since(EntityState.UNKNOWN, None)
-  last_online: datetime = None
-
-  on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
-
-  content = []
-  description = str
-
-  def handle_offline(self):
-    set_entity_state(self, EntityState.DISCONNECTED)
-    for lvm_physical_volume in config.lvm_physical_volumes[self.name]:
-      set_entity_state(lvm_physical_volume, EntityState.DISCONNECTED)
-
-
-  def handle_child_online(self):
-    if self.state.what is not EntityState.ONLINE:
-      set_entity_state(self, EntityState.ONLINE)
-
-  def handle_child_offline(self):
-    at_least_one_child_online = False
-    for children in self.content:
-      if is_offline(children.state.what):
-        at_least_one_child_online = True
-    if not at_least_one_child_online:
-      self.handle_offline()
-
-
-
-@yaml_data
-class LVMLogicalVolume:
-  name: str
-  vg: str = None
-  parent: object = None
-
-  state = Since(EntityState.UNKNOWN, None)
-  last_online: datetime = None
-
-  on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
-  content = []
-  description = str
-
-  def get_devpath(self):
-    if self.parent is not None:
-      return f"/dev/{self.parent.name}/{self.name}"
-    else:
-      return f"/dev/{self.vg}/{self.name}"
-
-
-  def id(self):
-    if self.parent is not None:
-      return f"{self.parent.name}|{self.name}"
-    else:
-      return f"{self.vg}|{self.name}"
-
-  def take_offline(self):
-    commands.add_command(f"lvchange --activate n {self.get_devpath()}")
-
-  def take_online(self):
-    commands.add_command(f"lvchange --activate y {self.get_devpath()}")
-
-
-
-@yaml_data
-class LVMPhysicalVolume:
-  pv_uuid: str
-  lvm_volume_group: str
-  parent: object = None
-
-  description = str
-
-  def id(self):
-    return self.pv_uuid
-
-
 @yaml_data
 class DMCrypt:
   name: str
@@ -300,7 +191,7 @@ class DMCrypt:
   last_online: datetime = None
   on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
   content = []
-  description = str
+  notes: str = None
 
   def id(self):
     return self.name
@@ -333,7 +224,7 @@ class ZFSBackingBlockDeviceCache:
   last_online: datetime = None
   last_resilvered: datetime = None
   last_scrubbed: datetime = None
-  description = str
+  notes = str
 
   def id(self):
     return f"{self.pool}|{self.dev}"
@@ -341,16 +232,26 @@ class ZFSBackingBlockDeviceCache:
 @yaml_data
 class ZFSBackingBlockDevice:
   pool: str
-  dev: str = None
+  # dev: str = None
   parent: object = None
 
   on_scrubbed: list = field(default_factory=list) #pylint: disable=invalid-field-call
   on_resilvered: list = field(default_factory=list) #pylint: disable=invalid-field-call
   on_parent_online: list = field(default_factory=list) #pylint: disable=invalid-field-call
   scrub_interval: str = None
+  notes: str = None
 
   def id(self):
-    return f"{self.pool}|{self.dev}"
+    return f"{self.pool}|{self.dev_name()}"
+
+  def dev_name(self):
+    if isinstance(self.parent, Partition):
+      return self.parent.name
+    elif isinstance(self.parent, DMCrypt):
+      return self.parent.name
+    elif isinstance(self.parent, ZFSVolume):
+      return f"zvol/{self.parent.parent.name}/{self.parent.name}"
+
 
   def handle_scrubbed(self):
     action = self.on_scrubbed
@@ -361,10 +262,10 @@ class ZFSBackingBlockDevice:
     log.error("NOT IMPLEMENTED")
 
   def take_offline(self):
-    commands.add_command(f"zpool offline {self.pool} {self.dev}")
+    commands.add_command(f"zpool offline {self.pool} {self.dev_name()}")
 
   def take_online(self):
-    commands.add_command(f"zpool online {self.pool} {self.dev}")
+    commands.add_command(f"zpool online {self.pool} {self.dev_name()}")
 
   def start_scrub(self):
     commands.add_command(f"zpool scrub {self.pool}")
@@ -388,3 +289,106 @@ class ZFSBackingBlockDeviceOutput(ZFSBackingBlockDevice, ZFSBackingBlockDeviceCa
 
 
 
+
+
+
+"""
+@yaml_data
+class LVMLogicalVolume:
+  name: str
+  vg: str = None
+  parent: object = None
+
+  state = Since(EntityState.UNKNOWN, None)
+  last_online: datetime = None
+
+  on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  content: list = field(default_factory=list)
+  notes = str
+
+  def get_devpath(self):
+    if self.parent is not None:
+      return f"/dev/{self.parent.name}/{self.name}"
+    else:
+      return f"/dev/{self.vg}/{self.name}"
+
+
+  def id(self):
+    if self.parent is not None:
+      return f"{self.parent.name}|{self.name}"
+    else:
+      return f"{self.vg}|{self.name}"
+
+  def take_offline(self):
+    commands.add_command(f"lvchange --activate n {self.get_devpath()}")
+
+  def take_online(self):
+    commands.add_command(f"lvchange --activate y {self.get_devpath()}")
+
+
+
+@yaml_data
+class LVMPhysicalVolume:
+  pv_uuid: str
+  lvm_volume_group: str
+  parent: object = None
+
+  notes = str
+
+  def id(self):
+    return self.pv_uuid
+
+
+
+@yaml_data
+class LVMVolumeGroup:
+  name: str
+
+  state = Since(EntityState.UNKNOWN, None)
+  last_online: datetime = None
+
+  on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
+
+  content: list = field(default_factory=list)
+  notes = str
+
+  def handle_offline(self):
+    set_entity_state(self, EntityState.DISCONNECTED)
+    for lvm_physical_volume in config.lvm_physical_volumes[self.name]:
+      set_entity_state(lvm_physical_volume, EntityState.DISCONNECTED)
+
+
+  def handle_child_online(self):
+    if self.state.what is not EntityState.ONLINE:
+      set_entity_state(self, EntityState.ONLINE)
+
+  def handle_child_offline(self):
+    at_least_one_child_online = False
+    for children in self.content:
+      if is_offline(children.state.what):
+        at_least_one_child_online = True
+    if not at_least_one_child_online:
+      self.handle_offline()
+
+      
+@yaml_data
+class VirtualDisk:
+
+  fs_uuid: str
+  devpath: str = None
+
+  parent: object = None
+  state = Since(EntityState.UNKNOWN, None)
+  last_online: datetime = None
+
+  content: list = field(default_factory=list)
+  notes = str
+
+  def id(self):
+    return self.fs_uuid
+
+  def get_devpath(self):
+    return self.devpath
+      
+
+"""

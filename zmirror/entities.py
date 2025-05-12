@@ -5,7 +5,7 @@ from datetime import datetime
 
 from .util import load_yaml_cache, load_yaml_config, save_yaml_cache, remove_yaml_cache, require_path
 from .util import myexec as exec#pylint: disable=redefined-builtin
-from .dataclasses import ZFSBackingBlockDeviceCache, EntityState, Since, LVMPhysicalVolume, ZFSBackingBlockDevice
+from .dataclasses import ZFSBackingBlockDeviceCache, EntityState, Since, ZFSBackingBlockDevice # LVMPhysicalVolume
 
 from .logging import log
 
@@ -49,11 +49,11 @@ def index_entities(entity, parent, _ignored):
     entity.parent = parent
   if hasattr(entity, "id"):
     config.config_dict[entity_id(entity)] = entity
-  if isinstance(entity, LVMPhysicalVolume):
-    if entity.lvm_volume_group in config.lvm_physical_volumes:
-      config.lvm_physical_volumes[entity.lvm_volume_group].append(entity)
-    else:
-      config.lvm_physical_volumes[entity.lvm_volume_group] = [entity]
+  # if isinstance(entity, LVMPhysicalVolume):
+  #  if entity.lvm_volume_group in config.lvm_physical_volumes:
+  #    config.lvm_physical_volumes[entity.lvm_volume_group].append(entity)
+  #  else:
+  #    config.lvm_physical_volumes[entity.lvm_volume_group] = [entity]
   elif isinstance(entity, ZFSBackingBlockDevice):
     if entity.pool in config.zfs_blockdevs:
       config.zfs_blockdevs[entity.pool].append(entity)

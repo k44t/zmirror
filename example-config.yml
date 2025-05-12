@@ -109,6 +109,15 @@ content:
           # that the data inside the partition is the data backing the zpools
           # (or in other words, that the partition is the blockdev that backs
           # the zpool)
+          #
+          # zmirror currently only supports `ZFSBackingBlockDevice`s to reside
+          # inside `Partition`s, `DMCrypt`s or `ZFSVolume`s. This is likely not going to change
+          # because zmirror relies on unique names, and raw disks do not have names
+          # while partitions and dm_crypts CAN have unique names (and MUST have if they
+          # are to be used within a zmirror configuration) .
+          #
+          # This means, when you connect unknown devices, you should disable zmirror-daemon
+          # while playing around with them.
           - !ZFSBackingBlockDevice
             # name for the zfs pool
             pool: zmirror-sysfs
@@ -212,7 +221,6 @@ content:
           content:
             - !ZFSBackingBlockDevice
             
-              dev: zmirror-sysfs-b
               pool: zmirror-sysfs
 
               on_parent_online: 
@@ -277,7 +285,6 @@ content:
           content:
             - !ZFSBackingBlockDevice
             
-              dev: zmirror-sysfs-c
               pool: zmirror-sysfs
 
               on_parent_online: 
@@ -307,7 +314,7 @@ content:
   - !Disk
 
     # the uuid of the gpt partition table
-    uuid: 00000000-0000-0000-0000-000000000000
+    uuid: 00000000-0000-0000-0000-000000000003
 
     # only enable this if you are absolutely certain that your NVMe enclosure
     # supports TRIM. See above for more.
@@ -335,7 +342,6 @@ content:
             content:
               - !ZFSBackingBlockDevice
               
-                dev: zmirror-sysfs-s
                 pool: zmirror-sysfs
 
                 on_parent_online: 
@@ -378,7 +384,7 @@ content:
     # for above event handling to work, we also need to configure the backing:
     backed_by:
       !MirrorBackingReference
-        elements: ["zmirror-big-a", "zmirror-big-b", "zvol/zmirror-bak-a/big", "zvol/zmirror-bak-b/big"]
+        devices: ["zmirror-big-a", "zmirror-big-b", "zvol/zmirror-bak-a/big", "zvol/zmirror-bak-b/big"]
 
 
 
@@ -405,7 +411,6 @@ content:
         content:
           - !ZFSBackingBlockDevice
           
-            dev: zmirror-big-a
 
             pool: zmirror-big
           
@@ -438,7 +443,6 @@ content:
 
           - !ZFSBackingBlockDevice
           
-            dev: zmirror-big-b
 
             pool: zmirror-big
           
@@ -551,7 +555,6 @@ content:
 
           - !ZFSBackingBlockDevice
             pool: zmirror-sysfs
-            dev: zvol/zmirror-bak-a/sysfs
 
             on_resilvered:
               # when a resilver is done, we want to snapshot the zfs volume
@@ -708,7 +711,6 @@ content:
         content:
 
           - !ZFSBackingBlockDevice
-            dev: zvol/zmirror-bak-b/sysfs
             pool: zmirror-sysfs
             
             on_parent_online:
@@ -727,7 +729,6 @@ content:
           - offline
         content:
           - !ZFSBackingBlockDevice
-            dev: zvol/zmirror-bak-b/big
             pool: zmirror-big
 
             on_parent_online:
@@ -744,6 +745,7 @@ content:
 
 
   # this is the main partition of the first disk that is backing zmirror-bak-b
+  #
   # We could have used full disks here, since zfs recommends using full disks
   # to back its pools. But there is no consistent way to name disks, while it
   # is easily possible to name partitions. It simply results in a more easy to
@@ -768,9 +770,6 @@ content:
         content: 
 
           - !ZFSBackingBlockDevice
-
-            dev: zmirror-bak-b-alpha
-
             pool: zmirror-bak-b
           
             on_parent_online:
@@ -798,9 +797,6 @@ content:
         content: 
 
           - !ZFSBackingBlockDevice
-
-            dev: zmirror-bak-b-beta
-
             pool: zmirror-bak-b
           
             on_parent_online:
@@ -844,7 +840,7 @@ content:
     # for above event handling to work, we also need to configure the backing:
     backed_by:
       !MirrorBackingReference
-        elements: ["zmirror-blubak-alpha", "zmirror-blubak-beta"]
+        devices: ["zmirror-blubak-alpha", "zmirror-blubak-beta"]
 
 
 
@@ -869,7 +865,6 @@ content:
         content: 
 
           - !ZFSBackingBlockDevice
-
             pool: zmirror-blubak
           
             on_parent_online:
@@ -881,7 +876,7 @@ content:
 
   # this is the dm_raid that is backed by two physical devices
   # combined into a striped disk (raid0)
-  - !Zpool
+  - !ZPool
     name: zmirror-blubak-beta
 
     content:
@@ -942,7 +937,6 @@ content:
         content: 
 
           - !ZFSBackingBlockDevice
-          
             pool: zmirror-blubak-beta
 
 
@@ -965,5 +959,5 @@ content:
         content: 
 
           - !ZFSBackingBlockDevice
-            raid-name: zmirror-blubak-beta
+            pool: zmirror-blubak-beta
 

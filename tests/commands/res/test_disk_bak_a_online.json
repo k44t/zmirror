@@ -1,6 +1,6 @@
 {
   "DEVTYPE": "disk",
   "ACTION": "add",
-  "ID_SERIAL": "zmirror-bak-a",
+  "ID_PART_TABLE_UUID": "zmirror-bak-a",
   "DEVNAME": "/dev/sdd"
 }
