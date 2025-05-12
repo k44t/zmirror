@@ -2,13 +2,35 @@
 
 
 # enable logging of the environment variables for all udev and zed events
-log_env: yes
+log_events: yes
 
 # When disable_commands is enabled, then zmirror never executes any commands 
 # but only logs the commands that it would execute. This is helpful when you
-# want to interact want to test things and/or manually interact with the 
-# devices without zmirror 
+# want to test things and/or manually interact with the devices without zmirror 
+# interfering
 disable_commands: no
+
+
+# we schedule maintenance tasks (scrubbing/trimming) every tuesday at 3 AM.
+#
+# At the scheduled time zmirror will try to online all devices
+# that need trimming (and likely succeed for those that are present). This 
+# will of course only happen if the zmirror daemon is actually running at the
+# scheduled time.
+#
+# it will then try to start the maintenance tasks that are configured 
+# for the devices.
+maintenance_schedule: Tue 03:00
+# zmirror itself does not support more complex scheduling. But you can use
+# some other scheduler that simply tells zmirror to do maintenance:
+# 
+# `zmirror maintenance`
+# 
+# you can also use `zmirror scrub` and `zmirror trim` respectively.
+# 
+# You can of course always do `zpool scrub` or `zpool trim` directly. Please 
+# note that zmirror should be running/restarted with `disable_commands: yes` when
+# you do anything manual, so that it can ubdate its disk state information accordingly.
 
 
 # under here all top-level entities (such as disks, partitions, lvm volume groups
@@ -22,16 +44,23 @@ content:
   - !ZPool 
     name: zmirror-sysfs
 
-
-  # a zpool cannot be taken offline, once all of its backing blockdevs have 
-  # disappeared. In such a case you have to reboot to get the ZFS kernel
-  # module into a state which allows you to reimport the zpool.
+      # the sysfs pool must be imported during boot so zmirror should not import it
+      # hence we also do NOT need to configure the backing (`backed_by:`), for zmirror
+      # must not know how it is backed (it is enough to configure each backing device
+      # so that zmirror can online it)
 
 
 
   # the disk zmirror-sysfs-a is one of the disks that back the zmirror-sysfs zpool
   # it is an NVMe drive built into my computer
   # and this is the partition (on the drive) that contains a mirror of the data of the zmirror-sysfs-zpool
+  #
+  # in this zmirror configuration I configure partitions at the top level. It is
+  # possible to configure disks and then have the partition inside the `content:`
+  # element of the disks. This has not much effect on the working of zmirror,
+  # except that the disk itself would appear in its status output. It has absolutely
+  # no bearing on any functionality of zmirror itself, since the kernel automatically
+  # creates udev events whenever partitions appear due to a disk being inserted.
   - !Partition
 
     # IMPORTANT: partition names that will be used by zmirror MUST be unique
@@ -99,18 +128,20 @@ content:
 
 
   # the disk zmirror-sysfs-b is an NVMe disk that is connected to my computer
-  # via USB c
+  # via USB-C
   # it serves as a failover in case zmirror-sysfs-a has a hardware error
   - !Disk
 
     # the uuid of the gpt partition table
-    uuid: abcdefg01234
+    uuid: 00000000-0000-0000-0000-000000000001
 
+
+    # *WARNING*: ONLY set this to true if you absolutely know that your device supports
+    # trim.
+    # 
     # the linux kernel is not aware that my usb-c NVMe enclosure does in fact
     # support the trim command.
     #
-    # WARNING: ONLY set this to true if you absolutely know that your en supports
-    # trim.
     # 
     # you can find out using
     #
@@ -134,6 +165,9 @@ content:
     #   Optimal unmap granularity: 0x1
     # 
     # means that trim is supported.
+    #
+    # *WARNING*: ONLY set this to true if you absolutely know that your device supports
+    # trim.
     force_enable_trim: yes
     # 
     # what zmirror does to enable trim is catch every udev add or change event for 
@@ -200,12 +234,12 @@ content:
   # in case an overvoltagecondition destroys my PC and both the internal
   # NVMe drive and the external NVMe drive that is currently connected.
   #
-  # Both zmirror-sysfs-b and zmirror-sysfs-c operate in full PCIe 4.0
+  # Both zmirror-sysfs-b and zmirror-sysfs-c operate in full PCIe
   # speed, so they are just as fast as the internal NVMe drive.
   - !Disk
 
     # the uuid of the gpt partition table
-    uuid: abcdefg012345
+    uuid: 00000000-0000-0000-0000-000000000002
 
     force_enable_trim: yes
 
@@ -258,18 +292,17 @@ content:
   # when I'm working on my computer.
   # 
   # This NVMe drive is a different spec (2242) than sysfs-a, b and c. It has a smaller
-  # form factor, so it fits into a smaller USB drive big encloser. But it also is 
-  # slower (PCIe 1.0) than the other three. Hence I take it offline after a resilver.
+  # form factor, so it fits into a smaller USB drive enclosure. The disadvantage is, that 
+  # it is also slower than the other three. Hence I take it offline after a resilver.
   # 
-  # This mitigates the risk of losing my most recent changes due to a break-in 
-  # while I'm away.
+  # Risk-Mitigation: losing my most recent changes due to a break-in while I'm away.
   #
   # This is the partition that contains one of the zpool's (zmirror-sysfs)
   # mirrors.
   - !Disk
 
     # the uuid of the gpt partition table
-    uuid: abcdefg0123456
+    uuid: 00000000-0000-0000-0000-000000000000
 
     content:
       - !Partition
@@ -323,18 +356,21 @@ content:
   - !ZPool
     name: zmirror-big
 
-    backing_layout:
-      # a backing must contain all blockdevices that are necessary to import the pool
-      - !BackingSet
 
-        # when big-a appears zmirror-big should be taken online
-        online_if_present: yes
 
-        # since zmirror-big-b is a mirror of zmirror-big-a only one must be present for the pool to be imported
-        elements: [zmirror-big-a]
+    # This zpool should be taken online if all necessary backing devices
+    # have appeared. 
+    # 
+    # This will happen once I have powered the devices on via the shell
+    # command, as the respective udev events are being sent by the kernel.
+    on_backing_appeared: 
+      - online
+    
+    # for above event handling to work, we also need to configure the backing:
+    backed_by:
+      !MirrorBackingReference
+        elements: ["zmirror-big-a", "zmirror-big-b", "zvol/zmirror-bak-a/big", "zvol/zmirror-bak-b/big"]
 
-      - !BackingSet
-        elements: [zmirror-big-b]
 
 
 
@@ -418,8 +454,18 @@ content:
   # enough space).
   # 
   # This kind of configuration gives me real backups.
+  #
+  # Risk-Mitigation
   # 
-  # The only risks that are not mitigated by it are 
+  # - internal disk failure
+  # - always connected external disk failure
+  # - power surge (failure of server and all connected disks)
+  # - EMP (when disconnected I store the disks in EMP protected bags, however
+  #   mainly to mitigate bitrot)
+  # - bitrot
+  # - local catastrophe (depends on how I store the backing disks, see below)
+  # 
+  # The only risks that are not mitigated by this are 
   # 
   # -1. bugs in ZFS that make me lose some or all of the data inside the backups.
   # -2. hackers that maliciously delete my backup data WHILE the backup disk
@@ -427,7 +473,8 @@ content:
   # 
   # Ad 1. I feel the risk of ZFS having or introducing such bugs and my OS
   # distributing such bugs into the stable release is very low, too low in fact
-  # for me to worry about them.
+  # for me to worry about them. (I do not use ZFS native encryption which has 
+  # such bugs.)
   # 
   # Ad 2. can only be mitigated by using backup media that will be written once
   # and only be read again in case of needing to restore. An example would be 
@@ -437,7 +484,7 @@ content:
   # sense to use a simpler filesystem for magnetic tapes which you will always
   # be able to restore if you have the relevant hardware (while it might be quite
   # difficult to retrive data from an old ZFS version or the like). So zmirror's
-  # functionality would then be not for you.
+  # functionality would then NOT be for you.
   # 
   # In any case, the kind of failure protection this zmirror configuration gives me
   # is enough for my own needs.
@@ -445,12 +492,12 @@ content:
     name: zmirror-bak-a
 
     # when all volumes configured below are offline (WARNING: see explanation 
-    # below on how we implemented this) the zpool should be exported.
+    # below on how we implemented this) the zpool will be exported.
     # 
     # WARNING: this kind of configuration only makes sense if you use the
     # zpool zmirror-bak-a ONLY as a container for volumes that are managed
     # by zmirror. In any other case you want to tell zmirror to never
-    # export the pool and instead handle that manually
+    # export the pool and instead handle exporting manually
     on_children_offline: 
       # TODO: implement synonym export == offline
       - export
@@ -516,15 +563,26 @@ content:
               # of the WHOLE zpool would drop down to the speed of the rotating 
               # disk. To avoid this, we take the backing blockdev offline right
               # away.
+              # 
+              # Since my backup disks are all connected via USB, this kind of
+              # configuration gives me the advantage of being able to see whether the
+              # disk is still online: whenever a resilver or scrubbing is running
+              # the data LED on my disk enclosures will blink. The moment it stops
+              # blinking I know that zmirror has offlined the disk and I can
+              # safely remove it, without sending the zfs kernel module 
+              # into an unrecoverable state (zfs currently cannot handle the last disk of 
+              # a pool disappearing without freezing the pool until a reboot happens.
+              # Onlining the disk again after reconnecting it does not work either)
               - offline
 
-            # above problem is unavoidable during a scrub, since for scrubbing
+            # above mentioned problem is unavoidable during a scrub, since for scrubbing
             # this blockdev must be online within the zmirror-sysfs zpool. 
             # Consequently we do scrubbing at night when lowered pool speed
             # is less of an issue. And to avoid keeping the 
             # zmirror-sysfs zpool's WRITE speed as low as the speed of the 
             # rotating disk (which is backing zmirror-bak-a) we take the
             # blockdev offline right away.
+            # 
             on_scrubbed:
               - offline
 
@@ -544,7 +602,6 @@ content:
           
           - !ZFSBackingBlockDevice
             
-            dev: zvol/zmirror-bak-a/big
             pool: zmirror-big
 
             on_parent_online:
@@ -564,29 +621,29 @@ content:
 
 
   # zmirror-bak-a is my first backup disk (I actually have more than are 
-  # configured in this example). These backup disks are physically distributed, 
-  # that is I store them in multiple locations outside my home. In this way I 
-  # mitigate the risk of a local catastrophy such as a fire.
+  # configured in this example). These backup disks are physically distributed
+  # when stored (not currently connected to my server that is I store them in 
+  # multiple locations outside my home. In this way I mitigate the risk of a local 
+  # catastrophy such as a fire.
   #
   # This disk contains but a single zpool (which is backed only by this disk)
-  # The consequence is that I cannot scrub this pool.
-  #
-  # This particular backup disk is not protected against bitrot.
-  # Hence I minimize the risk of bitrot by storing the disk in an EMP protected bag
-  # which also protects the disk against electromagnetic radiation in general
-  # (one of the causes of bitrot)
-  #
-  # but since zmirror creates snapshots whenever I synchronize this disk
-  # and since zmirror scrubs the latest data whenever I synchronize this disk
-  # bitrot can only damage older snapshots, never the newest one
+  # The consequence is that I cannot scrub this pool. Hence this particular backup 
+  # disk is not protected against bitrot. I minimize the risk of bitrot by storing 
+  # the disk in an EMP protected bag which protects the disk against 
+  # electromagnetic radiation in general (one of the causes of bitrot) and not just
+  # against EMPs.
   #
   # and this even protects older data, since both the sysfs and the big pool
-  # actually do contain (a limited number of) snapshots of older data that I curate manually
-  # and daily, weekly, monthly and yearly snapshots that are curated automatically
+  # actually do contain (a limited number of) snapshots of older data that I curate manually.
+  # And it contains daily, weekly, monthly and yearly snapshots that are curated automatically
   # by my nixOS
   #
-  # and all the data inside the big and the sysfs zpools have parity (are mirrored) 
-  # and can be scrubbed and restored
+  # Zmirror issues a scrub of the zmirror-sysfs and the zmirror-big pools when
+  # this device is connected and at least 3 weeks have passed. This means that
+  # the newest data on this backup disk will be scrubbed and thus checked against
+  # the life system. Hence bitrot can only affect older snapshots of the whole
+  # backup disk, and never data or snapshots that are inside the zmirror-sysfs
+  # and zmirror-big pools.
   #
   # this is the partition that contains the zpool's data
   - !Partition
@@ -621,11 +678,6 @@ content:
 
 
 
-
-
-
-
-
   # This pool is fully protected against bitrot, since it is backed by 
   # two disks. For this to work it is necessary that (at least every now and
   # then) you connect both backing disks at the same time and ensure that
@@ -636,12 +688,6 @@ content:
 
     on_children_offline: 
       - offline
-    
-    # this zpool (in contrast to sysfs or big) will only be imported once all 
-    # its backing blockdevices are present in the system.
-    on_all_backing_block_devices_present:
-      # synonym: import == online
-      - import
 
     content:
       
@@ -688,15 +734,13 @@ content:
 
 
 
-
-
-
   # this is the main partition of the first disk that is backing zmirror-bak-b
   # We could have used full disks here, since zfs recommends using full disks
   # to back its pools. But there is no consistent way to name disks, while it
-  # is quite possible to name partitions. It simply results in a more easy to
+  # is easily possible to name partitions. It simply results in a more easy to
   # understand configuration if you can use names instead of serial numbers
-  # and performance is not an issue anyways.
+  # And performance is not an issue for the backup disks, so the zfs recommendation 
+  # does not really concern us here anyways.
   - !Partition
     name: zmirror-bak-b-alpha
 
@@ -726,7 +770,7 @@ content:
             scrub_interval: 3 weeks
 
 
-  # this is the main partition of hte second disk that is backing zmirror-bak-b
+  # this is the main partition of the second disk that is backing zmirror-bak-b
   - !Partition
     name: zmirror-bak-b-beta
 
@@ -764,8 +808,7 @@ content:
   # it is the slowest pool I have and it is backed by
   # rotating disks only. The disks are powered on via an internal USB
   # relay board which connects/disconnects the SATA power for the
-  # devices on command. So the moment I power them on using a shell command,
-  # zmirror will recognize them and online the pool. 
+  # devices on command.
   #
   # And this of course I will only do whenever I need to make another backup 
   # of a bluray disk. Because after creating a backup I tend to reencode
@@ -775,11 +818,25 @@ content:
   # like all optical media have a tendency of becoming unreadable after
   # some years...
   #
-  # it is in this example config because it shows how 
-  # to combine two smaller disks into a single striped disk
+  # blubak appears in this example config because it shows how 
+  # to combine 2 smaller disks into a single striped disk
   # which can be used to mirror a bigger disk using a zpool mirror
   - !ZPool
     name: zmirror-blubak
+
+    # This zpool should be taken online if all necessary backing devices
+    # have appeared. 
+    # 
+    # This will happen once I have powered the devices on via the shell
+    # command, as the respective udev events are being sent by the kernel.
+    on_backing_appeared: 
+      - online
+    
+    # for above event handling to work, we also need to configure the backing:
+    backed_by:
+      !MirrorBackingReference
+        elements: ["zmirror-blubak-alpha", "zmirror-blubak-beta"]
+
 
 
 
@@ -804,8 +861,6 @@ content:
 
           - !ZFSBackingBlockDevice
 
-            dev: zmirror-blubak-alpha
-
             pool: zmirror-blubak
           
             on_parent_online:
@@ -813,43 +868,48 @@ content:
 
             scrub_interval: 3 weeks
 
+
+
   # this is the dm_raid that is backed by two physical devices
   # combined into a striped disk (raid0)
-  # 
-  # once all required backing `DMRaidBackingDevice`s are present
-  # zmirror executes `mdmadm --assemble /dev/mdX /dev/mapper/x /dev/mapper/y`
-  # which onlines the raid0
-  #
-  # and zmirror introduces a udev rule that ensures that /dev/mdX will also appear as
-  # /dev/mapper/zmirror-blubak-beta
-  # and its partitions as
-  # /dev/mapper/zmirror-blubak-beta1 (...beta2, ...beta3)
-  - !DMRaid
+  - !Zpool
     name: zmirror-blubak-beta
 
-
-    backing_layout:
-      # a backing must contain all blockdevices that are necessary to import raid
-      - !BackingSet
-
-        # when this set has fully appeared the raid should be taken online
-        online_if_present: yes
-
-        # since zmirror-big-b is a mirror of zmirror-big-a only one must be present for the pool to be imported
-        elements: [zmirror-blubak-beta-05a, zmirror-blubak-beta-05b]
-
-
-
     content:
-      - !ZFSBackingBlockDevice
-        pool: zmirror-blubak
+      
+      - !ZFSVolume
+        name: sysfs
+        on_children_offline: 
+          - snapshot
+          - offline
+        content:
 
-        # the ...1 at the end stands there because when zfs partitions the disk
-        # (/dev/mapper/zmirror-blubak-beta which is a symlik to /dev/mdX
-        # it creates a partition with index 1 and a partition with index 9
-        # and then it uses the partition with index 1 to store its data 
-        dev: zmirror-blubak-beta1
-  
+          - !ZFSBackingBlockDevice
+            pool: zmirror-blubak
+            
+            on_parent_online:
+              - online
+          
+            on_scrubbed:
+              - offline
+
+            on_resilvered:
+              - snapshot-parent
+              - offline
+
+    # we want this pool to be imported if all necessary backing devices have appeared
+    on_backing_appeared: 
+      - online
+
+    # and for zmirror to do that, we need to tell it how the backing is layed out
+    backed_by:
+      - !SimpleBackingReference
+        name: "zmirror-blubak-beta-05a"
+      - !SimpleBackingReference
+        name: "zmirror-blubak-beta-05b"
+
+
+
   # this is the main partition of the second disk that is backing the zpool
   # zmirror-blubak
   # 
@@ -862,7 +922,6 @@ content:
       - !DMCrypt
         name: zmirror-blubak-beta-05a
 
-        
         key_file: ./test/zmirror-key
 
         on_parent_online:
@@ -873,9 +932,9 @@ content:
 
         content: 
 
-          - !DMRaidBackingDevice
+          - !ZFSBackingBlockDevice
           
-            raid-name: zmirror-blubak-beta
+            pool: zmirror-blubak-beta
 
 
   - !Partition
@@ -896,6 +955,6 @@ content:
 
         content: 
 
-          - !DMRaidBackingDevice
+          - !ZFSBackingBlockDevice
             raid-name: zmirror-blubak-beta
 
