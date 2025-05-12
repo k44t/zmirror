@@ -130,6 +130,8 @@ content:
   # the disk zmirror-sysfs-b is an NVMe disk that is connected to my computer
   # via USB-C
   # it serves as a failover in case zmirror-sysfs-a has a hardware error
+  # 
+  # the only reason it appears in this configuration, is that we need to force-enable TRIM
   - !Disk
 
     # the uuid of the gpt partition table
@@ -198,6 +200,7 @@ content:
 
           name: zmirror-sysfs-b
           
+          # at this point zmirror only supports key_file based encryption with `dm_crypt`
           key_file: ./test/zmirror-key
 
           on_children_offline: 
@@ -238,9 +241,11 @@ content:
   # speed, so they are just as fast as the internal NVMe drive.
   - !Disk
 
-    # the uuid of the gpt partition table
+    # the uuid of the gpt partition table. zmirror currently only supports GPT formatted disks.
     uuid: 00000000-0000-0000-0000-000000000002
 
+    # only enable this if you are absolutely certain that your NVMe enclosure
+    # supports TRIM. See above for more.
     force_enable_trim: yes
 
 
@@ -303,6 +308,10 @@ content:
 
     # the uuid of the gpt partition table
     uuid: 00000000-0000-0000-0000-000000000000
+
+    # only enable this if you are absolutely certain that your NVMe enclosure
+    # supports TRIM. See above for more.
+    force_enable_trim: yes
 
     content:
       - !Partition
