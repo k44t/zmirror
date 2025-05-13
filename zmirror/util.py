@@ -230,3 +230,13 @@ def copy_attrs(lft, rgt):
 def require_path(path, msg):
   if path is None or not os.path.exists(path):
     raise ValueError(f"{msg}: {path}")
+
+
+
+
+def env_var_or(v, d):
+  r = os.getenv(v)
+  if r is None:
+    return d
+  else:
+    return r

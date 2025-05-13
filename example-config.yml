@@ -44,10 +44,10 @@ content:
   - !ZPool 
     name: zmirror-sysfs
 
-      # the sysfs pool must be imported during boot so zmirror should not import it
-      # hence we also do NOT need to configure the backing (`backed_by:`), for zmirror
-      # must not know how it is backed (it is enough to configure each backing device
-      # so that zmirror can online it)
+    # the sysfs pool must be imported during boot so zmirror should not import it
+    # hence we also do NOT need to configure the backing (`backed_by:`), for zmirror
+    # must not know how it is backed (it is enough to configure each backing device
+    # so that zmirror can online it)
 
 
 
@@ -378,13 +378,34 @@ content:
     # 
     # This will happen once I have powered the devices on via the shell
     # command, as the respective udev events are being sent by the kernel.
-    on_backing_appeared: 
+    #
+    # *WARNING*: This configuration is dangerous:
+    #
+    # ZFS uses the first disk that is present when the pool was imported as its
+    # references point. If you then connect another disk, that was not yet
+    # present at pool import time, and if that other disk contained newer 
+    # data because it was last used, then that newer data WILL BE LOST.
+    # 
+    # So you should make sure that you always connect the disk first, that 
+    # has the newer data.
+    # 
+    # In my case, one of the disks backing zmirror-big is an internal SATA
+    # disk. This is my master disk, and it is always present and always
+    # contains the newest data. So I can never run into this issue.
+    # This internal disk is also marked as required within the MirrorBackingReference
+    # so zmirror will not import the pool if it is not present.
+    on_backing_appeared:
       - online
     
     # for above event handling to work, we also need to configure the backing:
     backed_by:
       !MirrorBackingReference
-        devices: ["zmirror-big-a", "zmirror-big-b", "zvol/zmirror-bak-a/big", "zvol/zmirror-bak-b/big"]
+        devices: 
+          # without zmirror-big-a present zmirror should not import the pool
+          - required: zmirror-big-a
+          - zmirror-big-b
+          - zvol/zmirror-bak-a/big
+          - zvol/zmirror-bak-b/big
 
 
 
@@ -414,8 +435,6 @@ content:
 
             pool: zmirror-big
           
-            on_parent_online:
-              - import-pool
 
             scrub_interval: 3 weeks
 
@@ -501,6 +520,8 @@ content:
   # 
   # In any case, the kind of failure protection this zmirror configuration gives me
   # is enough for my own needs.
+  #
+  #
   - !ZPool
     name: zmirror-bak-a
 
@@ -512,14 +533,32 @@ content:
     # by zmirror. In any other case you want to tell zmirror to never
     # export the pool and instead handle exporting manually
     on_children_offline: 
-      # TODO: implement synonym export == offline
-      - export
+      - offline
+    
+
+    # This zpool should be taken online if all necessary backing devices
+    # have appeared. 
+    # 
+    # This will happen once I have powered the devices on via the shell
+    # command, as the respective udev events are being sent by the kernel.
+    # 
+    # This configuration is not dangerous, because the backing layout does 
+    # not contain a mirror or a raid-z
+    on_backing_appeared:
+      - online
+    
+    # for above event handling to work, we also need to configure the backing layout:
+    backed_by:
+      !SimpleBackingReference
+        device: "zmirror-bak-a"
+
+
 
     content:
       
       # since zmirror needs udev/zed events to process state changes we use
-      # the fact that we can make zvols invisible to the system to generate
-      # those events. In other words zmirror issues
+      # the fact that we can make zvols (in-) visible to the system to generate
+      # those events. In other words for taking the volume offline zmirror issues
       #
       # :: zfs set volmode=none zmirror-bak-a/sysfs
       # 
@@ -676,12 +715,8 @@ content:
         content: 
           - !ZFSBackingBlockDevice
             
-            dev: zmirror-bak-a
-            
             pool: zmirror-bak-a
           
-            on_parent_online:
-              - import-pool
 
             scrub-interval: 3 weeks
 
@@ -691,7 +726,8 @@ content:
 
 
   # This pool is fully protected against bitrot, since it is backed by 
-  # two disks. For this to work it is necessary that (at least every now and
+  # two disks configured as mirrors of each other. 
+  # For this to work it is necessary that (at least every now and
   # then) you connect both backing disks at the same time and ensure that
   # they will be scrubbed (as this zmirror config does every 3 weeks as long 
   # as you keep the disks connected over night)
@@ -700,6 +736,26 @@ content:
 
     on_children_offline: 
       - offline
+
+    # This zpool should be taken online if all necessary backing devices
+    # have appeared. 
+    # 
+    # This will happen once I have powered the devices on via the shell
+    # command, as the respective udev events are being sent by the kernel.
+    #
+    # This configuration is not dangerous, because all backing devices
+    # are configured as required. So zmirror will only import this pool
+    # once all backing disks of the mirror are present.
+    on_backing_appeared: 
+      - online
+    
+    # for above event handling to work, we also need to configure the backing:
+    backed_by:
+      !MirrorBackingReference
+        devices: 
+          - required: zmirror-bak-b-alpha
+          - required: zmirror-bak-b-beta
+    
 
     content:
       
@@ -749,9 +805,9 @@ content:
   # We could have used full disks here, since zfs recommends using full disks
   # to back its pools. But there is no consistent way to name disks, while it
   # is easily possible to name partitions. It simply results in a more easy to
-  # understand configuration if you can use names instead of serial numbers
-  # And performance is not an issue for the backup disks, so the zfs recommendation 
-  # does not really concern us here anyways.
+  # understand configuration if you can use names instead of serial numbers.
+  # and whatever penalty there might be is negligeable.
+  #
   - !Partition
     name: zmirror-bak-b-alpha
 
@@ -834,13 +890,27 @@ content:
     # 
     # This will happen once I have powered the devices on via the shell
     # command, as the respective udev events are being sent by the kernel.
+    #
+    # *WARNING*: This configuration is dangerous:
+    #
+    # ZFS uses the disk that is present when the pool was imported as its
+    # references point. If you then connect another disk, that was not yet
+    # present at pool import time, and if that other disk contained newer 
+    # data because it was last used, then that newer data WILL BE LOST.
+    # 
+    # So you should make sure that you always connect the disk first, that 
+    # has the newer data. Or to always have both disks connected, so that
+    # when the pool is exported, they always both contain the newest data.
+    # Then of course it makes no difference which you connect first.
     on_backing_appeared: 
       - online
     
     # for above event handling to work, we also need to configure the backing:
     backed_by:
       !MirrorBackingReference
-        devices: ["zmirror-blubak-alpha", "zmirror-blubak-beta"]
+        devices: 
+          - zmirror-blubak-alpha
+          - zmirror-blubak-beta
 
 
 
@@ -902,6 +972,8 @@ content:
               - offline
 
     # we want this pool to be imported if all necessary backing devices have appeared
+    # This configuration is not dangerous, because the backing does not contain
+    # zmirrors or raid-z.
     on_backing_appeared: 
       - online
 

@@ -5,17 +5,17 @@
 import traceback
 import sys
 import argparse
-import dateparser
 
 
 from .logging import log
 from .dataclasses import ZFSBackingBlockDevice, ZFSBackingBlockDeviceCache, ZFSOperationState, ZFSBackingBlockDeviceOutput
-from .util import myexec, outs, copy_attrs
+from .util import myexec, outs, copy_attrs, env_var_or
 from .entities import *
 from . import commands as commands
 from .daemon import daemon
 from kpyutils.kiify import KdStream
 
+from . import operations as operations
 
 
 
@@ -79,20 +79,7 @@ exec = myexec#pylint: disable=redefined-builtin
 # zmirror scrub
 def scrub(args):#pylint: disable=unused-argument
   init_config(config_path=args.config_path, cache_path=args.cache_path)
-  log.info("starting zfs scrubs if necessary")
-  def possibly_scrub(dev):
-    if isinstance(dev, ZFSBackingBlockDevice):
-      cache = find_or_create_cache(ZFSBackingBlockDeviceCache, pool=dev.pool, dev=dev.dev)
-      if dev.scrub_interval is not None:
-        # parsing the schedule delta will result in a timestamp calculated from now
-        allowed_delta = dateparser.parse(dev.scrub_interval)
-        if (cache.last_scrubbed is None or allowed_delta > cache.last_scrubbed):
-          log.info(f"zfs pool '{dev.pool}' dev '{dev.dev}' must be scrubbed")
-          if cache.operation is not None and cache.operation.state == ZFSOperationState.NONE:
-            commands.add_command(f"zpool scrub {dev.pool}")
-        else:
-          log.info(f"zfs pool '{dev.pool}' dev '{dev.dev}' does not have to be scrubbed")
-  iterate_content_tree(config.config_root, possibly_scrub)
+  operations.scrub_all_overdue()
   commands.execute_commands()
 
 
@@ -125,18 +112,8 @@ def show_status(args):#pylint: disable=unused-argument
   iterate_content_tree(config.config_root, show)
 
 
-def testufcntionr():
-  test = 1
-  print(test)
-  print("hello")
 
 
-def env_var_or(v, d):
-  r = os.getenv(v)
-  if r is None:
-    return d
-  else:
-    return r
 
 def main(args=None):
 
