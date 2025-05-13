@@ -55,42 +55,45 @@ def handle(env):
       log.info(f"zpool {zpool}: {zevent}")
       zpool_status = core.get_zpool_status(zpool)
 
-      regex = re.compile(r'^ {12}([-a-zA-Z0-9_]+) +(ONLINE) +[0-9]+ +[0-9]+ +[0-9]+ *.*$', \
+      regex = re.compile(r'^ {12}([-a-zA-Z0-9_]+) +(ONLINE|OFFLINE) +[0-9]+ +[0-9]+ +[0-9]+ *.*$', \
                          re.MULTILINE)
 
       if zevent == "pool_import":
         zpool_cache = find_or_create_cache(ZPool, name=zpool)
         handle_entity_online(zpool_cache, now)
-      found = False
+      found_online = False
       for match in regex.finditer(zpool_status):
-        found = True
         dev = match.group(1)
 
         cache = find_or_create_cache(ZFSBackingBlockDeviceCache, pool=zpool, dev=dev)
-        cache.operation = Since(ZFSOperationState.NONE, now)
-        if zevent == "scrub_finish":
-          log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing finished")
-          cache.last_scrubbed = now
+        if match.group(2) == "ONLINE":
+
+          found_online = True
+          cache.operation = Since(ZFSOperationState.NONE, now)
+          if zevent == "scrub_finish":
+            log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing finished")
+            cache.last_scrubbed = now
 
 
-          entity = load_config_for_cache(cache)
-          if hasattr(config, "handle_scrubbed"):
-            entity.handle_scrubbed()
-
-          event_handled = True
-        elif zevent == "scrub_start":
-          log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing started")
-          cache.operation.what = ZFSOperationState.SCRUBBING
-          event_handled = True
-        elif zevent == "scrub_abort":
-          log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing cancelled")
-          cache.operation.what = ZFSOperationState.NONE
-          event_handled = True
-        elif zevent == "pool_import":
-          log.info(f"zdev {cache.pool}:{cache.dev}: pool imported, device online")
-          handle_entity_online(cache, now)
-          event_handled = True
-      if found is False:
+            entity = load_config_for_cache(cache)
+            if hasattr(config, "handle_scrubbed"):
+              entity.handle_scrubbed()
+          elif zevent == "scrub_start":
+            log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing started")
+            cache.operation.what = ZFSOperationState.SCRUBBING
+          elif zevent == "scrub_abort":
+            log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing cancelled")
+            cache.operation.what = ZFSOperationState.NONE
+          elif zevent == "pool_import":
+            log.info(f"zdev {cache.pool}:{cache.dev}: pool imported, device online")
+            handle_entity_online(cache, now)
+        
+        else: # the blockdev is OFFLINE
+          if zevent == "pool_import":
+            log.info(f"zdev {cache.pool}:{cache.dev}: pool imported, device offline")
+            handle_entity_offline(cache, now)
+          
+      if found_online is False:
         log.error("likely bug: zpool event but no devices online")
     # TODO: add to docs that the admin must ensure that zpool import
     # uses /dev/mapper (dm) and /dev/vg/lv (lvm) and /dev/disk/by-partlabel (partition)

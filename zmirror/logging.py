@@ -62,17 +62,26 @@ def __init__():
             or "zmirror_logging.py" in line:
               continue
           else:
-              regexp_pattern = r'line (.*?),'
-              line_number = re.search(regexp_pattern, line).group(1)
-              #line_number = clicolors.DEBUG + line_number + clicolors.OKBLUE
-              regexp_pattern = r'File "(.*?)"'
-              file = re.search(regexp_pattern, line).group(1)
-              regexp_pattern = r'in (.*?)\n'
-              function = re.search(regexp_pattern, line).group(1)
-              if function == "<module>":
-                  callstack = callstack + file + ":" + line_number + ":" + function
-              else:
-                  callstack = callstack + "->" + file + ":" + line_number + ":" + function
+              # regexp_pattern = r'line (.*?),'
+              # line_number = re.search(regexp_pattern, line).group(1)
+              # #line_number = clicolors.DEBUG + line_number + clicolors.OKBLUE
+              # regexp_pattern = r'File "(.*?)"'
+              # file = re.search(regexp_pattern, line).group(1)
+              # regexp_pattern = r'in (.*?)\n'
+              # function = re.search(regexp_pattern, line).group(1)
+              # if function == "<module>":
+              #     callstack = callstack + file + ":" + line_number + ":" + function
+              # else:
+              #     callstack = callstack + "->" + file + ":" + line_number + ":" + function
+
+              regexp_pattern = r'File "(.*?)".+line (.*?),.+in (.*?)\n'
+              match = re.search(regexp_pattern, line)
+              if match:
+                function = match.group(3)
+                if function == "<module>":
+                  callstack = callstack + match.group(1) + ":" + match.group(2) + ":" + function
+                else:
+                  callstack = callstack + "->" + match.group(1) + ":" + match.group(2) + ":" + function
       modified_message = message + '\033[90m' + "     <<<<<<<<< " + callstack + '\033[0m'
     else:
       modified_message = message

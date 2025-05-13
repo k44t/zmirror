@@ -943,9 +943,17 @@ content:
             scrub_interval: 3 weeks
 
 
-
-  # this is the dm_raid that is backed by two physical devices
-  # combined into a striped disk (raid0)
+  # The second element in the mirror backing zmirror-blubak is more complex.
+  # 
+  # It is a volume in this pool. So a pool is backed by a volume inside another
+  # pool, for the following reason:
+  # 
+  # This pool's specialty is that it is not backed by two mirrored disks
+  # but by two striped disks.
+  # 
+  # This kind of configuration allows you to use a set of old disks that are 
+  # not big enough, to together provide a single mirror of a newer disk that
+  # is big enough.
   - !ZPool
     name: zmirror-blubak-beta
 

@@ -28,24 +28,35 @@ def get_caller_name_from_module(module_path):
 
   
 # must be called before the other zmirror modules are being imported. All the status loaded will be relative to the module that calls this function
-def insert_zpool_status_stub():
+def insert_zpool_status_stub(relative_path=None):
 
   package_path, module_path, _ = get_frame_data(1)  #pylint: disable=unused-variable
 
   def get_zpool_status_stub(args): #pylint: disable=unused-argument
+          
+          
     fn_name = get_caller_name_from_module(module_path)
     if fn_name is None:
        raise ValueError(f"this get_zpool_status_stub is only usable from within {module_path}")
-    fn_z_path = f"{package_path}/res/{fn_name}.zpool-status.txt"
+    
+    
     def rd(path):
       with open(path, "r", encoding="utf8") as file:
         return file.read()
-
-    if os.path.isfile(fn_z_path):
-      return rd(fn_z_path)
+      
+    if relative_path is not None:
+      path = f"{package_path}/{relative_path}"
+      if not os.path.isfile(path):
+        raise ValueError(f"could not resolve relative path {relative_path}")
+      return rd(path)
     else:
-      mod_z_path = f"{package_path}/res/zpool-status.txt"
-      return rd(mod_z_path)
+
+      fn_z_path = f"{package_path}/res/{fn_name}.zpool-status.txt"
+      if os.path.isfile(fn_z_path):
+        return rd(fn_z_path)
+      else:
+        mod_z_path = f"{package_path}/res/zpool-status.txt"
+        return rd(mod_z_path)
 
 
 

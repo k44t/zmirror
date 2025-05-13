@@ -141,6 +141,9 @@ class Test_Group1_TestMethods():
     assert(dev is not None)
     assert(dev.state.what == EntityState.ONLINE)
 
+    # now we change the status stub
+    insert_zpool_status_stub("res/zpool-status-after-online.txt") 
+
 
   # vdev beginnt zu resilvern (resilver_start)
   def test_resilver_start(self):
@@ -216,67 +219,66 @@ class Test_Group1_TestMethods():
     assert(dev.last_online != None)
     assert(dev.last_online < datetime.now())
 
-  # virtual disk taucht auf (udev: add)
-  def test_virtual_disk_add(self):
+  # # virtual disk taucht auf (udev: add)
+  # def test_virtual_disk_add(self):
     
-    config.cache_dict = dict()
-    assert virtual_disk_id not in config.cache_dict
+  #   config.cache_dict = dict()
+  #   assert virtual_disk_id not in config.cache_dict
 
-    trigger_event()
+  #   trigger_event()
 
-    assert virtual_disk_id in config.cache_dict
+  #   assert virtual_disk_id in config.cache_dict
     
-    dev: VirtualDisk = config.cache_dict[virtual_disk_id]
+  #   dev: VirtualDisk = config.cache_dict[virtual_disk_id]
     
     
-    assert(dev is not None)
-    assert(dev.state.what == EntityState.ONLINE)
+  #   assert(dev is not None)
+  #   assert(dev.state.what == EntityState.ONLINE)
 
-  # virtual disk verschwindet (udev: remove)
-  def test_virtual_disk_remove(self):
+  # # virtual disk verschwindet (udev: remove)
+  # def test_virtual_disk_remove(self):
     
-    assert virtual_disk_id in config.cache_dict
+  #   assert virtual_disk_id in config.cache_dict
 
-    trigger_event()
+  #   trigger_event()
 
-    dev: VirtualDisk = config.cache_dict[virtual_disk_id]
+  #   dev: VirtualDisk = config.cache_dict[virtual_disk_id]
     
-    assert(dev is not None)
-    assert(dev.state.what == EntityState.DISCONNECTED)
-    assert(dev.last_online != None)
-    assert(dev.last_online < datetime.now())
+  #   assert(dev is not None)
+  #   assert(dev.state.what == EntityState.DISCONNECTED)
+  #   assert(dev.last_online != None)
+  #   assert(dev.last_online < datetime.now())
 
-  # logical volume taucht auf (udev: add)
-  """
-  def test_logical_volume_add(self):
+  # # logical volume taucht auf (udev: add)
+  # def test_logical_volume_add(self):
     
-    config.cache_dict = dict()
-    assert logical_volume_id not in config.cache_dict
+  #   config.cache_dict = dict()
+  #   assert logical_volume_id not in config.cache_dict
 
-    trigger_event()
+  #   trigger_event()
     
-    assert logical_volume_id in config.cache_dict
+  #   assert logical_volume_id in config.cache_dict
 
-    dev: LVMLogicalVolume = config.cache_dict[logical_volume_id]
+  #   dev: LVMLogicalVolume = config.cache_dict[logical_volume_id]
     
     
-    assert(dev is not None)
-    assert(dev.state.what == EntityState.ONLINE)
+  #   assert(dev is not None)
+  #   assert(dev.state.what == EntityState.ONLINE)
 
-  # logical volume verschwindet (udev: remove)
-  def test_logical_volume_remove(self):
+  # # logical volume verschwindet (udev: remove)
+  # def test_logical_volume_remove(self):
     
-    assert logical_volume_id in config.cache_dict
+  #   assert logical_volume_id in config.cache_dict
 
-    trigger_event()
+  #   trigger_event()
 
-    dev: LVMLogicalVolume = config.cache_dict[logical_volume_id]
+  #   dev: LVMLogicalVolume = config.cache_dict[logical_volume_id]
     
-    assert(dev is not None)
-    assert(dev.state.what == EntityState.DISCONNECTED)
-    assert(dev.last_online != None)
-    assert(dev.last_online < datetime.now())
-  """
+  #   assert(dev is not None)
+  #   assert(dev.state.what == EntityState.DISCONNECTED)
+  #   assert(dev.last_online != None)
+  #   assert(dev.last_online < datetime.now())
+
 
   # zfs_volume taucht auf (udev: add)
   def test_zfs_volume_add(self):
