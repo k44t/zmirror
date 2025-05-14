@@ -14,8 +14,8 @@ from . import commands
 from .logging import log
 from .entities import *
 from . import entities as core
-from .actions import handle_entity_online, handle_entity_offline
-from .dataclasses import ZFSBackingBlockDeviceCache, ZFSOperationState, EntityState, Disk, DMCrypt, Partition, Since, ZFSVolume, ZPool, set_entity_state # , LVMLogicalVolume, VirtualDisk, 
+# from .actions import handle_entity_online, handle_entity_offline, handle_entity_present
+from .dataclasses import * # , LVMLogicalVolume, VirtualDisk, 
 from kpyutils.kiify import to_kd
 
 from . import config as globals
@@ -41,12 +41,12 @@ def handle(env):
       log.info(f"zpool {zpool} exported")
 
       zpool_cache = find_or_create_cache(ZPool, name=zpool)
-      handle_entity_offline(zpool_cache, now)
+      handle_disconnected(zpool_cache)
 
       if zpool in globals.zfs_blockdevs:
         for dev in globals.zfs_blockdevs[zpool]:
-          dev_cache = find_or_create_cache(ZFSBackingBlockDeviceCache, pool=zpool, dev=dev.dev)
-          handle_entity_offline(dev_cache, now)
+          dev_cache = find_or_create_cache(ZFSBackingBlockDevice, pool=zpool, dev=dev.dev)
+          handle_deactivated(dev_cache)
 
 
       event_handled = True
@@ -60,38 +60,34 @@ def handle(env):
 
       if zevent == "pool_import":
         zpool_cache = find_or_create_cache(ZPool, name=zpool)
-        handle_entity_online(zpool_cache, now)
+        handle_onlined(zpool_cache)
+
+
       found_online = False
       for match in regex.finditer(zpool_status):
         dev = match.group(1)
 
-        cache = find_or_create_cache(ZFSBackingBlockDeviceCache, pool=zpool, dev=dev)
+        cache = find_or_create_cache(ZFSBackingBlockDevice, pool=zpool, dev=dev)
         if match.group(2) == "ONLINE":
 
           found_online = True
           cache.operation = Since(ZFSOperationState.NONE, now)
           if zevent == "scrub_finish":
             log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing finished")
-            cache.last_scrubbed = now
-
-
-            entity = load_config_for_cache(cache)
-            if hasattr(config, "handle_scrubbed"):
-              entity.handle_scrubbed()
+            handle_scrub_finished(cache)
           elif zevent == "scrub_start":
             log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing started")
-            cache.operation.what = ZFSOperationState.SCRUBBING
+            handle_scrub_started(cache)
           elif zevent == "scrub_abort":
             log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing cancelled")
-            cache.operation.what = ZFSOperationState.NONE
+            handle_scrub_aborted(cache)
           elif zevent == "pool_import":
             log.info(f"zdev {cache.pool}:{cache.dev}: pool imported, device online")
-            handle_entity_online(cache, now)
-        
+            handle_onlined(cache)
         else: # the blockdev is OFFLINE
           if zevent == "pool_import":
             log.info(f"zdev {cache.pool}:{cache.dev}: pool imported, device offline")
-            handle_entity_offline(cache, now)
+            handle_deactivated(cache)
           
       if found_online is False:
         log.error("likely bug: zpool event but no devices online")
@@ -112,33 +108,27 @@ def handle(env):
       cache = find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path)
       if zevent == "vdev_online":
         log.info(f"zdev {cache.pool}:{cache.dev} went online")
-        handle_entity_online(cache, now)
+        handle_onlined(cache)
         event_handled = True
       elif zevent == "statechange":
         new_state = env["ZEVENT_VDEV_STATE_STR"]
         if new_state == "OFFLINE":
           log.info(f"zdev {cache.pool}:{cache.dev} went offline")
-          handle_entity_offline(cache, now)
+          handle_deactivated(cache)
           event_handled = True
         else:
           log.warning(f"(potential bug) unknown statechange event: { new_state }")
-          set_entity_state(cache, EntityState.UNKNOWN)
+          set_cache_state(cache, EntityState.UNKNOWN)
 
     # zool-vdev event
     elif zevent in ["resilver_start", "resilver_finish"]:
       vdev_path = env["ZEVENT_VDEV_PATH"]
       cache = find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path)
-      cache.operation = Since(ZFSOperationState.NONE, now)
       if zevent == "resilver_start":
-        cache.operation = Since(ZFSOperationState.RESILVERING, now)
+        handle_resilver_started(cache)
         event_handled = True
       elif zevent == "resilver_finish":
-        cache.operation = Since(ZFSOperationState.NONE, now)
-        cache.last_resilvered = now
-
-        entity = load_config_for_cache(cache)
-        if hasattr(entity, "handle_resilvered"):
-          entity.handle_resilvered()
+        handle_resilver_finished(cache)
 
         event_handled = True
 
@@ -147,12 +137,13 @@ def handle(env):
     devtype = env["DEVTYPE"]
     log.info(f"handling udev block event: {action}")
 
+
     if action == "add" or action == "remove":
       if devtype == "disk":
         if "ID_PART_TABLE_UUID" in env:
           cache = find_or_create_cache(Disk, uuid=env["ID_PART_TABLE_UUID"])
-          udev_event_action(cache, action, now)
           log.info(f"{cache.__class__.__name__} {cache.uuid}: {to_kd(cache.state)}")
+          udev_event_action(cache, action, now)
           event_handled = True
 
         # lvm logical volumes
@@ -167,7 +158,10 @@ def handle(env):
         # dm_crypts
         elif "DM_NAME" in env:
           cache = find_or_create_cache(DMCrypt, name=env["DM_NAME"])
-          udev_event_action(cache, action, now)
+          if action == "add":
+            handle_onlined(cache)
+          else:
+            handle_deactivated(cache)
           log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
           event_handled = True
 
@@ -183,7 +177,11 @@ def handle(env):
 
 
                 cache = find_or_create_cache(ZFSVolume, pool=pool_name, name=volume_name)
-                udev_event_action(cache, action, now)
+                      
+                if action == "add":
+                  handle_onlined(cache)
+                else:
+                  handle_deactivated(cache)
                 log.info(f"{cache.__class__.__name__} {cache.get_pool()}/{cache.name}: {to_kd(cache.state)}")
                 event_handled = True
                 break
@@ -201,6 +199,8 @@ def handle(env):
         cache = find_or_create_cache(Partition, name=env["PARTNAME"])
         udev_event_action(cache, action, now)
         log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
+    
+    # TODO: figure out what this event actually is.
     elif action == "change" and "DM_ACTIVATION" in env and env["DM_ACTIVATION"] == "1":
       devlinks = env["DEVLINKS"].split(" ")
       for devlink in devlinks:
@@ -208,9 +208,8 @@ def handle(env):
         if match:
           dm_name = match.group(1)
 
-
           cache = find_or_create_cache(DMCrypt, name=dm_name)
-          handle_entity_online(cache, now)
+          handle_onlined(cache)
           log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
           event_handled = True
 
@@ -225,9 +224,9 @@ def handle(env):
 
 def udev_event_action(entity, action, now):
   if action == "add":
-    handle_entity_online(entity, now)
+    handle_appeared(entity)
   elif action == "remove":
-    handle_entity_offline(entity, now)
+    handle_disconnected(entity)
 
 
 

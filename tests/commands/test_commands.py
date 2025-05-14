@@ -12,6 +12,7 @@
 import pytest
 import re
 
+from itertools import zip_longest
 
 from util.util_stage1 import *
 
@@ -36,17 +37,20 @@ from util.util_stage2 import *
 def setup_before_all_methods():
   # Code to execute once before all test methods in each class
   insert_zpool_status_stub()
-  prepare_config_and_cache()
+  # prepare_config_and_cache()
 
 
 # zmirror_core.load_cache = load_dummy_cache
 # zmirror_core.write_cache = do_nothing
 
 def assert_commands(cmds):
-  return 
-  assert (
-      cmds == commands.commands
-  )
+    for a, b in zip_longest(cmds, commands.commands):
+      if isinstance(a, re.Pattern):
+        if b is None:
+          raise ValueError("NoneType does not match regex pattern")
+        assert a.match(b)
+      else:
+        assert a == b
 
 # this group of tests all require the daemon running, hence they are grouped
 class TestExampleConfig():
@@ -103,7 +107,7 @@ class TestExampleConfig():
     trigger_event()
     
     assert_commands([
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-a zmirror-sysfs-a --key_file ./test/zmirror-key"
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-a zmirror-sysfs-a --key-file ./test/zmirror-key"
     ])
 
 
@@ -148,7 +152,7 @@ class TestExampleConfig():
     assert_commands([
 
       # open the dm_crypt inside the partition
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-b zmirror-sysfs-b --key_file ./test/zmirror-key"
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-b zmirror-sysfs-b --key-file ./test/zmirror-key"
 
     ])
 
@@ -181,7 +185,7 @@ class TestExampleConfig():
     # zmirror needs to do nothing (issue no commands) as nothing is defined in the config file
     assert_commands([])
 
-
+  # we manually trigger a scrub
   def test_trigger_scrub_sysfs_a_and_b(self):
     
     operations.scrub_all_overdue()
@@ -227,7 +231,7 @@ class TestExampleConfig():
     trigger_event()
 
     assert_commands([
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-s zmirror-sysfs-s --key_file ./test/zmirror-key"
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-s zmirror-sysfs-s --key-file ./test/zmirror-key"
     ])
 
   # dmcrypt of sysfs-s appears
@@ -256,8 +260,10 @@ class TestExampleConfig():
   def test_zpool_sysfs_backing_blockdev_sysfs_s_resilver_finish(self):
     trigger_event()
     
-    # zmirror needs to do nothing (issue no commands) as nothing is defined in the config file
-    assert_commands([])
+    assert_commands([
+      # sysfs-s is configured to be taken offline once resilver is done, because it is slower than the other mirror devices
+      "zpool offline zmirror-sysfs zmirror-sysfs-s"
+    ])
 
 
 
@@ -288,7 +294,7 @@ class TestExampleConfig():
     assert_commands([
 
       # open the dm_crypt inside the partition
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-big-b zmirror-big-b --key_file ./test/zmirror-key"
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-big-b zmirror-big-b --key-file ./test/zmirror-key"
 
     ])
 
@@ -297,6 +303,8 @@ class TestExampleConfig():
     trigger_event()
 
     assert_commands([
+      # big-b alone is not configured to trigger an import
+
       # this command will fail as the pool is not yet imported
       "zpool online zmirror-big zmirror-big-b"
     ])
@@ -325,7 +333,7 @@ class TestExampleConfig():
     
     assert_commands([
       # now the zpool should be imported
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-big-a zmirror-big-a --key_file ./test/zmirror-key"
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-big-a zmirror-big-a --key-file ./test/zmirror-key"
     ])
 
 
@@ -343,6 +351,14 @@ class TestExampleConfig():
       "zpool online zmirror-big zmirror-big-a"
     ])
 
+
+  # when the zpool appears
+  def test_zpool_big_online(self):
+    trigger_event()
+
+    assert_commands([
+      # nothing happens
+    ])
 
 
   # #########################################
@@ -365,7 +381,7 @@ class TestExampleConfig():
     trigger_event()
 
     assert_commands([
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-bak-a zmirror-bak-a --key_file ./test/zmirror-key"
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-bak-a zmirror-bak-a --key-file ./test/zmirror-key"
     ])
 
 
@@ -388,7 +404,7 @@ class TestExampleConfig():
     # so that the respective udev events will be triggered
     # which then we process (in the next tests).
     assert_commands([
-      "zfs set volmode=full zmirror-bak-a/sysfs"
+      "zfs set volmode=full zmirror-bak-a/sysfs",
       "zfs set volmode=full zmirror-bak-a/big"
     ])
 
@@ -405,7 +421,7 @@ class TestExampleConfig():
 
     assert_commands([
       # we online the blockdev
-      "zpool online zmirror-big zvol/mirror-bak-a/big"
+      "zpool online zmirror-big zvol/zmirror-bak-a/big"
     ])
 
 
@@ -547,7 +563,7 @@ class TestExampleConfig():
     
     assert_commands([
       # we open the encrypted device
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-bak-b-alpha zmirror-bak-b-alpha --key_file ./test/zmirror-key"
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-bak-b-alpha zmirror-bak-b-alpha --key-file ./test/zmirror-key"
     ])
 
 
@@ -589,7 +605,7 @@ class TestExampleConfig():
     assert_commands([
 
       # we decrypt
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-bak-b-alpha zmirror-bak-b-alpha --key_file ./test/zmirror-key"
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-bak-b-alpha zmirror-bak-b-alpha --key-file ./test/zmirror-key"
     ])
 
 

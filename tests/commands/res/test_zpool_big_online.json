@@ -1,4 +1,4 @@
 {
   "ZEVENT_SUBCLASS": "pool_import",
-  "ZEVENT_POOL": "zmirror-sysfs"
+  "ZEVENT_POOL": "zmirror-big"
 }

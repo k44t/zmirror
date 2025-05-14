@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from .dataclasses import EntityState, set_entity_state, is_offline
+from .dataclasses import EntityState, set_cache_state, is_inactive
 from .entities import load_config_for_cache
 from . import entities as core
 
@@ -40,17 +40,30 @@ def handle_child_offline(parent):
 # triggers parrent actions
 def handle_entity_online(entity, now: datetime):
   if entity.state.what != EntityState.ONLINE:
-    set_entity_state(entity, EntityState.ONLINE)
+    set_cache_state(entity, EntityState.ONLINE)
     config = load_config_for_cache(entity)
     if config is not None and hasattr(config, "handle_online"):
       config.handle_online()
+
+# updates the entity cache info as it comes online
+# triggers child actions
+# triggers parrent actions
+def handle_entity_present(entity, now: datetime):
+  if entity.state.what != EntityState.INACTIVE:
+    set_cache_state(entity, EntityState.INACTIVE)
+    config = load_config_for_cache(entity)
+    if config is not None and hasattr(config, "handle_present"):
+      config.handle_present()
+      if config.parent is not None:
+        if hasattr(config.parent, "state"):
+          set_cache_state(config.parent)
 
 # updates the entity cache info as it goes offline
 # triggers child actions
 # triggers parent actions
 def handle_entity_offline(entity, now: datetime):
   if entity.state.what != EntityState.DISCONNECTED:
-    set_entity_state(entity, EntityState.DISCONNECTED)
+    set_cache_state(entity, EntityState.DISCONNECTED)
     config = load_config_for_cache(entity)
     if config is not None and hasattr(config, "handle_offline"):
       config.handle_offline()

@@ -1,0 +1,5 @@
+{
+  "DEVTYPE": "partition",
+  "ACTION": "remove",
+  "PARTNAME": "zmirror-bak-b-alpha"
+}

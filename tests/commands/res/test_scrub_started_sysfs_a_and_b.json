@@ -1,4 +1,4 @@
 {
-  "ZEVENT_SUBCLASS": "pool_import",
+  "ZEVENT_SUBCLASS": "scrub_start",
   "ZEVENT_POOL": "zmirror-sysfs"
 }

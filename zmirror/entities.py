@@ -5,7 +5,7 @@ from datetime import datetime
 
 from .util import load_yaml_cache, load_yaml_config, save_yaml_cache, remove_yaml_cache, require_path
 from .util import myexec as exec#pylint: disable=redefined-builtin
-from .dataclasses import ZFSBackingBlockDeviceCache, EntityState, Since, ZFSBackingBlockDevice # LVMPhysicalVolume
+from .dataclasses import *
 
 from .logging import log
 
@@ -19,8 +19,6 @@ from . import util
 # CACHE_FILE_PATH = "/var/lib/zmirror/cache.yml"
 # os.makedirs(os.path.dirname(CACHE_FILE_PATH), exist_ok = True)
 
-def entity_id(entity):
-  return "|".join((entity.__class__.__name__, entity.id()))
 
 
 
@@ -38,6 +36,8 @@ def init_config(cache_path, config_path):
   config.zfs_blockdevs = dict()
   require_path(config.config_path, "config file does not exist")
   config.config_root = load_yaml_config(config.config_path)
+  config.load_config_for_cache = load_config_for_cache
+  config.find_or_create_cache = find_or_create_cache
   iterate_content_tree3(config.config_root, index_entities, None, None)
 
 config.init = init_config
@@ -48,24 +48,24 @@ def index_entities(entity, parent, _ignored):
   if hasattr(entity, "parent"):
     entity.parent = parent
   if hasattr(entity, "id"):
-    config.config_dict[entity_id(entity)] = entity
+    config.config_dict[entity_id_string(entity)] = entity
   # if isinstance(entity, LVMPhysicalVolume):
   #  if entity.lvm_volume_group in config.lvm_physical_volumes:
   #    config.lvm_physical_volumes[entity.lvm_volume_group].append(entity)
   #  else:
   #    config.lvm_physical_volumes[entity.lvm_volume_group] = [entity]
-  elif isinstance(entity, ZFSBackingBlockDevice):
+  if isinstance(entity, ZFSBackingBlockDevice):
     if entity.pool in config.zfs_blockdevs:
-      config.zfs_blockdevs[entity.pool].append(entity)
+      config.zfs_blockdevs[entity.pool][entity.dev] = entity
     else:
-      config.zfs_blockdevs[entity.pool] = [entity]
+      config.zfs_blockdevs[entity.pool] = {entity.dev: entity}
   return _ignored
 
 
 
 
 def load_config_for_cache(cache):
-  identifier = entity_id(cache)
+  identifier = entity_id_string(cache)
   return load_config_for_id(identifier)
 
 def load_config_for_id(identifier):
@@ -117,7 +117,7 @@ def find_or_create_cache(typ, create_args=None, identifier_prefix=None, **kwargs
 
 def find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path):
   vdev_name = vdev_path.removeprefix("/dev/mapper/").removeprefix("/dev/disk/by-partlabel/").removeprefix("/dev/")
-  return find_or_create_cache(ZFSBackingBlockDeviceCache, pool=zpool, dev=vdev_name)
+  return find_or_create_cache(ZFSBackingBlockDevice, pool=zpool, dev=vdev_name)
 
 def get_zpool_status(zpool_name):
   _, zpool_status, _, _ = exec(f"zpool status {zpool_name}")#pylint: disable=exec-used

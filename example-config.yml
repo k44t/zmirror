@@ -82,7 +82,7 @@ content:
         name: zmirror-sysfs-a
         
         # zmirror can only work with key-files as of now.
-        key-file: ./test/zmirror-key
+        key_file: ./test/zmirror-key
         # if somebody was willing to write a python function
         # that acquires the key either from the user (systemd-ask-password)
         # or from some encryption system (smart card?) you
@@ -92,7 +92,7 @@ content:
         # configuration. I.e. the parent of this DMCrypt *is* the partition
         # and the children of this DMCrypt (or rather the only child in this
         # case)
-        on_parent_online:
+        on_appeared:
           - online
 
         # when all children are offline (in this case there is only one,
@@ -126,7 +126,7 @@ content:
             dev: zmirror-sysfs-a
 
             # whether to take the device online when it appears
-            on_parent_online:
+            on_appeared:
               - online
 
             on_scrubbed:
@@ -215,7 +215,7 @@ content:
           on_children_offline: 
             - offline
 
-          on_parent_online:
+          on_appeared:
             - online
 
           content:
@@ -223,7 +223,7 @@ content:
             
               pool: zmirror-sysfs
 
-              on_parent_online: 
+              on_appeared: 
                 - online
 
               # after the disk has been scrubbed we want to trim it to preserve performance
@@ -279,7 +279,7 @@ content:
           on_children_offline: 
             - offline
 
-          on_parent_online:
+          on_appeared:
             - online
 
           content:
@@ -287,7 +287,7 @@ content:
             
               pool: zmirror-sysfs
 
-              on_parent_online: 
+              on_appeared: 
                 - online
 
               on_scrubbed:
@@ -336,7 +336,7 @@ content:
             on_children_offline: 
               - offline
 
-            on_parent_online:
+            on_appeared:
               - online
 
             content:
@@ -344,7 +344,7 @@ content:
               
                 pool: zmirror-sysfs
 
-                on_parent_online: 
+                on_appeared: 
                   - online
                 
                 # This NVMe drive is a different spec (2242) than sysfs-a, b and c. It has a smaller
@@ -399,7 +399,7 @@ content:
     
     # for above event handling to work, we also need to configure the backing:
     backed_by:
-      !MirrorBackingReference
+      - !MirrorBackingReference
         devices: 
           # without zmirror-big-a present zmirror should not import the pool
           - required: zmirror-big-a
@@ -426,7 +426,7 @@ content:
         on_children_offline: 
           - offline
         
-        on_parent_online:
+        on_appeared:
           - online
 
         content:
@@ -434,7 +434,9 @@ content:
           
 
             pool: zmirror-big
-          
+              
+            on_appeared:
+              - online
 
             scrub_interval: 3 weeks
 
@@ -457,6 +459,9 @@ content:
 
         on_children_offline: 
           - offline
+        
+        on_appeared:
+          - online
 
         content:
 
@@ -466,7 +471,7 @@ content:
             pool: zmirror-big
           
 
-            on_parent_online:
+            on_appeared:
               - online
 
             scrub_interval: 3 week
@@ -549,8 +554,7 @@ content:
     
     # for above event handling to work, we also need to configure the backing layout:
     backed_by:
-      !SimpleBackingReference
-        device: "zmirror-bak-a"
+      - "zmirror-bak-a"
 
 
 
@@ -587,7 +591,7 @@ content:
         # 
         # Then zmirror catches the respective udev event and changes its
         # internal state of the volume to online.
-        on_parent_online:
+        on_appeared:
           - online
         
         content:
@@ -637,7 +641,7 @@ content:
             on_scrubbed:
               - offline
 
-            on_parent_online:
+            on_appeared:
               - online
       
       - !ZFSVolume
@@ -646,7 +650,7 @@ content:
         on_children_offline: 
           - offline
 
-        on_parent_online:
+        on_appeared:
           - online
         
         content:
@@ -655,7 +659,7 @@ content:
             
             pool: zmirror-big
 
-            on_parent_online:
+            on_appeared:
               - online
 
             on_scrubbed: 
@@ -706,7 +710,7 @@ content:
         
         key_file: ./test/zmirror-key
         
-        on_parent_online:
+        on_appeared:
           - online
         
         on_children_offline: 
@@ -718,7 +722,7 @@ content:
             pool: zmirror-bak-a
           
 
-            scrub-interval: 3 weeks
+            scrub_interval: 3 weeks
 
 
 
@@ -751,10 +755,10 @@ content:
     
     # for above event handling to work, we also need to configure the backing:
     backed_by:
-      !MirrorBackingReference
+      - !MirrorBackingReference
         devices: 
-          - required: zmirror-bak-b-alpha
-          - required: zmirror-bak-b-beta
+        - required: zmirror-bak-b-alpha
+        - required: zmirror-bak-b-beta
     
 
     content:
@@ -769,7 +773,7 @@ content:
           - !ZFSBackingBlockDevice
             pool: zmirror-sysfs
             
-            on_parent_online:
+            on_appeared:
               - online
           
             on_scrubbed:
@@ -787,7 +791,7 @@ content:
           - !ZFSBackingBlockDevice
             pool: zmirror-big
 
-            on_parent_online:
+            on_appeared:
               - online
           
             on_scrubbed:
@@ -817,7 +821,7 @@ content:
         
         key_file: ./test/zmirror-key
 
-        on_parent_online:
+        on_appeared:
           - online
 
         on_children_offline: 
@@ -828,7 +832,7 @@ content:
           - !ZFSBackingBlockDevice
             pool: zmirror-bak-b
           
-            on_parent_online:
+            on_appeared:
               - online
 
             scrub_interval: 3 weeks
@@ -844,7 +848,7 @@ content:
         
         key_file: ./test/zmirror-key
 
-        on_parent_online:
+        on_appeared:
           - online
 
         on_children_offline: 
@@ -855,7 +859,7 @@ content:
           - !ZFSBackingBlockDevice
             pool: zmirror-bak-b
           
-            on_parent_online:
+            on_appeared:
               - online
             
             scrub_interval: 3 weeks
@@ -907,7 +911,7 @@ content:
     
     # for above event handling to work, we also need to configure the backing:
     backed_by:
-      !MirrorBackingReference
+      - !MirrorBackingReference
         devices: 
           - zmirror-blubak-alpha
           - zmirror-blubak-beta
@@ -926,7 +930,7 @@ content:
         
         key_file: ./test/zmirror-key
 
-        on_parent_online:
+        on_appeared:
           - online
 
         on_children_offline: 
@@ -937,7 +941,7 @@ content:
           - !ZFSBackingBlockDevice
             pool: zmirror-blubak
           
-            on_parent_online:
+            on_appeared:
               - online
 
             scrub_interval: 3 weeks
@@ -969,7 +973,7 @@ content:
           - !ZFSBackingBlockDevice
             pool: zmirror-blubak
             
-            on_parent_online:
+            on_appeared:
               - online
           
             on_scrubbed:
@@ -987,10 +991,8 @@ content:
 
     # and for zmirror to do that, we need to tell it how the backing is layed out
     backed_by:
-      - !SimpleBackingReference
-        name: "zmirror-blubak-beta-05a"
-      - !SimpleBackingReference
-        name: "zmirror-blubak-beta-05b"
+      - "zmirror-blubak-beta-05a"
+      - "zmirror-blubak-beta-05b"
 
 
 
@@ -1008,7 +1010,7 @@ content:
 
         key_file: ./test/zmirror-key
 
-        on_parent_online:
+        on_appeared:
           - online
 
         on_children_offline: 
@@ -1030,7 +1032,7 @@ content:
         
         key_file: ./test/zmirror-key
 
-        on_parent_online:
+        on_appeared:
           - online
 
         on_children_offline: 

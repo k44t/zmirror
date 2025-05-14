@@ -1,0 +1,6 @@
+{
+  "DEVTYPE": "partition",
+  "ACTION": "add",
+  "PARTNAME": "zmirror-big-a",
+  "DEVNAME": "/dev/sdh1"
+}

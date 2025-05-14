@@ -8,7 +8,7 @@ import argparse
 
 
 from .logging import log
-from .dataclasses import ZFSBackingBlockDevice, ZFSBackingBlockDeviceCache, ZFSOperationState, ZFSBackingBlockDeviceOutput
+from .dataclasses import *
 from .util import myexec, outs, copy_attrs, env_var_or
 from .entities import *
 from . import commands as commands
@@ -98,16 +98,7 @@ def show_status(args):#pylint: disable=unused-argument
   stream = KdStream(outs)
   # log.info("starting zfs scrubs if necessary")
   def show(dev):
-    if isinstance(dev, ZFSBackingBlockDevice):
-      cache = find_or_create_cache(ZFSBackingBlockDeviceCache, pool=dev.pool, dev=dev.dev)
-      out = ZFSBackingBlockDeviceOutput(pool=dev.pool, dev=dev.dev)
-      copy_attrs(cache, out)
-      copy_attrs(dev, out)
-      stream.print_obj(out)
-      stream.stream.newlines(3)
-    else:
-      # stream.print_obj(dev)
-      pass
+    stream.print_obj(cached(dev).cache)
     
   iterate_content_tree(config.config_root, show)
 

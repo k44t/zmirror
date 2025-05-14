@@ -2,7 +2,7 @@
 import dateparser
 
 from .logging import log
-from .dataclasses import ZFSBackingBlockDevice, ZFSBackingBlockDeviceCache, ZFSOperationState, ZFSBackingBlockDeviceOutput
+from .dataclasses import *
 from .util import myexec, outs, copy_attrs
 from .entities import *
 from . import commands as commands
@@ -16,7 +16,7 @@ def scrub_all_overdue():
   log.info("starting zfs scrubs if necessary")
   def possibly_scrub(dev):
     if isinstance(dev, ZFSBackingBlockDevice):
-      cache = find_or_create_cache(ZFSBackingBlockDeviceCache, pool=dev.pool, dev=dev.dev_name())
+      cache = find_or_create_cache(ZFSBackingBlockDevice, pool=dev.pool, dev=dev.dev_name())
       if dev.scrub_interval is not None:
         # parsing the schedule delta will result in a timestamp calculated from now
         allowed_delta = dateparser.parse(dev.scrub_interval)
