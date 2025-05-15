@@ -1,0 +1,1 @@
+# this is used when the config is initialized. At this point (at least for the tests), nothing is online

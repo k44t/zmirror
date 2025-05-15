@@ -156,21 +156,23 @@ def load_yaml_cache(cache_file_path):
 def find_or_create_cache(cache_dict, typ, create_args=None, identifier_prefix=None, **kwargs):
   identifier = typ.__name__
   if identifier_prefix is not None:
-    for _, (_, value) in enumerate(identifier_prefix.items()):
-      identifier = identifier + "|" + value
+    for _, (key, value) in enumerate(identifier_prefix.items()):
+      identifier = f"{identifier}|{key}:{value}"
 
-  for _, (_, value) in enumerate(kwargs.items()):
-    identifier = identifier + "|" + value
+  for _, (key, value) in enumerate(kwargs.items()):
+    identifier = f"{identifier}|{key}:{value}"
 
   cache = None
   if identifier in cache_dict:
     cache = cache_dict[identifier]
 
-  if not isinstance(cache, typ):
+  if cache is None:
     if create_args is not None:
       kwargs.update(create_args)
     cache = typ(**kwargs)
     cache_dict[identifier] = cache
+  elif not isinstance(cache, typ):
+    raise ValueError(f"cache entry not of apropriate type: {typ}")
   return cache
 
 

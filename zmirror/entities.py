@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-
+import re
 
 
 from .util import load_yaml_cache, load_yaml_config, save_yaml_cache, remove_yaml_cache, require_path
@@ -24,6 +24,8 @@ from . import util
 
 
 
+
+
 def init_config(cache_path, config_path):
   config.cache_path = cache_path
   config.config_path = config_path
@@ -36,12 +38,20 @@ def init_config(cache_path, config_path):
   config.zfs_blockdevs = dict()
   require_path(config.config_path, "config file does not exist")
   config.config_root = load_yaml_config(config.config_path)
-  config.load_config_for_cache = load_config_for_cache
-  config.find_or_create_cache = find_or_create_cache
   iterate_content_tree3(config.config_root, index_entities, None, None)
+  iterate_content_tree3_depth_first(config.config_root, load_initial_state, None, None)
+  iterate_content_tree3_depth_first(config.config_root, update_initial_state, None, None)
 
 config.init = init_config
 
+
+def load_initial_state(entity, _parent, _ignored):
+  if hasattr(entity, "load_initial_state"):
+    entity.load_initial_state()
+
+def update_initial_state(entity, _parent, _ignored):
+  if hasattr(entity, "update_initial_state"):
+    entity.update_initial_state()
 
 
 def index_entities(entity, parent, _ignored):
@@ -89,6 +99,16 @@ def iterate_content_tree3(o, fn, parent, strt):
         result = iterate_content_tree3(e, fn, o, result)
   return result
 
+def iterate_content_tree3_depth_first(o, fn, parent, strt):
+  result = strt
+  if hasattr(o, "content"):
+    lst = getattr(o, "content")
+    if isinstance(lst, list):
+      for e in lst:
+        result = iterate_content_tree3_depth_first(e, fn, o, result)
+  result = fn(o, parent, result)
+  return result
+
 
 def iterate_content_tree2(o, fn, strt):
   result = fn(o, strt)
@@ -120,9 +140,11 @@ def find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path):
   return find_or_create_cache(ZFSBackingBlockDevice, pool=zpool, dev=vdev_name)
 
 def get_zpool_status(zpool_name):
-  _, zpool_status, _, _ = exec(f"zpool status {zpool_name}")#pylint: disable=exec-used
-  return zpool_status
-
+  rcode, zpool_status, _, _ = exec(f"zpool status {zpool_name}")#pylint: disable=exec-used
+  if rcode == 0:
+    return zpool_status[0]
+  else:
+    return None
 
 
 
@@ -134,3 +156,31 @@ def save_cache():
     raise ValueError("init() was not called")
   save_yaml_cache(config.cache_dict, config.cache_path)
 
+def get_zfs_volume_mode(zfs_path):
+  code, r, _, _ = exec(f"zfs get volmode {zfs_path}")
+  if code == 0:
+    return r
+  else:
+    return None
+
+
+
+def is_zpool_backing_device_online(zpool, dev):
+  status = config.get_zpool_status(zpool)
+  if status is None:
+    return False
+  for match in POOL_DEVICES_REGEX.finditer(status):
+    if match.group(1) == dev:
+      return match.group(2) == "ONLINE"
+  return False
+
+
+POOL_DEVICES_REGEX = re.compile(r'^ {12}([-a-zA-Z0-9_]+) +([A-Z]+) +[0-9]+ +[0-9]+ +[0-9]+ *.*$', \
+                         re.MULTILINE)
+
+
+
+config.load_config_for_cache = load_config_for_cache
+config.find_or_create_cache = find_or_create_cache
+config.is_zpool_backing_device_online = is_zpool_backing_device_online
+config.get_zpool_status = get_zpool_status

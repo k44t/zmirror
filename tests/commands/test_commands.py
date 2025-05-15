@@ -37,6 +37,8 @@ from util.util_stage2 import *
 def setup_before_all_methods():
   # Code to execute once before all test methods in each class
   insert_zpool_status_stub()
+  insert_dev_exists_stub()
+  insert_get_zfs_volume_mode_stub()
   # prepare_config_and_cache()
 
 
@@ -60,6 +62,9 @@ class TestExampleConfig():
   @classmethod
   def setup_class(cls):
     entities.init_config(config_path="./example-config.yml", cache_path="./tests/commands/test_cache.yml")
+
+    for entity in config.cache_dict.values():
+      assert entity.state.what == EntityState.DISCONNECTED
 
 
   def setup_method(self, method): #pylint: disable=unused-argument
@@ -92,9 +97,13 @@ class TestExampleConfig():
   # physical device of sysfs-a gets plugged-in (by user)
   # disk of sysfs-a appears (udev: add)
   def test_disk_sysfs_a_online(self):
+    
 
     # the disk is not part of the configuration, but zmirror should still update its cache
     trigger_event()
+
+
+    disk = config.cache_dict["Disk|uuid:00000000-0000-0000-0000-000000000001"]
 
 
     # zmirror needs to do nothing (issue no commands)
@@ -105,6 +114,9 @@ class TestExampleConfig():
   def test_partition_sysfs_a_online(self):
 
     trigger_event()
+
+
+    disk = config.cache_dict["Partition|name:zmirror-sysfs-a"]
     
     assert_commands([
       "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-a zmirror-sysfs-a --key-file ./test/zmirror-key"
@@ -127,7 +139,13 @@ class TestExampleConfig():
 
   # `zpool import zmirror-sysfs-a` (do `zpool export zmirror-sysfs-a` before, if the pool is already imported)
   def test_zpool_sysfs_online(self):
+
+    pool = config.cache_dict["ZPool|name:zmirror-sysfs"]
+
     trigger_event()
+
+    assert pool.state.what == EntityState.ONLINE
+
 
     # zmirror has to do nothing
     assert_commands([])
@@ -191,6 +209,8 @@ class TestExampleConfig():
     operations.scrub_all_overdue()
 
     assert_commands([
+      # this is issued twice, once for each connected device
+      "zpool scrub zmirror-sysfs",
       "zpool scrub zmirror-sysfs"
     ])
 
@@ -199,6 +219,12 @@ class TestExampleConfig():
   def test_scrub_started_sysfs_a_and_b(self):
     
     trigger_event()
+
+    a = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-a"]
+    b = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-b"]
+
+    assert a.operation.what == ZFSOperationState.SCRUBBING
+    assert b.operation.what == ZFSOperationState.SCRUBBING
 
     assert_commands([])
 
@@ -273,43 +299,6 @@ class TestExampleConfig():
   # ###################
 
 
-  # big-b
-  # ###############
-
-  # we do zmirror-big-b first, because zmirror should only
-  # import the pool once the required disk zmirror-big-a is also present.
-
-  # physical device of big-b gets plugged-in
-  # disk of big-b appears (udev: add)
-  def test_disk_big_b_online(self):
-    trigger_event()
-
-    # zmirror needs to do nothing (issue no commands)
-    assert_commands([])
-
-  # partition of big-b appears (udev: add)
-  def test_partition_big_b_online(self):
-    trigger_event()
-
-    assert_commands([
-
-      # open the dm_crypt inside the partition
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-big-b zmirror-big-b --key-file ./test/zmirror-key"
-
-    ])
-
-  # dmcrypt of big-b appears
-  def test_dmcrypt_big_b_online(self):
-    trigger_event()
-
-    assert_commands([
-      # big-b alone is not configured to trigger an import
-
-      # this command will fail as the pool is not yet imported
-      "zpool online zmirror-big zmirror-big-b"
-    ])
-
-
   # big-a
   # ##############
 
@@ -354,10 +343,80 @@ class TestExampleConfig():
 
   # when the zpool appears
   def test_zpool_big_online(self):
+    a = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-big|dev:zmirror-big-a"]
+    b = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-big|dev:zmirror-big-b"]
+
+    assert a.state.what == EntityState.INACTIVE
+    assert b.state.what == EntityState.DISCONNECTED
+
+
     trigger_event()
+
+
+    assert a.state.what == EntityState.ONLINE
+    assert b.state.what == EntityState.DISCONNECTED
 
     assert_commands([
       # nothing happens
+    ])
+
+
+
+
+  # big-b
+  # ###############
+
+  # we do zmirror-big-b first, because zmirror should only
+  # import the pool once the required disk zmirror-big-a is also present.
+
+  # physical device of big-b gets plugged-in
+  # disk of big-b appears (udev: add)
+  def test_disk_big_b_online(self):
+    trigger_event()
+
+    # zmirror needs to do nothing (issue no commands)
+    assert_commands([])
+
+  # partition of big-b appears (udev: add)
+  def test_partition_big_b_online(self):
+    trigger_event()
+
+    assert_commands([
+
+      # open the dm_crypt inside the partition
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-big-b zmirror-big-b --key-file ./test/zmirror-key"
+
+    ])
+
+  # dmcrypt of big-b appears
+  def test_dmcrypt_big_b_online(self):
+    trigger_event()
+
+    assert_commands([
+      # big-b alone is not configured to trigger an import
+
+      # this command will fail as the pool is not yet imported
+      "zpool online zmirror-big zmirror-big-b"
+    ])
+
+
+  # when the zpool appears
+  def test_backing_blockdev_big_b_online(self):
+
+
+    b = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-big|dev:zmirror-big-b"]
+
+
+    assert b.state.what == EntityState.INACTIVE
+
+    trigger_event()
+
+
+    assert b.state.what == EntityState.ONLINE
+
+
+    assert_commands([
+      # we do nothing
     ])
 
 
@@ -397,39 +456,49 @@ class TestExampleConfig():
     ])
 
   def test_zpool_bak_a_online(self):
+
     trigger_event()
+
+    zpool = config.cache_dict["ZPool|name:zmirror-bak-a"]
+
+    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-bak-a|dev:zmirror-bak-a"]
+
+    assert blockdev.state.what == EntityState.ONLINE
 
     # zpool is configured to take the volumes "online"
     # and we have implemented this by setting the volmode
     # so that the respective udev events will be triggered
     # which then we process (in the next tests).
     assert_commands([
+
+      # the volmode for sysfs is set to none (this assuming that zmirror "offlined" the volume safely)
       "zfs set volmode=full zmirror-bak-a/sysfs",
-      "zfs set volmode=full zmirror-bak-a/big"
+
+      # the volmode is set to full (which means zmirror was not able to do its job the last time)
+      "zpool online mirror-big zvol/zmirror-bak-a/big"
     ])
 
-  # when bak-a-sysfs zfs_volume appears (udev: add)
-  def test_zfs_volume_bak_a_sysfs_online(self):
-    trigger_event()
-    assert_commands([
-      "zpool online zmirror-sysfs zvol/zmirror-bak-a/sysfs"
-    ])
-
-  # when bak-a-big zfs_volume appears (udev: add)
-  def test_zfs_volume_bak_a_big_online(self):
-    trigger_event()
-
-    assert_commands([
-      # we online the blockdev
-      "zpool online zmirror-big zvol/zmirror-bak-a/big"
-    ])
 
 
   # when the resilver starts
   def test_zpool_sysfs_backing_blockdev_bak_a_sysfs_resilver_start(self):
     trigger_event()
+    
     # zmirror needs to do nothing (issue no commands)
     assert_commands([])
+  
+  # when bak-a-big the blockdev becomes active in the sysfs pool
+  def test_zpool_sysfs_backing_blockdev_bak_a_big_online(self):
+    trigger_event()
+
+    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-big|dev:zvol/zmirror-bak-a/big"]
+
+    assert blockdev.state.what == EntityState.ONLINE
+
+
+    assert_commands([
+      # we do nothing
+    ])
 
 
   # when the resilver has finished
@@ -437,6 +506,39 @@ class TestExampleConfig():
     trigger_event()
     # zmirror needs to do nothing (issue no commands)
     assert_commands([])
+
+
+
+
+  # when bak-a-sysfs zfs_volume appears (udev: add)
+  def test_zfs_volume_bak_a_sysfs_online(self):
+
+    zpool = config.cache_dict["ZPool|name:zmirror-bak-a"]
+
+    assert zpool.state.what == EntityState.ONLINE
+
+    trigger_event()
+
+    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
+    volume = config.cache_dict["ZFSVolume|pool:zmirror-bak-a|name:sysfs"]
+
+    assert_commands([
+      "zpool online zmirror-sysfs zvol/zmirror-bak-a/sysfs"
+    ])
+
+
+  # when bak-a-big the blockdev becomes active in the sysfs pool
+  def test_zpool_sysfs_backing_blockdev_bak_a_sysfs_online(self):
+    trigger_event()
+
+    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
+
+    assert blockdev.state.what == EntityState.ONLINE
+
+
+    assert_commands([
+      # we do nothing
+    ])
 
 
 
@@ -460,6 +562,10 @@ class TestExampleConfig():
 
   # when the blockdev is taken offline within the sysfs pool
   def test_zpool_sysfs_backing_blockdev_bak_a_sysfs_disconnected(self):
+
+    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
+    volume = config.cache_dict["ZFSVolume|pool:zmirror-bak-a|name:sysfs"]
+
     trigger_event()
 
     # we virtually take our volume offline as well (setting volmode=none)
@@ -471,7 +577,12 @@ class TestExampleConfig():
   # when then the event arrives we just triggered by taking setting volmode=none
   def test_zfs_volume_bak_a_sysfs_offline(self):
     
+    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
+    volume = config.cache_dict["ZFSVolume|pool:zmirror-bak-a|name:sysfs"]
+
     trigger_event()
+
+    assert volume.state.what == EntityState.INACTIVE
 
     assert_commands([
       # we do nothing
@@ -498,6 +609,8 @@ class TestExampleConfig():
   # when the blockdev is being taken offline in the big pool
   def test_zpool_big_backing_blockdev_bak_a_big_disconnected(self):
     trigger_event()
+
+
     assert_commands([
       # we virtually take our volume offline as well (setting volmode=none)
       "zfs set volmode=none zmirror-bak-a/big"
@@ -505,8 +618,17 @@ class TestExampleConfig():
 
   # when then the event arrives we just triggered by taking setting volmode=none
   def test_zfs_volume_bak_a_big_offline(self):
+
+    big_blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-big|dev:zvol/zmirror-bak-a/big"]
+    big_volume = config.cache_dict["ZFSVolume|pool:zmirror-bak-a|name:big"]
+
     trigger_event()
     
+
+    assert big_blockdev.state.what == EntityState.DISCONNECTED
+    assert big_volume.state.what == EntityState.INACTIVE
+    # assert zz.state.what == EntityState.DISCONNECTED
+
     assert_commands([
       # now both sysfs and big are offline, therefore we can offline the whole bak pool
       "zpool export zmirror-bak-a"
@@ -550,6 +672,7 @@ class TestExampleConfig():
   def test_disk_bak_b_alpha_online(self):
     
     trigger_event()
+    
 
     assert_commands([
       # we do nothing
@@ -571,6 +694,12 @@ class TestExampleConfig():
   def test_dmcrypt_bak_b_alpha_online(self):
 
     trigger_event()
+
+    dm_alpha = config.cache_dict["DMCrypt|name:zmirror-bak-b-alpha"]
+    blockdev_alpha = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-bak-b|dev:zmirror-bak-b-alpha"]
+
+    assert dm_alpha.state.what == EntityState.ONLINE
+    assert blockdev_alpha.state.what == EntityState.INACTIVE
 
     assert_commands([
       # and since this command can safely be run
@@ -605,17 +734,19 @@ class TestExampleConfig():
     assert_commands([
 
       # we decrypt
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-bak-b-alpha zmirror-bak-b-alpha --key-file ./test/zmirror-key"
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-bak-b-beta zmirror-bak-b-beta --key-file ./test/zmirror-key"
     ])
 
 
   # when dmcrypt of bak-b-alpha appears
   def test_dmcrypt_bak_b_beta_online(self):
+    
     trigger_event()
+    
 
     assert_commands([
       # we import because now all required backing disks are present
-      "zpool import zmirror-bak-b"
+      "zpool import zmirror-bak-b",
 
       # we always issue the online command, in case it is configured (which it is in this case)
       "zpool online zmirror-bak-b zmirror-bak-b-beta"
@@ -624,11 +755,26 @@ class TestExampleConfig():
 
   # when the pool comes online
   def test_zpool_bak_b_online(self):
+
+    blockdev_alpha = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-bak-b|dev:zmirror-bak-b-alpha"]
+    blockdev_beta = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-bak-b|dev:zmirror-bak-b-beta"]
+    dm_alpha = config.cache_dict["DMCrypt|name:zmirror-bak-b-alpha"]
+    dm_beta = config.cache_dict["DMCrypt|name:zmirror-bak-b-beta"]
+    zpool = config.cache_dict["ZPool|name:zmirror-bak-b"]
+
+    assert blockdev_alpha.state.what == EntityState.ONLINE
+    assert blockdev_beta.state.what == EntityState.ONLINE
+    assert dm_alpha.state.what == EntityState.ONLINE
+    assert dm_beta.state.what == EntityState.ONLINE
+    assert zpool.state.what == EntityState.DISCONNECTED
+
     trigger_event()
+
+    assert zpool.state.what == EntityState.ONLINE
 
     assert_commands([
       # zmirror virtually takes the volumes "online"
-      "zfs set volmode=full zmirror-bak-b/sysfs"
+      "zfs set volmode=full zmirror-bak-b/sysfs",
       "zfs set volmode=full zmirror-bak-b/big"
     ])
 
@@ -650,7 +796,7 @@ class TestExampleConfig():
     assert_commands([
 
       # we online it in the sysfs pool big pool
-      "zpool online zmirror-big zvol/mirror-bak-b/big"
+      "zpool online zmirror-big zvol/zmirror-bak-b/big"
     ])
 
 
@@ -739,12 +885,31 @@ class TestExampleConfig():
   # when the pool goes offline
   def test_zpool_bak_b_offline(self):
 
+
+    blockdev_alpha = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-bak-b|dev:zmirror-bak-b-alpha"]
+    blockdev_beta = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-bak-b|dev:zmirror-bak-b-beta"]
+    dm_alpha = config.cache_dict["DMCrypt|name:zmirror-bak-b-alpha"]
+    dm_beta = config.cache_dict["DMCrypt|name:zmirror-bak-b-beta"]
+    zpool = config.cache_dict["ZPool|name:zmirror-bak-b"]
+
+    assert blockdev_alpha.state.what == EntityState.ONLINE
+    assert blockdev_beta.state.what == EntityState.ONLINE
+    assert dm_alpha.state.what == EntityState.ONLINE
+    assert dm_beta.state.what == EntityState.ONLINE
+    assert zpool.state.what == EntityState.ONLINE
+
     # zmirror realizes that the backing blockdevs are now offline
     trigger_event()
 
+    assert blockdev_alpha.state.what == EntityState.INACTIVE
+    assert blockdev_beta.state.what == EntityState.INACTIVE
+    assert dm_alpha.state.what == EntityState.ONLINE
+    assert dm_beta.state.what == EntityState.ONLINE
+    assert zpool.state.what == EntityState.ONLINE
+
     assert_commands([
       # and so the encrypted disks in which they reside are also taken offline
-      "cryptsetup close zmirror-bak-b-alpha"
+      "cryptsetup close zmirror-bak-b-alpha",
       "cryptsetup close zmirror-bak-b-beta"
     ])
 

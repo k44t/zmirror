@@ -13,7 +13,7 @@ import traceback
 from . import commands
 from .logging import log
 from .entities import *
-from . import entities as core
+from . import entities as core2
 # from .actions import handle_entity_online, handle_entity_offline, handle_entity_present
 from .dataclasses import * # , LVMLogicalVolume, VirtualDisk, 
 from kpyutils.kiify import to_kd
@@ -44,7 +44,7 @@ def handle(env):
       handle_disconnected(zpool_cache)
 
       if zpool in globals.zfs_blockdevs:
-        for dev in globals.zfs_blockdevs[zpool]:
+        for dev in globals.zfs_blockdevs[zpool].values():
           dev_cache = find_or_create_cache(ZFSBackingBlockDevice, pool=zpool, dev=dev.dev)
           handle_deactivated(dev_cache)
 
@@ -53,10 +53,8 @@ def handle(env):
     # zpool event
     elif zevent in ["scrub_finish", "scrub_start", "scrub_abort", "pool_import"]:
       log.info(f"zpool {zpool}: {zevent}")
-      zpool_status = core.get_zpool_status(zpool)
+      zpool_status = config.get_zpool_status(zpool)
 
-      regex = re.compile(r'^ {12}([-a-zA-Z0-9_]+) +(ONLINE|OFFLINE) +[0-9]+ +[0-9]+ +[0-9]+ *.*$', \
-                         re.MULTILINE)
 
       if zevent == "pool_import":
         zpool_cache = find_or_create_cache(ZPool, name=zpool)
@@ -64,30 +62,29 @@ def handle(env):
 
 
       found_online = False
-      for match in regex.finditer(zpool_status):
-        dev = match.group(1)
+      if zpool_status is None:
+        log.error(f"zpool status failed for pool {zpool}")
+      else:
+        for match in POOL_DEVICES_REGEX.finditer(zpool_status):
+          dev = match.group(1)
 
-        cache = find_or_create_cache(ZFSBackingBlockDevice, pool=zpool, dev=dev)
-        if match.group(2) == "ONLINE":
+          cache = find_or_create_cache(ZFSBackingBlockDevice, pool=zpool, dev=dev)
+          if match.group(2) == "ONLINE":
 
-          found_online = True
-          cache.operation = Since(ZFSOperationState.NONE, now)
-          if zevent == "scrub_finish":
-            log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing finished")
-            handle_scrub_finished(cache)
-          elif zevent == "scrub_start":
-            log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing started")
-            handle_scrub_started(cache)
-          elif zevent == "scrub_abort":
-            log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing cancelled")
-            handle_scrub_aborted(cache)
-          elif zevent == "pool_import":
-            log.info(f"zdev {cache.pool}:{cache.dev}: pool imported, device online")
-            handle_onlined(cache)
-        else: # the blockdev is OFFLINE
-          if zevent == "pool_import":
-            log.info(f"zdev {cache.pool}:{cache.dev}: pool imported, device offline")
-            handle_deactivated(cache)
+            found_online = True
+            cache.operation = Since(ZFSOperationState.NONE, now)
+            if zevent == "scrub_finish":
+              log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing finished")
+              handle_scrub_finished(cache)
+            elif zevent == "scrub_start":
+              log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing started")
+              handle_scrub_started(cache)
+            elif zevent == "scrub_abort":
+              log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing cancelled")
+              handle_scrub_aborted(cache)
+            elif zevent == "pool_import":
+              log.info(f"zdev {cache.pool}:{cache.dev}: pool imported, device online")
+              handle_onlined(cache)
           
       if found_online is False:
         log.error("likely bug: zpool event but no devices online")
@@ -284,7 +281,6 @@ def handle_event(event_queue: queue.Queue):
 # so this is just a description for the next milestone
 def daemon(args):# pylint: disable=unused-argument
 
-  init_config(cache_path=args.cache_path, config_path=args.config_path)
 
 
   socket_path = args.socket_path
@@ -314,10 +310,15 @@ def daemon(args):# pylint: disable=unused-argument
   event_queue = queue.Queue()
 
 
+
   # Create a thread-safe list
   handle_event_thread = threading.Thread(target=handle_event, args=(event_queue, ))
   handle_event_thread.start()
   # TODO: closing the handle event thread is not implemented
+
+
+  # we load the config after we have started the server, so that we cannot miss any events that might change the config while it is being loaded
+  init_config(cache_path=args.cache_path, config_path=args.config_path)
 
   try:
     while True:

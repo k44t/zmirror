@@ -1,6 +1,0 @@
-// TODO: this cannot be right... the backing blockdev comes not online via a udev event
-{
-  "ZEVENT_SUBCLASS": "vdev_online",
-  "ZEVENT_VDEV_PATH": "/dev/disk/by-partlabel/partition-a",
-  "ZEVENT_POOL": "zpool-a"
-}

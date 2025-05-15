@@ -179,6 +179,8 @@ content:
     #
     # *WARNING*: ONLY set this to true if you absolutely know that your device supports
     # trim.
+    #
+    # TODO: implement me
     force_enable_trim: yes
     # 
     # what zmirror does to enable trim is catch every udev add or change event for 
@@ -766,8 +768,9 @@ content:
       - !ZFSVolume
         name: sysfs
         on_children_offline: 
-          - snapshot
           - offline
+        on_appeared:
+          - online
         content:
 
           - !ZFSBackingBlockDevice
@@ -787,6 +790,8 @@ content:
         name: big
         on_children_offline:
           - offline
+        on_appeared:
+          - online
         content:
           - !ZFSBackingBlockDevice
             pool: zmirror-big
@@ -964,7 +969,7 @@ content:
     content:
       
       - !ZFSVolume
-        name: sysfs
+        name: blubak-beta
         on_children_offline: 
           - snapshot
           - offline

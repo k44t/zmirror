@@ -1,0 +1,10 @@
+pool: ignored
+ state: ignored
+config:
+
+        NAME                         STATE     READ WRITE CKSUM
+        ignored                      ONLINE       0     0     0
+          mirror-0                   ONLINE       0     0     0
+            zmirror-bak-a            ONLINE       0     0     0
+
+errors: No known data errors
