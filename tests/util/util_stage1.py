@@ -141,7 +141,7 @@ def insert_get_zfs_volume_mode_stub():
       if os.path.isfile(path):
         return string_or_none_from_file(path)
       else:
-        raise ValueError(f"no corresponding [<optional_fn_name>.]{zfs_path}.zfs_volume_mode.txt file found")
+        raise ValueError(f"no corresponding [{fn_name}.]{zfs_path}.zfs_volume_mode.txt file found")
           
     return False
   

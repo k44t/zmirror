@@ -15,6 +15,7 @@ from . import util
 
 
 
+
 # CONFIG_FILE_PATH = "/etc/zmirror/config.yml"
 # CACHE_FILE_PATH = "/var/lib/zmirror/cache.yml"
 # os.makedirs(os.path.dirname(CACHE_FILE_PATH), exist_ok = True)
@@ -47,11 +48,15 @@ config.init = init_config
 
 def load_initial_state(entity, _parent, _ignored):
   if hasattr(entity, "load_initial_state"):
-    entity.load_initial_state()
+    s = entity.load_initial_state()
+    if s is not None:
+      set_cache_state(cached(entity), s, True)
 
 def update_initial_state(entity, _parent, _ignored):
   if hasattr(entity, "update_initial_state"):
-    entity.update_initial_state()
+    s = entity.update_initial_state()
+    if s is not None:
+      set_cache_state(cached(entity), s, True)
 
 
 def index_entities(entity, parent, _ignored):
@@ -181,6 +186,7 @@ POOL_DEVICES_REGEX = re.compile(r'^ {12}([-a-zA-Z0-9_]+) +([A-Z]+) +[0-9]+ +[0-9
 
 
 config.load_config_for_cache = load_config_for_cache
+config.load_config_for_id = load_config_for_id
 config.find_or_create_cache = find_or_create_cache
 config.is_zpool_backing_device_online = is_zpool_backing_device_online
 config.get_zpool_status = get_zpool_status

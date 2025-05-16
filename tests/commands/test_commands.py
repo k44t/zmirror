@@ -475,7 +475,7 @@ class TestExampleConfig():
       "zfs set volmode=full zmirror-bak-a/sysfs",
 
       # the volmode is set to full (which means zmirror was not able to do its job the last time)
-      "zpool online mirror-big zvol/zmirror-bak-a/big"
+      "zpool online zmirror-big zvol/zmirror-bak-a/big"
     ])
 
 
@@ -762,8 +762,8 @@ class TestExampleConfig():
     dm_beta = config.cache_dict["DMCrypt|name:zmirror-bak-b-beta"]
     zpool = config.cache_dict["ZPool|name:zmirror-bak-b"]
 
-    assert blockdev_alpha.state.what == EntityState.ONLINE
-    assert blockdev_beta.state.what == EntityState.ONLINE
+    assert blockdev_alpha.state.what == EntityState.INACTIVE
+    assert blockdev_beta.state.what == EntityState.INACTIVE
     assert dm_alpha.state.what == EntityState.ONLINE
     assert dm_beta.state.what == EntityState.ONLINE
     assert zpool.state.what == EntityState.DISCONNECTED
@@ -771,6 +771,8 @@ class TestExampleConfig():
     trigger_event()
 
     assert zpool.state.what == EntityState.ONLINE
+    assert blockdev_alpha.state.what == EntityState.ONLINE
+    assert blockdev_beta.state.what == EntityState.ONLINE
 
     assert_commands([
       # zmirror virtually takes the volumes "online"
@@ -800,6 +802,25 @@ class TestExampleConfig():
     ])
 
 
+
+  # when bak-b-sysfs zfs_volume appears (udev: add) (caused by set volmode=full)
+  def test_zpool_sysfs_backing_blockdev_bak_b_big_online(self):
+    
+    trigger_event()
+    
+    assert_commands([
+      # we do nothing
+    ])
+
+  # when bak-b-big zfs_volume appears (udev: add)
+  def test_zpool_sysfs_backing_blockdev_bak_b_sysfs_online(self):
+    
+    trigger_event()
+    
+    assert_commands([
+      # we do nothing
+    ])
+
   # when the resilver of the volume for sysfs starts
   def test_zpool_sysfs_backing_blockdev_bak_b_sysfs_resilver_start(self):
     trigger_event()
@@ -820,7 +841,16 @@ class TestExampleConfig():
 
   # when the resilver for sysfs finishes
   def test_zpool_sysfs_backing_blockdev_bak_b_sysfs_resilver_finish(self):
+
+    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-b/sysfs"]
+    assert blockdev.state.what == EntityState.ONLINE
+    assert blockdev.operation.what == ZFSOperationState.RESILVERING
+
     trigger_event()
+
+    assert blockdev.state.what == EntityState.ONLINE
+    assert blockdev.operation.what == ZFSOperationState.NONE
+
     assert_commands([
       
       
@@ -835,7 +865,13 @@ class TestExampleConfig():
 
   # when it the event from taking it offline in the pool appears
   def test_zpool_sysfs_backing_blockdev_bak_b_sysfs_disconnected(self):
+    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-b/sysfs"]
+    assert blockdev.state.what == EntityState.ONLINE
+    
     trigger_event()
+
+    assert blockdev.state.what == EntityState.INACTIVE
+
     assert_commands([
       
       # we also virtually take the volume "offline" in which it resides
@@ -892,20 +928,24 @@ class TestExampleConfig():
     dm_beta = config.cache_dict["DMCrypt|name:zmirror-bak-b-beta"]
     zpool = config.cache_dict["ZPool|name:zmirror-bak-b"]
 
-    assert blockdev_alpha.state.what == EntityState.ONLINE
-    assert blockdev_beta.state.what == EntityState.ONLINE
     assert dm_alpha.state.what == EntityState.ONLINE
     assert dm_beta.state.what == EntityState.ONLINE
+
+    assert blockdev_alpha.state.what == EntityState.ONLINE
+    assert blockdev_beta.state.what == EntityState.ONLINE
+
     assert zpool.state.what == EntityState.ONLINE
 
     # zmirror realizes that the backing blockdevs are now offline
     trigger_event()
 
-    assert blockdev_alpha.state.what == EntityState.INACTIVE
-    assert blockdev_beta.state.what == EntityState.INACTIVE
     assert dm_alpha.state.what == EntityState.ONLINE
     assert dm_beta.state.what == EntityState.ONLINE
-    assert zpool.state.what == EntityState.ONLINE
+
+    assert blockdev_alpha.state.what == EntityState.INACTIVE
+    assert blockdev_beta.state.what == EntityState.INACTIVE
+
+    assert zpool.state.what == EntityState.DISCONNECTED
 
     assert_commands([
       # and so the encrypted disks in which they reside are also taken offline

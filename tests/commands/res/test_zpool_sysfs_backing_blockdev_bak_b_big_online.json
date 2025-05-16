@@ -1,0 +1,5 @@
+{
+  "ZEVENT_SUBCLASS": "vdev_online",
+  "ZEVENT_VDEV_PATH": "/dev/zvol/zmirror-bak-b/big",
+  "ZEVENT_POOL": "zmirror-big"
+}
