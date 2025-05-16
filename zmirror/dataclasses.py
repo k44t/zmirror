@@ -225,39 +225,42 @@ def request_dependencies(self, origin, request, unschedule, deps):
 
 def run_actions(self, event_name):
   for event in getattr(self, "on_" + event_name): #pylint: disable=not-an-iterable
-    if event == "offline":
-      if hasattr(self, "take_offline"):
-        self.take_offline()
-      else:
-        log.error(f"misconfiguration: entity {make_id(self)} does not support being taken offline manually")
-    elif event == "online":
-      if hasattr(self, "take_online"):
-        self.take_online()
-      else:
-        log.error(f"misconfiguration: entity {make_id(self)} does not support being taken online manually")
-    elif event == "snapshot":
-      if hasattr(self, "take_snapshot"):
-        self.take_snapshot()
-      else:
-        log.error(f"misconfiguration: entity {make_id(self)} does not have the ability to create snapshots")
-    elif event == "scrub":
-      if hasattr(self, "start_scrub"):
-        self.start_scrub()
-      else:
-        log.error(f"misconfiguration: entity {make_id(self)} cannot be scrubbed")
-    elif event == "trim":
-      if hasattr(self, "do_trim"):
-        self.do_trim()
-      else:
-        log.error(f"misconfiguration: entity {make_id(self)} cannot be trimmed")
+    run_action(self, event)
 
-    elif event == "snapshot-parent":
-      if hasattr(self.parent, "take_snapshot"):
-        self.parent.take_snapshot()
-      else:
-        log.error(f"misconfiguration: the parent entity of {make_id(self)} does not have the ability to create snapshots")
+def run_action(self, event):
+  if event == "offline":
+    if hasattr(self, "take_offline"):
+      self.take_offline()
     else:
-      log.error(f"unknown event type for {make_id(self)}.on_children_offline: {event}")
+      log.error(f"misconfiguration: entity {make_id(self)} does not support being taken offline manually")
+  elif event == "online":
+    if hasattr(self, "take_online"):
+      self.take_online()
+    else:
+      log.error(f"misconfiguration: entity {make_id(self)} does not support being taken online manually")
+  elif event == "snapshot":
+    if hasattr(self, "take_snapshot"):
+      self.take_snapshot()
+    else:
+      log.error(f"misconfiguration: entity {make_id(self)} does not have the ability to create snapshots")
+  elif event == "scrub":
+    if hasattr(self, "start_scrub"):
+      self.start_scrub()
+    else:
+      log.error(f"misconfiguration: entity {make_id(self)} cannot be scrubbed")
+  elif event == "trim":
+    if hasattr(self, "do_trim"):
+      self.do_trim()
+    else:
+      log.error(f"misconfiguration: entity {make_id(self)} cannot be trimmed")
+
+  elif event == "snapshot-parent":
+    if hasattr(self.parent, "take_snapshot"):
+      self.parent.take_snapshot()
+    else:
+      log.error(f"misconfiguration: the parent entity of {make_id(self)} does not have the ability to create snapshots")
+  else:
+    log.error(f"unknown event type for {make_id(self)}: {event}")
 
 
 def tell_parent_child_offline(parent, child, prev_state):
@@ -351,7 +354,7 @@ class Disk(Children):
     if is_present_or_online(self):
       return True
     else:
-      log.error(f"request {request} failed because Disk is not present.")
+      log.error(f"request {request} failed because {entity_id_string(self)} is not present.")
       return False
 
   # this requires a udev rule to be installed which ensures that the disk appears under its GPT partition table UUID under /dev/disk/by-uuid
@@ -390,7 +393,7 @@ class Partition(Children):
   def request_online(self):
     if isinstance(self.parent, ZMirror):
       if not is_present_or_online(self):
-        log.error("request ONLINE failed because this Partition is not present and has no parent configured.")
+        log.error(f"request ONLINE failed because {entity_id_string(self)} is not present and has no parent configured.")
         return False
     return True
 
