@@ -27,5 +27,8 @@ def is_zpool_backing_device_online(pool, dev):
 def get_zpool_status(pool):
   raise NotImplementedError()
 
-def load_config_for_id(args):
+def load_config_for_id(arg):
+  raise NotImplementedError()
+
+def find_config(typ, **args):
   raise NotImplementedError()

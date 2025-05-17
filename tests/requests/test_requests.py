@@ -11,6 +11,7 @@
 
 import pytest
 import re
+import tempfile
 
 from itertools import zip_longest
 
@@ -18,11 +19,9 @@ from util.util_stage1 import *
 
 
 
-from zmirror.daemon import handle
 import zmirror.commands
 from zmirror.dataclasses import *
 import zmirror.config
-from zmirror.zmirror import scrub
 import zmirror.entities as entities
 from zmirror.zmirror import main
 import zmirror.operations as operations
@@ -50,13 +49,37 @@ def assert_commands(cmds):
       else:
         assert a == b
 
-class TestExampleConfig():
+
+# in this test, some of the disks required to import some of the pools are present
+# we test the request capability of onlining target devices by onlining all their
+# dependency hierarchy. To be able to test this we take example-config and remove
+# all `online` actions.
+class Tests():
 
 
-  # event_queue = None
   @classmethod
   def setup_class(cls):
-    entities.init_config(config_path="./example-config.yml", cache_path="./tests/commands/test_cache.yml")
+
+
+    
+
+    with open('./example-config.yml', 'r') as file:
+      content = file.read()
+
+
+
+    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+      
+      
+      # Apply the regex substitution
+      content = re.sub(r"- online(?=\s|$)", "- pass", content)
+
+      temp_file.write(content.encode("utf-8"))
+
+      temp_file.close()
+
+      entities.init_config(config_path=temp_file.name, cache_path="./tests/commands/test_cache.yml")
+
 
     for entity in config.cache_dict.values():
       assert entity.state.what == EntityState.DISCONNECTED
@@ -92,30 +115,59 @@ class TestExampleConfig():
   # physical device of sysfs-a gets plugged-in (by user)
   # disk of sysfs-a appears (udev: add)
   def test_disk_sysfs_a_online(self):
-    
-
-    # the disk is not part of the configuration, but zmirror should still update its cache
     trigger_event()
-
-
-    disk = config.cache_dict["Disk|uuid:00000000-0000-0000-0000-000000000001"]
-
-
-    # zmirror needs to do nothing (issue no commands)
-    assert_commands([])
 
 
   # partition of sysfs-a appears (udev: add)
   def test_partition_sysfs_a_online(self):
-
     trigger_event()
 
 
-    disk = config.cache_dict["Partition|name:zmirror-sysfs-a"]
-    
+  # physical device of sysfs-b gets plugged-in
+  # disk of sysfs-b appears (udev: add)
+  def test_disk_sysfs_b_online(self):
+    trigger_event()
+
+
+  # partition of sysfs-b appears (udev: add)
+  def test_partition_sysfs_b_online(self):
+    trigger_event()
+
+
+
+  def test_request_zpool_sysfs_s_online(self):
+
+    result = operations.request(Request.ONLINE, ZFSBackingBlockDevice, pool="zmirror-sysfs", dev="zmirror-sysfs-s")
+
+    assert not result
+
     assert_commands([
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-a zmirror-sysfs-a --key-file ./test/zmirror-key"
+
     ])
+
+
+  def test_request_zpool_sysfs_b_online(self):
+
+    result = operations.request(Request.ONLINE, ZFSBackingBlockDevice, pool="zmirror-sysfs", dev="zmirror-sysfs-b")
+
+    assert result
+
+    assert_commands([
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-a zmirror-sysfs-a --key-file ./test/zmirror-key",
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-b zmirror-sysfs-b --key-file ./test/zmirror-key"
+    ])
+
+
+
+
+
+
+
+
+
+
+
+
 
 
   # dmcrypt of sysfs-a appears
@@ -148,26 +200,6 @@ class TestExampleConfig():
 
   # sysfs-b
   # ###############
-
-
-  # physical device of sysfs-b gets plugged-in
-  # disk of sysfs-b appears (udev: add)
-  def test_disk_sysfs_b_online(self):
-    trigger_event()
-
-    # zmirror needs to do nothing (issue no commands)
-    assert_commands([])
-
-  # partition of sysfs-b appears (udev: add)
-  def test_partition_sysfs_b_online(self):
-    trigger_event()
-
-    assert_commands([
-
-      # open the dm_crypt inside the partition
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-b zmirror-sysfs-b --key-file ./test/zmirror-key"
-
-    ])
 
   # dmcrypt of sysfs-b appears
   def test_dmcrypt_sysfs_b_online(self):

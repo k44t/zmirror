@@ -134,6 +134,7 @@ class Test_Group1_TestMethods():
 
     assert zfs_blockdev_id in config.cache_dict
 
+
     dev2: ZFSBackingBlockDeviceCache = config.cache_dict[zfs_blockdev_id]
 
     assert dev is dev2

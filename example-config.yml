@@ -45,9 +45,21 @@ content:
     name: zmirror-sysfs
 
     # the sysfs pool must be imported during boot so zmirror should not import it
-    # hence we also do NOT need to configure the backing (`backed_by:`), for zmirror
-    # must not know how it is backed (it is enough to configure each backing device
-    # so that zmirror can online it)
+
+    # but we still configure the backing so that zmirror knows 
+    backed_by:
+      - !MirrorBackingReference
+        devices: 
+          # without zmirror-big-a present zmirror should not import the pool
+          - name: zmirror-sysfs-a
+            required: yes
+          - zmirror-sysfs-b
+          - name: zmirror-sysfs-s
+            online: no
+          - name: zvol/zmirror-bak-a/sysfs
+            online: no
+          - name: zvol/zmirror-bak-b/sysfs
+            online: no
 
 
 
@@ -404,7 +416,8 @@ content:
       - !MirrorBackingReference
         devices: 
           # without zmirror-big-a present zmirror should not import the pool
-          - required: zmirror-big-a
+          - name: zmirror-big-a
+            required: yes
           - zmirror-big-b
           - zvol/zmirror-bak-a/big
           - zvol/zmirror-bak-b/big
@@ -759,8 +772,10 @@ content:
     backed_by:
       - !MirrorBackingReference
         devices: 
-        - required: zmirror-bak-b-alpha
-        - required: zmirror-bak-b-beta
+        - name: zmirror-bak-b-alpha
+          required: yes
+        - name: zmirror-bak-b-beta
+          required: yes
     
 
     content:

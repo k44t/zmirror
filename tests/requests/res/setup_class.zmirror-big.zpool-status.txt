@@ -1,0 +1,1 @@
+../../commands/res/setup_class.zmirror-big.zpool-status.txt

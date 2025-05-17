@@ -39,6 +39,7 @@ def init_config(cache_path, config_path):
   config.zfs_blockdevs = dict()
   require_path(config.config_path, "config file does not exist")
   config.config_root = load_yaml_config(config.config_path)
+  config.find_config = find_config
   iterate_content_tree3(config.config_root, index_entities, None, None)
   iterate_content_tree3_depth_first(config.config_root, load_initial_state, None, None)
   iterate_content_tree3_depth_first(config.config_root, update_initial_state, None, None)
@@ -91,6 +92,9 @@ def load_config_for_id(identifier):
     log.error(f"id `{identifier}` not found in core.config_dict.")
   return local_config
 
+
+def find_config(typ, **identifier):
+  return load_config_for_id(make_id_string(make_id(typ, **identifier)))
 
 
 

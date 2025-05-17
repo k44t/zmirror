@@ -14,7 +14,6 @@ from . import config as config
 
 
 
-
 class When:
   what: object
   when: datetime
@@ -45,16 +44,16 @@ class Since(When):
 @yaml_enum
 class EntityState(KiEnum):
   # unknown state
-  UNKNOWN = 0
+  UNKNOWN = 99
 
   # offline and not present (inactive)
-  DISCONNECTED = 1
+  DISCONNECTED = 0
 
   # present and online (active)
-  ONLINE = 2
+  ONLINE = 1
   
   # present and offline (inactive)
-  INACTIVE = 3
+  INACTIVE = 2
 
 
 @yaml_enum
@@ -71,17 +70,15 @@ class Request(KiEnum):
 
 
 
+
 def is_online(entity):
   return cached(entity).state.what == EntityState.ONLINE
+
 
 
 def is_present_or_online(entity):
   c = cached(entity)
   return c.state.what == EntityState.INACTIVE or c.state.what == EntityState.ONLINE
-
-
-
-
 
 
 
@@ -102,15 +99,12 @@ def set_cache_state(o, st, since_unknown=False):
 
 
 
-
-
 @yaml_enum
 class ZFSOperationState(KiEnum):
   UNKNOWN = 0
   NONE = 1
   SCRUBBING = 2
   RESILVERING = 3
-
 
 
 
@@ -124,6 +118,7 @@ class ZMirror:
   notes: str = None
 
 
+
 def cached(entity):
   if entity.cache is None:
     tp, kwargs = entity.id()
@@ -131,13 +126,19 @@ def cached(entity):
   return entity.cache
 
 
+
 def make_id(o, **kwargs):
-  return (type(o), kwargs)
+  if isinstance(o, type):
+    return (o, kwargs)
+  else:
+    return (type(o), kwargs)
 
 
 
 def entity_id_string(o):
   return make_id_string(o.id())
+
+
 
 def make_id_string(the_id):
   tp, kwargs = the_id
@@ -145,12 +146,21 @@ def make_id_string(the_id):
   return tp.__name__ + "|" + '|'.join(f"{key}:{value}" for key, value in kwargs.items())
 
 
+
+def state_corresponds_to_request(state, request):
+  return id(state) == id(request) or (state == EntityState.INACTIVE and request == Request.OFFLINE)
+
+
+
 class DependentNotFound(Exception):
     """Exception raised when a dependent is not found."""
     pass
 
+
+
 @dataclass
 class Entity:
+
   parent = None
   cache = None
   requested: Request = None
@@ -159,11 +169,15 @@ class Entity:
   notes: str = None
 
 
+
   def handle_disconnected(self, prev_state):
     tell_parent_child_offline(self.parent, self, prev_state)
 
+
+
   def handle_deactivated(self, prev_state):
     tell_parent_child_offline(self.parent, self, prev_state)
+
 
 
   def handle_parent_onlined(self, new_state=EntityState.INACTIVE):
@@ -178,12 +192,45 @@ class Entity:
     prev_state = set_cache_state(cache, new_state)
     if not err_state:
       self.handle_appeared(prev_state)
-  
+
+
+
   def handle_appeared(self, prev_state):
     raise NotImplementedError()
-  
-  def do_request(self, request):
-    raise NotImplementedError()
+
+
+
+  def set_requested(self, request):
+    online = is_online(self)
+    if not ((request == Request.ONLINE and online) or (request == Request.OFFLINE and not online)):
+      self.requested = request
+    return True
+
+
+
+  def enact_request(self):
+    state = cached(self).state.what
+    if state_corresponds_to_request(state, self.requested):
+      log.warning(f"{entity_id_string(self)}: request ({self.requested}) already fulfilled by state ({state}).")
+    elif self.requested == Request.ONLINE and state == EntityState.INACTIVE:
+      self.requested = None
+      if hasattr(self, "take_online"):
+        log.info(f"{entity_id_string(self)}: fullfilling request ({self.requested})")
+        self.take_online()
+      else:
+        log.error(f"{entity_id_string(self)}: requested {self.requested}, but no take_online method. This is a bug in zmirror")
+    elif self.requested == Request.OFFLINE and state == EntityState.ONLINE:
+      self.requested = None
+      if hasattr(self, "take_offline"):
+        log.info(f"{entity_id_string(self)}: fullfilling request ({self.requested})")
+        self.take_offline()
+      else:
+        log.error(f"{entity_id_string(self)}: requested {self.requested}, but no take_offline method. This is a bug in zmirror")
+    else:
+        log.debug(f"{entity_id_string(self)}: currently cannot fulfill request ({self.requested}) because of state ({state})")
+
+
+    
 
 
   # must be overridden by child classes
@@ -191,7 +238,8 @@ class Entity:
     if request == Request.ONLINE:
       return [self.parent]
     return []
-    
+
+
 
   def request(self, request, origin=None, unschedule=False):
     if unschedule:
@@ -199,17 +247,23 @@ class Entity:
       if self.requested == request:
         self.requested = None
         log.info(f"request {request} unscheduled only for {entity_id_string(self)}")
+        return True
       else:
         log.info(f"request {request} has not been requested and cannot be canceled")
+        return False
     else:
       failed = False
       deps = self.get_dependencies(request)
       dependent_success = request_dependencies(self, origin, request, unschedule, deps)
-      if dependent_success: 
-        failed = self.do_request(request)
-      if failed:
-        request_dependencies(self, origin, request, True, deps)
-        log.error(f"failed to request {request} for {entity_id_string(self)}")
+      if dependent_success:
+        if self.set_requested(request):
+          return True
+        else:
+          request_dependencies(self, origin, request, True, deps)
+          log.error(f"failed to request {request} for {entity_id_string(self)}")
+          return False
+      else:
+        return False
 
 
 
@@ -223,9 +277,12 @@ def request_dependencies(self, origin, request, unschedule, deps):
   return success
 
 
+
 def run_actions(self, event_name):
   for event in getattr(self, "on_" + event_name): #pylint: disable=not-an-iterable
     run_action(self, event)
+
+
 
 def run_action(self, event):
   if event == "offline":
@@ -259,8 +316,12 @@ def run_action(self, event):
       self.parent.take_snapshot()
     else:
       log.error(f"misconfiguration: the parent entity of {make_id(self)} does not have the ability to create snapshots")
+  elif event == "pass":
+    # do nothing
+    pass
   else:
     log.error(f"unknown event type for {make_id(self)}: {event}")
+
 
 
 def tell_parent_child_offline(parent, child, prev_state):
@@ -269,10 +330,14 @@ def tell_parent_child_offline(parent, child, prev_state):
       parent.handle_child_offline(child, prev_state)
 
 
+
 def tell_parent_child_online(parent, child, prev_state):
   if parent is not None:
     if hasattr(parent, "handle_child_online"):
       parent.handle_child_online(child, prev_state)
+
+
+
 
 @dataclass
 class Children(Entity):
@@ -287,14 +352,16 @@ class Children(Entity):
       if isinstance(c, ZFSBackingBlockDevice):
         c.handle_parent_onlined()
     tell_parent_child_online(self.parent, self, prev_state)
-  
-  
+
+
+
   def handle_deactivated(self, prev_state):
     super().handle_deactivated(prev_state)
     for c in self.content: #pylint: disable=not-an-iterable
       if isinstance(c, ZFSBackingBlockDevice):
         handle_disconnected(c)
-  
+
+
 
   def handle_disconnected(self, prev_state):
     super().handle_deactivated(prev_state)
@@ -303,20 +370,26 @@ class Children(Entity):
         handle_disconnected(c)
 
 
-  # must be overridden by child classes
+
   def get_dependencies(self, request):
     if request == Request.ONLINE:
       return [self.parent]
     elif request == Request.OFFLINE:
       return self.content
 
+
+
   def handle_children_offline(self):
+    handle_offline_request(self)
     run_actions(self, "children_offline")
+
 
 
 #  def handle_child_online(self):
 #    cached(self)
 #    set_cache_state(self, EntityState.ONLINE)
+
+
 
 
   def handle_child_offline(self, child, prev_state):
@@ -338,6 +411,21 @@ class Children(Entity):
 
 
 
+def handle_offline_request(self):
+  if self.requested == Request.OFFLINE:
+    self.take_offline()
+    self.requested = None
+    return True
+
+
+
+def handle_online_request(self):
+  if self.requested == Request.ONLINE:
+    self.take_online()
+    self.requested = None
+    return True
+
+
 
 @yaml_data
 class Disk(Children):
@@ -350,11 +438,12 @@ class Disk(Children):
   def handle_appeared(self, prev_state):
     pass
 
-  def do_request(self, request):
-    if is_present_or_online(self):
+  def set_requested(self, request):
+    online = is_present_or_online(self)
+    if (request == Request.ONLINE and online) or (request == Request.OFFLINE and not online):
       return True
     else:
-      log.error(f"request {request} failed because {entity_id_string(self)} is not present.")
+      log.error(f"request {request} failed changing state ({request.opposite()}) of {entity_id_string(self)} is impossible. You need to manually bring the disk online.")
       return False
 
   # this requires a udev rule to be installed which ensures that the disk appears under its GPT partition table UUID under /dev/disk/by-uuid
@@ -390,12 +479,15 @@ class Partition(Children):
     for c in self.content: #pylint: disable=not-an-iterable
       handle_appeared(cached(c))
   
-  def request_online(self):
-    if isinstance(self.parent, ZMirror):
-      if not is_present_or_online(self):
-        log.error(f"request ONLINE failed because {entity_id_string(self)} is not present and has no parent configured.")
-        return False
-    return True
+  def set_requested(self, request):
+    if request == Request.ONLINE:
+      if isinstance(self.parent, ZMirror):
+        if not is_present_or_online(self):
+          log.error(f"request ONLINE failed because {entity_id_string(self)} is not present and has no parent configured (which could be onlined).")
+          return False
+      return True
+    else:
+      return True
 
 
   def id(self):
@@ -433,7 +525,7 @@ class ZPoolBacking:
       return dev.request(request, self, unschedule)
     sufficient = self.pool.run_on_backing(do_request)
     if not sufficient:
-      log.error("failed to request {request} for {self.pool}: insufficient backing devices could fulfill the request")
+      log.error(f"failed to request {request} for {self.pool}: insufficient backing devices could fulfill the request")
       def unrequest(dev):
         return dev.request(request, self, True)
       self.pool.run_on_backing(unrequest)
@@ -464,6 +556,8 @@ class ZPool(Children):
       c.handle_parent_onlined()
 
   def handle_backing_device_appeared(self):
+    set_cache_state(self, EntityState.INACTIVE)
+    handle_online_request(self)
     run_actions(self, "backing_appeared")
 
   def handle_children_offline(self):
@@ -475,9 +569,6 @@ class ZPool(Children):
   def handle_disconnected(self, prev_state):
     return super().handle_disconnected(prev_state)
 
-
-  def do_request(self):
-    return True
 
   # must be overridden by child classes
   def get_dependencies(self, request):
@@ -524,7 +615,6 @@ class ZPool(Children):
         for x in b:
           if fn(x):
             one_present = True
-            break
       elif fn(b):
         one_present = True
       if not one_present:
@@ -547,7 +637,7 @@ class ZPool(Children):
               raise ValueError(f"misconfiguration: ZFSBackingBlockDevice for zpool {self.name} not configured: {name}")
             return dev
           if blockdevs is None:
-            raise ValueError("misconfiguration: no `ZFSBackingBlockDevice`s configured for zpool {self.name}")
+            raise ValueError(f"misconfiguration: no `ZFSBackingBlockDevice`s configured for zpool {self.name}")
           for b in self.backed_by: #pylint: disable=not-an-iterable
             if isinstance(b, str):
               self._backed_by.append(get_dev(b))
@@ -555,11 +645,12 @@ class ZPool(Children):
               mirror = []
               for x in b.devices:
                 if isinstance(x, dict):
-                  if not "required" in x:
+                  if not "name" in x:
                     raise ValueError(f"misconfiguration: backing for zpool {self.name}")
-                  n = x["required"]
+                  n = x["name"]
                   dev = get_dev(n)
-                  self._backed_by.append(dev)
+                  if "required" in x and x["required"] == "yes":
+                    self._backed_by.append(dev)
                   mirror.append(dev)
                 elif isinstance(x, str):
                   dev = get_dev(x)
@@ -584,6 +675,7 @@ class ZFSVolume(Children):
     return make_id(self, pool=self.get_pool(), name=self.name)
 
   def handle_appeared(self, prev_state):
+    handle_online_request(self)
     run_actions(self, "appeared")
 
   def handle_children_offline(self):
@@ -604,7 +696,6 @@ class ZFSVolume(Children):
       return self.parent.name #pylint: disable=no-member
     else:
       return self.pool
-  
 
   def load_initial_state(self):
     state = EntityState.DISCONNECTED
@@ -649,6 +740,7 @@ class DMCrypt(Children):
   
 
   def handle_appeared(self, prev_state):
+    handle_online_request(self)
     run_actions(self, "appeared")
 
   def handle_onlined(self, prev_state):
@@ -772,6 +864,14 @@ def find_dependent(self, tp, **kwargs):
   return dep
 
 
+class UnavailableDependency(Entity):
+  
+  def request(self, request, origin=None, unschedule=False):
+    return False
+
+unavailable_dependency = UnavailableDependency()
+
+
 @yaml_data
 class ZFSBackingBlockDevice(Entity):
   pool: str = None
@@ -809,24 +909,29 @@ class ZFSBackingBlockDevice(Entity):
     return self.dev
   
     
-    
-  def request_dependent(self, request, unschedule):
-    # needs to be overridden by child classes in case they ahve a dependent.
-    pool = find_dependent(self, ZPool, pool=self.pool)
-    if pool is None:
-      return False
-    return True
+  # must be overridden by child classes
+  def get_dependencies(self, request):
+    if request == Request.ONLINE:
+      pool = config.find_config(ZPool, name=self.pool)
+      if pool is None:
+        log.error(f"{entity_id_string(self)}: pool {self.pool} not configured.")
+        pool = unavailable_dependency
+      return [self.parent, pool]
+    else:
+      return []
   
 
   def handle_appeared(self, prev_state):
     pool_id = f"ZPool|name:{self.pool}"
     if pool_id in config.config_dict: #pylint: disable=unsupported-membership-test
       config.config_dict[pool_id].handle_backing_device_appeared() #pylint: disable=unsubscriptable-object
+    handle_online_request(self)
     run_actions(self, "appeared")
 
 
   def handle_onlined(self, prev_state):
     tell_parent_child_online(self.parent, self, prev_state)
+    
 
 
   def load_initial_state(self):
