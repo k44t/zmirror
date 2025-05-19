@@ -48,18 +48,26 @@ content:
 
     # but we still configure the backing so that zmirror knows 
     backed_by:
-      - !MirrorBackingReference
+      - !Mirror
         devices: 
           # without zmirror-big-a present zmirror should not import the pool
           - name: zmirror-sysfs-a
             required: yes
-          - zmirror-sysfs-b
+          
+          - name: zmirror-sysfs-b
+          
           - name: zmirror-sysfs-s
-            online: no
+            
+            # zmirror should not automatically open the DMCrypt
+            # to online the device (only when zmirror-sysfs-s needs 
+            # scrubbing will zmirror try ot online all of its dependencies)
+            online_dependencies: no
+
           - name: zvol/zmirror-bak-a/sysfs
-            online: no
+            online_dependencies: no
+
           - name: zvol/zmirror-bak-b/sysfs
-            online: no
+            online_dependencies: no
 
 
 
@@ -406,14 +414,14 @@ content:
     # In my case, one of the disks backing zmirror-big is an internal SATA
     # disk. This is my master disk, and it is always present and always
     # contains the newest data. So I can never run into this issue.
-    # This internal disk is also marked as required within the MirrorBackingReference
+    # This internal disk is also marked as required within the `Mirror` definition
     # so zmirror will not import the pool if it is not present.
     on_backing_appeared:
       - online
     
     # for above event handling to work, we also need to configure the backing:
     backed_by:
-      - !MirrorBackingReference
+      - !Mirror
         devices: 
           # without zmirror-big-a present zmirror should not import the pool
           - name: zmirror-big-a
@@ -770,12 +778,12 @@ content:
     
     # for above event handling to work, we also need to configure the backing:
     backed_by:
-      - !MirrorBackingReference
-        devices: 
-        - name: zmirror-bak-b-alpha
-          required: yes
-        - name: zmirror-bak-b-beta
-          required: yes
+      - !Mirror
+        devices:
+          - name: zmirror-bak-b-alpha
+            required: yes
+          - name: zmirror-bak-b-beta
+            required: yes
     
 
     content:
@@ -931,7 +939,7 @@ content:
     
     # for above event handling to work, we also need to configure the backing:
     backed_by:
-      - !MirrorBackingReference
+      - !Mirror
         devices: 
           - zmirror-blubak-alpha
           - zmirror-blubak-beta

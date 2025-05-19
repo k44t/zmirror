@@ -12,7 +12,7 @@ from kpyutils.kiify import KdStream
 
 
 
-def scrub_all_overdue():
+def request_scrub_all_overdue():
   log.info("starting zfs scrubs if necessary")
   def possibly_scrub(dev):
     if isinstance(dev, ZFSBackingBlockDevice):
@@ -22,11 +22,13 @@ def scrub_all_overdue():
         allowed_delta = dateparser.parse(dev.scrub_interval)
         if (cache.last_scrubbed is None or allowed_delta > cache.last_scrubbed):
           log.info(f"zfs pool '{dev.pool}' dev '{dev.dev_name()}' must be scrubbed")
-          if cache.operation is not None and cache.operation.what == ZFSOperationState.NONE:
-            commands.add_command(f"zpool scrub {dev.pool}")
+          entity = load_config_for_cache(cache)
+          entity.request(Request.ONLINE)
+          entity.request(Request.SCRUB)
         else:
           log.info(f"zfs pool '{dev.pool}' dev '{dev.dev}' does not have to be scrubbed")
   iterate_content_tree(config.config_root, possibly_scrub)
+  iterate_content_tree(config.config_root, do_enact_request)
 
 
 def do_enact_request(entity):
@@ -34,12 +36,12 @@ def do_enact_request(entity):
     entity.enact_request()
 
 
-def request(request, typ, **identifiers):
+def request(rqst, typ, all_dependencies=False, **identifiers):
   tid = make_id_string(make_id(typ, **identifiers))
   entity = load_config_for_id(tid)
   if config is None:
     raise ValueError(f"{tid} not configured")
-  result = entity.request(request)
+  result = entity.request(rqst, all_dependencies = all_dependencies)
   if result:
     iterate_content_tree(config.config_root, do_enact_request)
     return True

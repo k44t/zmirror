@@ -50,7 +50,7 @@ def assert_commands(cmds):
       else:
         assert a == b
 
-class TestExampleConfig():
+class Tests():
 
 
   # event_queue = None
@@ -201,7 +201,7 @@ class TestExampleConfig():
   # we manually trigger a scrub
   def test_trigger_scrub_sysfs_a_and_b(self):
     
-    operations.scrub_all_overdue()
+    operations.request_scrub_all_overdue()
 
     assert_commands([
       # this is issued twice, once for each connected device
@@ -227,7 +227,19 @@ class TestExampleConfig():
   # scrub finished
   def test_scrub_finished_sysfs_a_and_b(self):
 
+    tm = datetime.now()
+
     trigger_event()
+
+
+    a = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-a"]
+    b = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-b"]
+
+    assert a.operation.what == ZFSOperationState.NONE
+    assert b.operation.what == ZFSOperationState.NONE
+
+    assert a.last_scrubbed > tm
+    assert b.last_scrubbed > tm
 
     assert_commands([])
 
@@ -340,6 +352,7 @@ class TestExampleConfig():
   def test_zpool_big_online(self):
     a = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-big|dev:zmirror-big-a"]
     b = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-big|dev:zmirror-big-b"]
+    pool = config.cache_dict["ZPool|name:zmirror-big"]
 
     assert a.state.what == EntityState.INACTIVE
     assert b.state.what == EntityState.DISCONNECTED
@@ -350,6 +363,8 @@ class TestExampleConfig():
 
     assert a.state.what == EntityState.ONLINE
     assert b.state.what == EntityState.DISCONNECTED
+
+    assert pool.state.what == EntityState.ONLINE
 
     assert_commands([
       # nothing happens
@@ -367,14 +382,24 @@ class TestExampleConfig():
   # physical device of big-b gets plugged-in
   # disk of big-b appears (udev: add)
   def test_disk_big_b_online(self):
+
+    pool = config.cache_dict["ZPool|name:zmirror-big"]
+
     trigger_event()
+
+    assert pool.state.what == EntityState.ONLINE
 
     # zmirror needs to do nothing (issue no commands)
     assert_commands([])
 
   # partition of big-b appears (udev: add)
   def test_partition_big_b_online(self):
+
+    pool = config.cache_dict["ZPool|name:zmirror-big"]
+
     trigger_event()
+
+    assert pool.state.what == EntityState.ONLINE
 
     assert_commands([
 
@@ -385,7 +410,19 @@ class TestExampleConfig():
 
   # dmcrypt of big-b appears
   def test_dmcrypt_big_b_online(self):
+
+    pool_cache = config.cache_dict["ZPool|name:zmirror-big"]
+    pool_config = config.config_dict["ZPool|name:zmirror-big"]
+
+
+    assert pool_config.cache is pool_cache
+    assert pool_cache.state.what == EntityState.ONLINE
+
     trigger_event()
+
+
+    assert pool_config.cache is pool_cache
+    assert pool_cache.state.what == EntityState.ONLINE
 
     assert_commands([
       # big-b alone is not configured to trigger an import

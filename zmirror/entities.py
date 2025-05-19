@@ -44,6 +44,12 @@ def init_config(cache_path, config_path):
   iterate_content_tree3_depth_first(config.config_root, load_initial_state, None, None)
   iterate_content_tree3_depth_first(config.config_root, update_initial_state, None, None)
 
+  iterate_content_tree3(config.config_root, finalize_init, None, None)
+
+def finalize_init(entity, _parent, _ignored):
+  if hasattr(entity, "finalize_init"):
+    entity.finalize_init()
+
 config.init = init_config
 
 
@@ -58,6 +64,7 @@ def update_initial_state(entity, _parent, _ignored):
     s = entity.update_initial_state()
     if s is not None:
       set_cache_state(cached(entity), s, True)
+  
 
 
 def index_entities(entity, parent, _ignored):
