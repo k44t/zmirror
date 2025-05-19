@@ -198,51 +198,6 @@ class Tests():
     # zmirror needs to do nothing (issue no commands) as nothing is defined in the config file
     assert_commands([])
 
-  # we manually trigger a scrub
-  def test_trigger_scrub_sysfs_a_and_b(self):
-    
-    operations.request_scrub_all_overdue()
-
-    assert_commands([
-      # this is issued twice, once for each connected device
-      "zpool scrub zmirror-sysfs",
-      "zpool scrub zmirror-sysfs"
-    ])
-
-
-  # scrub start
-  def test_scrub_started_sysfs_a_and_b(self):
-    
-    trigger_event()
-
-    a = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-a"]
-    b = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-b"]
-
-    assert a.operation.what == ZFSOperationState.SCRUBBING
-    assert b.operation.what == ZFSOperationState.SCRUBBING
-
-    assert_commands([])
-
-
-  # scrub finished
-  def test_scrub_finished_sysfs_a_and_b(self):
-
-    tm = datetime.now()
-
-    trigger_event()
-
-
-    a = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-a"]
-    b = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-b"]
-
-    assert a.operation.what == ZFSOperationState.NONE
-    assert b.operation.what == ZFSOperationState.NONE
-
-    assert a.last_scrubbed > tm
-    assert b.last_scrubbed > tm
-
-    assert_commands([])
-
 
 
   # sysfs-s

@@ -8,17 +8,19 @@ import threading
 import json
 import traceback
 
+from zmirror.user_commands import handle_command
+
 
 
 from . import commands
 from .logging import log
 from .entities import *
-from . import entities as core2
 # from .actions import handle_entity_online, handle_entity_offline, handle_entity_present
 from .dataclasses import * # , LVMLogicalVolume, VirtualDisk, 
 from kpyutils.kiify import to_kd
 
 from . import config as globals
+
 
 
 
@@ -240,7 +242,12 @@ def handle_client(connection: socket.socket, client_address, event_queue: queue.
         break
     message = data.decode('utf-8')
     event = json.loads(message)
-    event_queue.put(event)
+    if isinstance(event, list):
+      with connection.makefile('w') as stream:
+        handle_command(event, stream)
+        stream.flush()
+    else:
+      event_queue.put(event)
   except Exception as ex:
     log.error("error while receiving data from zmirror-trigger: %s", ex)
   finally:

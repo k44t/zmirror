@@ -9,10 +9,12 @@ from . import commands as commands
 from .daemon import daemon
 from kpyutils.kiify import KdStream
 
+import argparse
+import sys
+import logging
+import inspect
 
-
-
-def request_scrub_all_overdue():
+def request_scrub_all_overdue(*args):
   log.info("starting zfs scrubs if necessary")
   def possibly_scrub(dev):
     if isinstance(dev, ZFSBackingBlockDevice):
@@ -46,3 +48,4 @@ def request(rqst, typ, all_dependencies=False, **identifiers):
     iterate_content_tree(config.config_root, do_enact_request)
     return True
   return False
+

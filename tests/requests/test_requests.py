@@ -298,6 +298,7 @@ class Tests():
         entity.request(Request.ONLINE)
         entity.request(Request.SCRUB)
     entities.iterate_content_tree(config.config_root, possibly_scrub)
+    entities.iterate_content_tree(config.config_root, operations.do_enact_request)
 
     assert_commands([
       'zpool scrub -s zmirror-sysfs', 
@@ -328,7 +329,9 @@ class Tests():
     
     assert_commands([
       # we import the bak-a pool
-      "zpool import zmirror-bak-a"
+      "zpool import zmirror-bak-a",
+
+      "zpool online zmirror-bak-a zmirror-bak-a"
     ])
 
 
@@ -352,7 +355,112 @@ class Tests():
       "zfs set volmode=full zmirror-bak-a/sysfs",
 
       # big is left alone as it is not requested
-      # "zpool online zmirror-big zvol/zmirror-bak-a/big"
+      ## "zpool online zmirror-big zvol/zmirror-bak-a/big"
+    ])
+
+
+
+  # when bak-a-sysfs zfs_volume appears (udev: add)
+  def test_zfs_volume_bak_a_sysfs_online(self):
+
+    zpool = config.cache_dict["ZPool|name:zmirror-bak-a"]
+
+    assert zpool.state.what == EntityState.ONLINE
+
+    trigger_event()
+
+    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
+    volume = config.cache_dict["ZFSVolume|pool:zmirror-bak-a|name:sysfs"]
+
+    assert_commands([
+      "zpool online zmirror-sysfs zvol/zmirror-bak-a/sysfs"
+    ])
+
+
+
+  # when bak-a-big the blockdev becomes active in the sysfs pool
+  def test_zpool_sysfs_backing_blockdev_bak_a_sysfs_online(self):
+    trigger_event()
+
+    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
+
+    assert blockdev.state.what == EntityState.ONLINE
+
+
+    assert_commands([
+      # a scrub has been requested and zmirror trys to start it 
+      # which will fail because resilvering needs to happen first
+      "zpool scrub -s zmirror-sysfs",
+      "zpool scrub zmirror-sysfs"
+    ])
+
+
+
+  # when the resilver starts
+  def test_zpool_sysfs_backing_blockdev_bak_a_sysfs_resilver_start(self):
+    trigger_event()
+    
+    assert_commands([])
+
+
+  # when the resilver ends
+  def test_zpool_sysfs_backing_blockdev_bak_a_sysfs_resilver_finish(self):
+    trigger_event()
+    
+    assert_commands([
+
+      "zpool scrub -s zmirror-sysfs",
+      "zpool scrub zmirror-sysfs",
+      re.compile(r"zfs snapshot zmirror-bak-a/sysfs@.*")
+      
+      # zmirror refuses to offline the device becausee a scrub is scheduled
+      ## 'zpool offline zmirror-sysfs zvol/zmirror-bak-a/sysfs'
+    ])
+
+
+
+  # scrub start
+  def test_scrub_started_sysfs(self):
+    
+    trigger_event()
+
+    a = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-a"]
+    b = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-b"]
+    s = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-b"]
+    bak_a = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
+    bak_b = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-b/sysfs"]
+
+
+    assert a.operation.what == ZFSOperationState.SCRUBBING
+    assert b.operation.what == ZFSOperationState.SCRUBBING
+    assert s.operation.what == ZFSOperationState.SCRUBBING
+    assert bak_a.operation.what == ZFSOperationState.SCRUBBING
+    assert bak_b.operation.what != ZFSOperationState.SCRUBBING
+
+    assert_commands([])
+
+
+
+  # scrub start
+  def test_scrub_finished_sysfs(self):
+    
+    trigger_event()
+
+    a = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-a"]
+    b = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-b"]
+    s = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-b"]
+    bak_a = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
+    bak_b = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-b/sysfs"]
+
+
+    assert a.operation.what != ZFSOperationState.SCRUBBING
+    assert b.operation.what != ZFSOperationState.SCRUBBING
+    assert s.operation.what != ZFSOperationState.SCRUBBING
+    assert bak_a.operation.what != ZFSOperationState.SCRUBBING
+    assert bak_b.operation.what != ZFSOperationState.SCRUBBING
+
+    assert_commands([
+      "zpool offline zmirror-sysfs zvol/zmirror-bak-a/sysfs"
     ])
 
 

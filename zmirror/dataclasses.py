@@ -282,6 +282,9 @@ class Entity:
 
   def request(self, request, origin=None, unrequest=False, all_dependencies=False):
     if unrequest:
+
+
+      # yes origin is intended to not be == self here
       request_dependencies(self, origin, request, True, all_dependencies, self.get_dependencies(request))
       if request in self.requested:
         self.requested.remove(request)
@@ -292,11 +295,16 @@ class Entity:
         return False
     else:
       deps = self.get_dependencies(request)
+      #if request == Request.SCRUB and not self.request(Request.ONLINE, self, unrequest=False, all_dependencies=False):
+       # return False
+      
+      # yes origin is intended to not be == self here
       dependent_success = request_dependencies(self, origin, request, unrequest, all_dependencies, deps)
       if dependent_success:
         if self.set_requested(request):
           return True
         else:
+          # yes origin is intended to not be == self here
           request_dependencies(self, origin, request, True, all_dependencies, deps)
           log.error(f"failed to request {request} for {entity_id_string(self)}")
           return False
@@ -799,7 +807,7 @@ class ZPool(Children):
     commands.add_command(f"zpool scrub {self.name}")
 
   def take_offline(self):
-    commands.add_command(f"zpool export {self.name}")
+      commands.add_command(f"zpool export {self.name}")
 
   def take_online(self):
     if is_online(self):
@@ -959,6 +967,12 @@ def uncached_handle_by_name(cache, name, prev_state):
     method(prev_state)
   uncached(cache, do)
 
+def uncached_operation_handle_by_name(cache, name):
+  def do(entity):
+    method = getattr(entity, "handle_" + name)
+    method()
+  uncached(cache, do)
+
 
 def uncached_userevent_by_name(cache, name):
   def do(entity):
@@ -972,7 +986,7 @@ def handle_resilver_started(cache):
 
 def handle_resilver_finished(cache):
   cache.operation = Since(ZFSOperationState.NONE, datetime.now())
-  uncached_userevent_by_name(cache, "resilvered")
+  uncached_operation_handle_by_name(cache, "resilvered")
 
 
 def handle_scrub_started(cache):
@@ -983,7 +997,9 @@ def handle_scrub_finished(cache):
   now = datetime.now()
   cache.operation = Since(ZFSOperationState.NONE, now)
   cache.last_scrubbed = now
-  uncached_handle_by_name(cache, "scrubbed")
+  def do(entity):
+    entity.handle_scrub_finished()
+  uncached(cache, do)
 
 
 def handle_scrub_aborted(cache):
@@ -1057,6 +1073,11 @@ class ZFSBackingBlockDevice(Entity):
 
   scrub_interval: str = None
 
+  def handle_scrub_finished(self):
+    self.requested.remove(Request.SCRUB)
+    run_actions(self, "scrubbed")
+    
+
   def id(self):
     return make_id(self, pool=self.pool, dev=self.dev_name())
 
@@ -1096,8 +1117,16 @@ class ZFSBackingBlockDevice(Entity):
 
   def handle_onlined(self, prev_state):
     tell_parent_child_online(self.parent, self, prev_state)
+    if Request.SCRUB in self.requested:
+      self.start_scrub()
+
     
 
+  def set_requested(self, request):
+    if request == Request.OFFLINE and Request.SCRUB in self.requested:
+      log.warning(f"{entity_id_string(self)}: not accepting request {request} because scrub has been requested")
+      return False
+    return super().set_requested(request)
 
   def load_initial_state(self):
     state = EntityState.DISCONNECTED
@@ -1112,17 +1141,19 @@ class ZFSBackingBlockDevice(Entity):
 
 
 
-  def handle_scrub_finished(self):
-    run_actions(self, "scrubbed")
-
-  def handle_resilver_finished(self):
+  def handle_resilvered(self):
+    if Request.SCRUB in self.requested:
+      self.start_scrub()
     run_actions(self, "resilvered")
 
   def handle_scrub_aborted(self):
     run_actions(self, "scrub_aborted")
 
   def take_offline(self):
-    commands.add_command(f"zpool offline {self.pool} {self.dev_name()}")
+    if Request.SCRUB in self.requested:
+      log.warning(f"{entity_id_string(self)}: not taking offline because scrub requested")
+    else:
+      commands.add_command(f"zpool offline {self.pool} {self.dev_name()}")
 
   def take_online(self):
     commands.add_command(f"zpool online {self.pool} {self.dev_name()}")
@@ -1131,14 +1162,8 @@ class ZFSBackingBlockDevice(Entity):
     commands.add_command(f"zpool trim {self.pool} {self.dev_name()}")
 
   def start_scrub(self):
+    commands.add_command(f"zpool scrub -s {self.pool}")
     commands.add_command(f"zpool scrub {self.pool}")
-
-  def handle_resilvered(self):
-    action = self.on_resilvered
-    if action == "offline":
-      self.take_offline()
-    elif action == "scrub":
-      self.start_scrub()
 
   def __kiify__(self, kd_stream: KdStream):
     kd_stream.print_partial_obj(self, ["pool", "dev", "state", "operation", "last_resilvered", "last_scrubbed"])

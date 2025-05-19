@@ -1,0 +1,4 @@
+{
+  "ZEVENT_SUBCLASS": "scrub_finish",
+  "ZEVENT_POOL": "zmirror-sysfs"
+}

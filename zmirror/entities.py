@@ -191,7 +191,7 @@ def is_zpool_backing_device_online(zpool, dev):
   return False
 
 
-POOL_DEVICES_REGEX = re.compile(r'^ {12}([-a-zA-Z0-9_]+) +([A-Z]+) +[0-9]+ +[0-9]+ +[0-9]+ *.*$', \
+POOL_DEVICES_REGEX = re.compile(r'^ {12}([-/a-zA-Z0-9_]+) +([A-Z]+) +[0-9]+ +[0-9]+ +[0-9]+ *.*$', \
                          re.MULTILINE)
 
 
