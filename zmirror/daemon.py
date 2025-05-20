@@ -47,7 +47,7 @@ def handle(env):
 
       if zpool in globals.zfs_blockdevs:
         for dev in globals.zfs_blockdevs[zpool].values():
-          dev_cache = find_or_create_cache(ZFSBackingBlockDevice, pool=zpool, dev=dev.dev)
+          dev_cache = find_or_create_cache(ZFSBackingDevice, pool=zpool, dev=dev.dev)
           handle_deactivated(dev_cache)
 
 
@@ -70,7 +70,7 @@ def handle(env):
         for match in POOL_DEVICES_REGEX.finditer(zpool_status):
           dev = match.group(1)
 
-          cache = find_or_create_cache(ZFSBackingBlockDevice, pool=zpool, dev=dev)
+          cache = find_or_create_cache(ZFSBackingDevice, pool=zpool, dev=dev)
           if match.group(2) == "ONLINE":
 
             found_online = True
@@ -242,9 +242,9 @@ def handle_client(connection: socket.socket, client_address, event_queue: queue.
         break
     message = data.decode('utf-8')
     event = json.loads(message)
-    if isinstance(event, list):
+    if "ZMIRROR_COMMAND" in event:
       with connection.makefile('w') as stream:
-        handle_command(event, stream)
+        handle_command(event["ZMIRROR_COMMAND"], stream)
         stream.flush()
     else:
       event_queue.put(event)
@@ -288,6 +288,7 @@ def handle_event(event_queue: queue.Queue):
 # so this is just a description for the next milestone
 def daemon(args):# pylint: disable=unused-argument
 
+  config.is_daemon = True
 
 
   socket_path = args.socket_path

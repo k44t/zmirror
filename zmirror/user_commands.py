@@ -1,6 +1,8 @@
 
 import dateparser
 
+from zmirror.entities import init_config, iterate_content_tree, remove_cache
+
 from .logging import log
 from .dataclasses import *
 from .util import myexec, outs, copy_attrs
@@ -13,28 +15,8 @@ import logging
 import inspect
 
 
-class CustomArgumentParser(argparse.ArgumentParser):
-    def __init__(self, *args, **kwargs):
-        self.output_stream = kwargs.pop('output_stream', sys.stdout)
-        super().__init__(*args, **kwargs)
 
-    def print_help(self, file=None):
-        if file is None:
-            file = self.output_stream
-        super().print_help(file)
-
-    def print_usage(self, file=None):
-        if file is None:
-            file = self.output_stream
-        super().print_usage(file)
-
-    def exit(self, status=0, message=None):
-        if message:
-            self._print_message(message, self.output_stream)
-        super().exit(status)
-
-
-def command_request(request, typ, kwargs):
+def daemon_request(request, cancel, typ, kwargs):
   constructor_params = inspect.signature(typ).parameters
 
   # Filter the Namespace to include only the required arguments
@@ -43,51 +25,154 @@ def command_request(request, typ, kwargs):
   if entity is None:
     log.error(f"{make_id_string(make_id(typ, **filtered_args))}: entity not configured")
     return
-  if not entity.request(request):
+  if not entity.request(request, unschedule=cancel):
     log.error(f"{make_id_string(make_id(typ, **filtered_args))}: request {request} failed. See previous error messages.")
     return
   log.info(f"{make_id_string(make_id(typ, **filtered_args))}: requested {request} scheduled successfully")
 
-def make_online_command(typ):
-  def run(args):
-    command_request(Request.ONLINE, typ, args)
-  return run
-
-def make_offline_command(typ):
-  def run(args):
-    command_request(Request.ONLINE, typ, args)
-  return run
-
-def make_scrub_command(typ):
-  def run(args):
-    command_request(Request.ONLINE, typ, args)
-    command_request(Request.SCRUB, typ, args)
-  return run
 
 
-def handle_command(args, stream):
+def handle_request_command(command):
+  name = command["command"]
+  if not name in request_for_name:
+    raise ValueError(f"unknown command {name}")
+    
+  request = request_for_name[name]
+  if "cancel" in command:
+    cancel = yes_no_absent_or_dict(command, "cancel", False, "error")
+  else:
+    cancel = False
+  if not "type" in command:
+    raise ValueError(f"missing type for handling command: {name}")
+ 
+  type_name = command["type"]
+  if not type_name in type_for_command_name:
+    raise ValueError(f"unknown type: {type_name}")
+  typ = type_for_command_name[type_name]
+  if not "identifiers" in command:
+    raise ValueError(f"no identifiers given for type: {typ}")
+  ids = command["identifiers"]
+  if not isinstance(ids, dict):
+    raise ValueError("identifiers are not a dict of type {{str:str}}")
+  daemon_request(request, cancel, typ, ids)
+
+
+
+def handle_status_command(out):
+   
+  stream = KdStream(out)
+  # log.info("starting zfs scrubs if necessary")
+  def do(entity):
+    stream.print_obj(cached(entity).cache)
+    
+  iterate_content_tree(config.config_root, do)
+
+
+
+def handle_clear_cache_command():
+
+  log.info("clearing cache")
+  
+  remove_cache(config.cache_path)
+
+  log.info("cache cleared")
+
+  handle_reload_command()
+
+
+
+def handle_reload_command():
+
+  log.info("reloading configuration")
+
+  init_config(config.cache_path, config.config_path)
+
+  log.info("configuration reloaded")
+
+
+
+def handle_scrub_all_command():
+  def do(entity):
+    if isinstance(entity, ZFSBackingDevice):
+      if Request.SCRUB not in entity.requested:
+        entity.request(Request.SCRUB)
+  iterate_content_tree(config.config_root, do)
+
+
+
+def handle_scrub_overdue_command():
+  def do(entity):
+    if isinstance(entity, ZFSBackingDevice):
+      cache = cached(entity)
+      if entity.scrub_interval is not None:
+        # parsing the schedule delta will result in a timestamp calculated from now
+        allowed_delta = dateparser.parse(entity.scrub_interval)
+        if (cache.last_scrubbed is None or allowed_delta > cache.last_scrubbed):
+          if Request.SCRUB not in entity.requested:
+            log.info(f"{entity_id_string(entity)}: requesting scrub")
+            entity.request(Request.SCRUB)
+          else:
+            log.debug(f"{entity_id_string(entity)}: scrub already requested")
+        else:
+          log.info(f"{entity_id_string(entity)}: scrub not yet overdue, skipping")
+      else:
+        log.info(f"{entity_id_string(entity)}: no scrub interval configured, skipping")
+  iterate_content_tree(config.config_root, do)
+
+
+
+def handle_online_all_command(command):
+  def do(entity):
+    if Request.ONLINE not in entity.requested:
+      entity.request(Request.ONLINE, unrequest=yes_no_absent_or_dict(command, "cancel", False, "error"))
+  iterate_content_tree(config.config_root, do)
+
+
+
+def handle_command(command, stream):
   handler = logging.StreamHandler(stream)
   log.addHandler(handler)
   try:
-
-    parser = CustomArgumentParser(prog="zmirror", output_stream=stream)
-    subparser = parser.add_subparsers(required=True)
-
-
-    # scrub_parser = subparser.add_parser('scrub-overdue', parents=[], help='scrub devices that have not been scrubbed for too long')
-    # scrub_parser.set_defaults(func=scrub)
-
-    online_parser = subparser.add_parser('online', parents=[], help='online devices')
-
-    online_subs = online_parser.add_subparsers(required=True)
-
-    zpool_parser = CustomArgumentParser(add_help=False, output_stream=stream)
-    zpool_parser.add_argument("--name", type=str)
-
-    online_zpool = online_subs.add_parser("zpool", parents=[zpool_parser])
-    online_zpool.set_defaults(func=make_online_command(ZPool))
-
-
+    name = command["command"]
+    if name == "status":
+       handle_status_command(stream)
+    elif name == "clear-cache":
+       handle_clear_cache_command()
+    elif name == "scrub":
+      if yes_no_absent_or_dict(command, "all", False, "error"):
+        handle_scrub_all_command()
+      elif yes_no_absent_or_dict(command, "overdue", False, "error"):
+        handle_scrub_overdue_command()
+      else:
+        handle_request_command(command)
+    elif name == "online":
+      if yes_no_absent_or_dict(command, "all", False, "error"):
+        handle_online_all_command(command)
+      else:
+        handle_request_command(command)
+    else:
+       handle_request_command(command)
+  except Exception as ex:
+    log.error(f"failed to handle command: {ex}")
     # scrub_parser.set_defaults(func=request_scrub_all_overdue)
   finally:
     log.removeHandler(handler)
+
+
+
+command_name_for_type = {
+  Disk: "disk",
+  Partition: "partition",
+  ZPool: "zpool",
+  ZFSBackingDevice: "zfs-backing-device",
+  ZFSVolume: "zfs-volume",
+  DMCrypt: "dm-crypt"
+}
+
+type_for_command_name = {value: key for key, value in command_name_for_type.items()}
+
+request_for_name = {
+  "online": Request.ONLINE,
+  "offline": Request.OFFLINE,
+  "scrub": Request.SCRUB
+}

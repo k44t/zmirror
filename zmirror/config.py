@@ -9,7 +9,10 @@ config_root = None
 config_dict: dict = None
 cache_path = None
 config_path = None
+disable_commands = False
 
+
+is_daemon = False
 
 
 def dev_exists(dev_path):

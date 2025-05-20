@@ -21,7 +21,7 @@ import pytest
 
 
 
-zfs_blockdev_id = "ZFSBackingBlockDeviceCache|zpool-a|partition-a"
+zfs_blockdev_id = "ZFSBackingDeviceCache|zpool-a|partition-a"
 partition_id = "Partition|partition-a"
 dm_id= "DM_Crypt|dm-alpha"
 disk_id = "Disk|0123456789abcdef"
@@ -127,7 +127,7 @@ class Test_Group1_TestMethods():
     # it is already in the cache_dict because when we imported the pool
     # it came in through zpool status
     assert zfs_blockdev_id in config.cache_dict
-    dev: ZFSBackingBlockDeviceCache = config.cache_dict[zfs_blockdev_id]
+    dev: ZFSBackingDeviceCache = config.cache_dict[zfs_blockdev_id]
     assert dev.state.what == EntityState.DISCONNECTED
 
     trigger_event()
@@ -135,7 +135,7 @@ class Test_Group1_TestMethods():
     assert zfs_blockdev_id in config.cache_dict
 
 
-    dev2: ZFSBackingBlockDeviceCache = config.cache_dict[zfs_blockdev_id]
+    dev2: ZFSBackingDeviceCache = config.cache_dict[zfs_blockdev_id]
 
     assert dev is dev2
     
@@ -149,7 +149,7 @@ class Test_Group1_TestMethods():
   # vdev beginnt zu resilvern (resilver_start)
   def test_resilver_start(self):
     trigger_event()
-    dev: ZFSBackingBlockDeviceCache = config.cache_dict[zfs_blockdev_id]
+    dev: ZFSBackingDeviceCache = config.cache_dict[zfs_blockdev_id]
     
     assert(dev is not None)
     assert(dev.operation.what== ZFSOperationState.RESILVERING)
@@ -157,7 +157,7 @@ class Test_Group1_TestMethods():
   # vdev resilver ist abgeschlossen (resilver_finish)
   def test_resilver_finish(self):
     trigger_event()
-    dev: ZFSBackingBlockDeviceCache = config.cache_dict[zfs_blockdev_id]
+    dev: ZFSBackingDeviceCache = config.cache_dict[zfs_blockdev_id]
     
     assert(dev is not None)
     assert(dev.operation.what == ZFSOperationState.NONE)
@@ -166,7 +166,7 @@ class Test_Group1_TestMethods():
   # pool scrub startet (scrub_start)
   def test_scrub_start(self):
     trigger_event()
-    dev: ZFSBackingBlockDeviceCache = config.cache_dict[zfs_blockdev_id]
+    dev: ZFSBackingDeviceCache = config.cache_dict[zfs_blockdev_id]
     
     assert(dev is not None)
     assert(dev.operation.what == ZFSOperationState.SCRUBBING)
@@ -174,7 +174,7 @@ class Test_Group1_TestMethods():
   # pool scrub ist abgeschlossen (scrub_finish)
   def test_scrub_finish(self):
     trigger_event()
-    dev: ZFSBackingBlockDeviceCache = config.cache_dict[zfs_blockdev_id]
+    dev: ZFSBackingDeviceCache = config.cache_dict[zfs_blockdev_id]
     
     assert(dev is not None)
     assert(dev.operation.what == ZFSOperationState.NONE)
@@ -213,7 +213,7 @@ class Test_Group1_TestMethods():
     
     trigger_event()
 
-    dev: ZFSBackingBlockDevice = config.cache_dict[zfs_blockdev_id]
+    dev: ZFSBackingDevice = config.cache_dict[zfs_blockdev_id]
     
     assert(dev is not None)
     assert(dev.state.what == EntityState.DISCONNECTED)

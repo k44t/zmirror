@@ -18,7 +18,9 @@ from kpyutils.kiify import KdStream
 from . import operations as operations
 
 
-
+ZMIRROR_CONFIG_PATH_DEFAULT = "/etc/zmirror/zmirror-config.yml"
+ZMIRROR_CACHE_PATH_DEFAULT = "/var/lib/zmirror/zmirror-cache.yml"
+ZMIRROR_SOCKET_PATH_DEFAULT = "/run/zmirror/zmirror.socket"
 
 #alexTODO: delete this
 #def my_constructor(loader, node):
@@ -87,68 +89,95 @@ def scrub(args):#pylint: disable=unused-argument
 
 
 
-def clear_cache(args):#pylint: disable=unused-argument
-  remove_cache(args.cache_path)
-
-
-
-
-def show_status(args):#pylint: disable=unused-argument
-  init_config(cache_path=args.cache_path, config_path = args.config_path)
-  stream = KdStream(outs)
-  # log.info("starting zfs scrubs if necessary")
-  def show(dev):
-    stream.print_obj(cached(dev).cache)
-    
-  iterate_content_tree(config.config_root, show)
-
-
-
-
 
 def main(args=None):
 
+
+
   parser = argparse.ArgumentParser(prog="zmirror")
-  subparser = parser.add_subparsers(required=True)
+  subs = parser.add_subparsers(required=True)
 
 
   # nice to have, maybe?: zmirror trigger        # simulates events or something...
 
 
   # nice to have: zmirror prune-cache    # called by user
-  # prune_parser = subparser.add_parser('prune-cache', parents=[], help='remove cache entries that are not also present in config')
+  # prune_parser = subs.add_parser('prune-cache', parents=[], help='remove cache entries that are not also present in config')
   # prune_parser.set_defaults(func=prune_cache)
 
 
 
   shared_parser = argparse.ArgumentParser(add_help=False)
 
-  shared_parser.add_argument("--config-path", type=str, help="the path to the config file", default=env_var_or("ZMIRROR_CONFIG_PATH", "./zmirror-config.yml"))
+  shared_parser.add_argument("--config-path", type=str, help="the path to the config file", default=env_var_or("ZMIRROR_CONFIG_PATH", ZMIRROR_CONFIG_PATH_DEFAULT))
 
-  shared_parser.add_argument("--cache-path", type=str, help="the path to the cache file", default=env_var_or("ZMIRROR_CACHE_PATH", "./zmirror-cache.yml"))
+  shared_parser.add_argument("--cache-path", type=str, help="the path to the cache file", default=env_var_or("ZMIRROR_CACHE_PATH", ZMIRROR_CONFIG_PATH_DEFAULT))
 
-  shared_parser.add_argument("--socket-path", type=str, help="the path to the unix socket (used by zmirror.trigger)", default=env_var_or("ZMIRROR_SOCKET_PATH", "./zmirror.socket"))
+  socket_parser = argparse.ArgumentParser(add_help=False)
+  socket_parser.add_argument("--socket-path", type=str, help="the path to the unix socket (used by zmirror.trigger)", default=env_var_or("ZMIRROR_SOCKET_PATH", ZMIRROR_SOCKET_PATH_DEFAULT))
   # shared_parser.add_argument("runtime-dir", type=str, help="the path to the runtime directory", default= "/var/run/zmirror")
 
 
-  clear_cache_parser = subparser.add_parser('clear-cache', parents=[shared_parser], help= 'clear cache')
-  clear_cache_parser.set_defaults(func=clear_cache)
-
-
-  daemon_parser = subparser.add_parser('daemon', parents=[shared_parser], help="starts the zmirror daemon")
+  daemon_parser = subs.add_parser('daemon', parents=[shared_parser, socket_parser], help="starts the zmirror daemon")
   daemon_parser.set_defaults(func=daemon)
 
+
+  # daemon commands
+  # #######################
+
+  clear_cache_parser = subs.add_parser('clear-cache', parents=[socket_parser], help= 'clear cache')
+  clear_cache_parser.set_defaults(func=send_simple_daemon_command("clear-cache"))
 
 
 
   # zmirror status   # called by user
-  status_parser = subparser.add_parser('status', parents=[shared_parser], help='show status of zmirror')
-  status_parser.set_defaults(func=show_status)
+  status_parser = subs.add_parser('status', parents=[shared_parser, socket_parser], help='show status of zmirror')
+  clear_cache_parser.set_defaults(func=send_simple_daemon_command("status"))
 
 
-  # zmirror scrub   # called by systemd.timer
-  scrub_parser = subparser.add_parser('scrub', parents=[shared_parser], help='start pending scrubs')
-  scrub_parser.set_defaults(func=scrub)
+  # scrub_parser = subs.add_parser('scrub-overdue', parents=[], help='scrub devices that have not been scrubbed for too long')
+  # scrub_parser.set_defaults(func=scrub)
+
+  online_parser = subs.add_parser('online', parents=[socket_parser], help='online devices')
+  offline_parser = subs.add_parser('offline', parents=[socket_parser], help='offline devices')
+
+  online_subs = online_parser.add_subparsers(required=True)
+  offline_subs = offline_parser.add_subparsers(required=True)
+
+
+
+  def make_onlineable_commands(typ):
+    command_name = command_name_for_type[typ]
+
+    common_parser = argparse.ArgumentParser(add_help=False)
+    common_parser.add_argument("--cancel", action='store_true')
+    for fld in typ.id_fields(): 
+      common_parser.add_argument(f"--{fld}", type=str)
+    
+    online = online_subs.add_parser(command_name, parents=[common_parser])
+    online.set_defaults(func=send_request_daemon_command(Request.ONLINE, typ))
+
+    offline = offline_subs.add_parser(command_name, parents=[common_parser])
+    offline.set_defaults(func=send_request_daemon_command(Request.ONLINE, typ))
+    
+  def make_command_request_command(command, request, typ):
+    parser = subs.add_parser(command, parents=[socket_parser])
+    for fld in typ.id_fields():
+      parser.add_argument(f"--{fld}", type=str)
+
+    parser.add_argument("--cancel", action='store_true')
+    parser.set_defaults(func=send_request_daemon_command(request, typ))
+
+
+
+  for typ in [Disk, Partition, ZPool, ZFSVolume, DMCrypt, ZFSBackingDevice]:
+      make_onlineable_commands(typ)
+
+  make_command_request_command("scrub", Request.SCRUB, ZFSBackingDevice)
+
+
+
+
 
   args = parser.parse_args(args=args)
 

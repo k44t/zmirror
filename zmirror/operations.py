@@ -17,8 +17,8 @@ import inspect
 def request_scrub_all_overdue(*args):
   log.info("starting zfs scrubs if necessary")
   def possibly_scrub(dev):
-    if isinstance(dev, ZFSBackingBlockDevice):
-      cache = find_or_create_cache(ZFSBackingBlockDevice, pool=dev.pool, dev=dev.dev_name())
+    if isinstance(dev, ZFSBackingDevice):
+      cache = find_or_create_cache(ZFSBackingDevice, pool=dev.pool, dev=dev.dev_name())
       if dev.scrub_interval is not None:
         # parsing the schedule delta will result in a timestamp calculated from now
         allowed_delta = dateparser.parse(dev.scrub_interval)

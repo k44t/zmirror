@@ -10,6 +10,10 @@ log_events: yes
 # interfering
 disable_commands: no
 
+# the timeout for user requests (ONLINE/OFFLINE/SCRUB), after which the 
+# request will be considered failed and removed.
+timeout: 60s
+
 
 # we schedule maintenance tasks (scrubbing/trimming) every tuesday at 3 AM.
 #
@@ -130,7 +134,7 @@ content:
           # (or in other words, that the partition is the blockdev that backs
           # the zpool)
           #
-          # zmirror currently only supports `ZFSBackingBlockDevice`s to reside
+          # zmirror currently only supports `ZFSBackingDevice`s to reside
           # inside `Partition`s, `DMCrypt`s or `ZFSVolume`s. This is likely not going to change
           # because zmirror relies on unique names, and raw disks do not have names
           # while partitions and dm_crypts CAN have unique names (and MUST have if they
@@ -138,7 +142,7 @@ content:
           #
           # This means, when you connect unknown devices, you should disable zmirror-daemon
           # while playing around with them.
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             # name for the zfs pool
             pool: zmirror-sysfs
           
@@ -241,7 +245,7 @@ content:
             - online
 
           content:
-            - !ZFSBackingBlockDevice
+            - !ZFSBackingDevice
             
               pool: zmirror-sysfs
 
@@ -305,7 +309,7 @@ content:
             - online
 
           content:
-            - !ZFSBackingBlockDevice
+            - !ZFSBackingDevice
             
               pool: zmirror-sysfs
 
@@ -362,7 +366,7 @@ content:
               - online
 
             content:
-              - !ZFSBackingBlockDevice
+              - !ZFSBackingDevice
               
                 pool: zmirror-sysfs
 
@@ -453,7 +457,7 @@ content:
           - online
 
         content:
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
           
 
             pool: zmirror-big
@@ -488,7 +492,7 @@ content:
 
         content:
 
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
           
 
             pool: zmirror-big
@@ -619,7 +623,7 @@ content:
         
         content:
 
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             pool: zmirror-sysfs
 
             on_resilvered:
@@ -678,7 +682,7 @@ content:
         
         content:
           
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             
             pool: zmirror-big
 
@@ -740,7 +744,7 @@ content:
           - offline
 
         content: 
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             
             pool: zmirror-bak-a
           
@@ -796,7 +800,7 @@ content:
           - online
         content:
 
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             pool: zmirror-sysfs
             
             on_appeared:
@@ -816,7 +820,7 @@ content:
         on_appeared:
           - online
         content:
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             pool: zmirror-big
 
             on_appeared:
@@ -857,7 +861,7 @@ content:
 
         content: 
 
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             pool: zmirror-bak-b
           
             on_appeared:
@@ -884,7 +888,7 @@ content:
 
         content: 
 
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             pool: zmirror-bak-b
           
             on_appeared:
@@ -966,7 +970,7 @@ content:
 
         content: 
 
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             pool: zmirror-blubak
           
             on_appeared:
@@ -998,7 +1002,7 @@ content:
           - offline
         content:
 
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             pool: zmirror-blubak
             
             on_appeared:
@@ -1046,7 +1050,7 @@ content:
 
         content: 
 
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             pool: zmirror-blubak-beta
 
 
@@ -1068,6 +1072,6 @@ content:
 
         content: 
 
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             pool: zmirror-blubak-beta
 

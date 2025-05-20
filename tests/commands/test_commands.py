@@ -305,8 +305,8 @@ class Tests():
 
   # when the zpool appears
   def test_zpool_big_online(self):
-    a = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-big|dev:zmirror-big-a"]
-    b = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-big|dev:zmirror-big-b"]
+    a = config.cache_dict["ZFSBackingDevice|pool:zmirror-big|dev:zmirror-big-a"]
+    b = config.cache_dict["ZFSBackingDevice|pool:zmirror-big|dev:zmirror-big-b"]
     pool = config.cache_dict["ZPool|name:zmirror-big"]
 
     assert a.state.what == EntityState.INACTIVE
@@ -391,7 +391,7 @@ class Tests():
   def test_backing_blockdev_big_b_online(self):
 
 
-    b = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-big|dev:zmirror-big-b"]
+    b = config.cache_dict["ZFSBackingDevice|pool:zmirror-big|dev:zmirror-big-b"]
 
 
     assert b.state.what == EntityState.INACTIVE
@@ -448,7 +448,7 @@ class Tests():
 
     zpool = config.cache_dict["ZPool|name:zmirror-bak-a"]
 
-    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-bak-a|dev:zmirror-bak-a"]
+    blockdev = config.cache_dict["ZFSBackingDevice|pool:zmirror-bak-a|dev:zmirror-bak-a"]
 
     assert blockdev.state.what == EntityState.ONLINE
 
@@ -478,7 +478,7 @@ class Tests():
   def test_zpool_sysfs_backing_blockdev_bak_a_big_online(self):
     trigger_event()
 
-    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-big|dev:zvol/zmirror-bak-a/big"]
+    blockdev = config.cache_dict["ZFSBackingDevice|pool:zmirror-big|dev:zvol/zmirror-bak-a/big"]
 
     assert blockdev.state.what == EntityState.ONLINE
 
@@ -506,7 +506,7 @@ class Tests():
 
     trigger_event()
 
-    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
+    blockdev = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
     volume = config.cache_dict["ZFSVolume|pool:zmirror-bak-a|name:sysfs"]
 
     assert_commands([
@@ -518,7 +518,7 @@ class Tests():
   def test_zpool_sysfs_backing_blockdev_bak_a_sysfs_online(self):
     trigger_event()
 
-    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
+    blockdev = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
 
     assert blockdev.state.what == EntityState.ONLINE
 
@@ -550,7 +550,7 @@ class Tests():
   # when the blockdev is taken offline within the sysfs pool
   def test_zpool_sysfs_backing_blockdev_bak_a_sysfs_disconnected(self):
 
-    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
+    blockdev = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
     volume = config.cache_dict["ZFSVolume|pool:zmirror-bak-a|name:sysfs"]
 
     trigger_event()
@@ -564,7 +564,7 @@ class Tests():
   # when then the event arrives we just triggered by taking setting volmode=none
   def test_zfs_volume_bak_a_sysfs_offline(self):
     
-    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
+    blockdev = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
     volume = config.cache_dict["ZFSVolume|pool:zmirror-bak-a|name:sysfs"]
 
     trigger_event()
@@ -606,7 +606,7 @@ class Tests():
   # when then the event arrives we just triggered by taking setting volmode=none
   def test_zfs_volume_bak_a_big_offline(self):
 
-    big_blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-big|dev:zvol/zmirror-bak-a/big"]
+    big_blockdev = config.cache_dict["ZFSBackingDevice|pool:zmirror-big|dev:zvol/zmirror-bak-a/big"]
     big_volume = config.cache_dict["ZFSVolume|pool:zmirror-bak-a|name:big"]
 
     trigger_event()
@@ -683,7 +683,7 @@ class Tests():
     trigger_event()
 
     dm_alpha = config.cache_dict["DMCrypt|name:zmirror-bak-b-alpha"]
-    blockdev_alpha = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-bak-b|dev:zmirror-bak-b-alpha"]
+    blockdev_alpha = config.cache_dict["ZFSBackingDevice|pool:zmirror-bak-b|dev:zmirror-bak-b-alpha"]
 
     assert dm_alpha.state.what == EntityState.ONLINE
     assert blockdev_alpha.state.what == EntityState.INACTIVE
@@ -743,8 +743,8 @@ class Tests():
   # when the pool comes online
   def test_zpool_bak_b_online(self):
 
-    blockdev_alpha = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-bak-b|dev:zmirror-bak-b-alpha"]
-    blockdev_beta = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-bak-b|dev:zmirror-bak-b-beta"]
+    blockdev_alpha = config.cache_dict["ZFSBackingDevice|pool:zmirror-bak-b|dev:zmirror-bak-b-alpha"]
+    blockdev_beta = config.cache_dict["ZFSBackingDevice|pool:zmirror-bak-b|dev:zmirror-bak-b-beta"]
     dm_alpha = config.cache_dict["DMCrypt|name:zmirror-bak-b-alpha"]
     dm_beta = config.cache_dict["DMCrypt|name:zmirror-bak-b-beta"]
     zpool = config.cache_dict["ZPool|name:zmirror-bak-b"]
@@ -829,7 +829,7 @@ class Tests():
   # when the resilver for sysfs finishes
   def test_zpool_sysfs_backing_blockdev_bak_b_sysfs_resilver_finish(self):
 
-    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-b/sysfs"]
+    blockdev = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-b/sysfs"]
     assert blockdev.state.what == EntityState.ONLINE
     assert blockdev.operation.what == ZFSOperationState.RESILVERING
 
@@ -852,7 +852,7 @@ class Tests():
 
   # when it the event from taking it offline in the pool appears
   def test_zpool_sysfs_backing_blockdev_bak_b_sysfs_disconnected(self):
-    blockdev = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-b/sysfs"]
+    blockdev = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-b/sysfs"]
     assert blockdev.state.what == EntityState.ONLINE
     
     trigger_event()
@@ -909,8 +909,8 @@ class Tests():
   def test_zpool_bak_b_offline(self):
 
 
-    blockdev_alpha = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-bak-b|dev:zmirror-bak-b-alpha"]
-    blockdev_beta = config.cache_dict["ZFSBackingBlockDevice|pool:zmirror-bak-b|dev:zmirror-bak-b-beta"]
+    blockdev_alpha = config.cache_dict["ZFSBackingDevice|pool:zmirror-bak-b|dev:zmirror-bak-b-alpha"]
+    blockdev_beta = config.cache_dict["ZFSBackingDevice|pool:zmirror-bak-b|dev:zmirror-bak-b-beta"]
     dm_alpha = config.cache_dict["DMCrypt|name:zmirror-bak-b-alpha"]
     dm_beta = config.cache_dict["DMCrypt|name:zmirror-bak-b-beta"]
     zpool = config.cache_dict["ZPool|name:zmirror-bak-b"]

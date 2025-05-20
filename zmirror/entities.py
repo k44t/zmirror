@@ -8,6 +8,7 @@ from .util import myexec as exec#pylint: disable=redefined-builtin
 from .dataclasses import *
 
 from .logging import log
+from kpyutils.kiify import is_yes
 
 
 from . import config
@@ -46,6 +47,8 @@ def init_config(cache_path, config_path):
 
   iterate_content_tree3(config.config_root, finalize_init, None, None)
 
+  config.disable_commands = config.config_root.disable_commands
+
 def finalize_init(entity, _parent, _ignored):
   if hasattr(entity, "finalize_init"):
     entity.finalize_init()
@@ -77,7 +80,7 @@ def index_entities(entity, parent, _ignored):
   #    config.lvm_physical_volumes[entity.lvm_volume_group].append(entity)
   #  else:
   #    config.lvm_physical_volumes[entity.lvm_volume_group] = [entity]
-  if isinstance(entity, ZFSBackingBlockDevice):
+  if isinstance(entity, ZFSBackingDevice):
     if entity.pool in config.zfs_blockdevs:
       config.zfs_blockdevs[entity.pool][entity.dev] = entity
     else:
@@ -153,7 +156,7 @@ def find_or_create_cache(typ, create_args=None, identifier_prefix=None, **kwargs
 
 def find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path):
   vdev_name = vdev_path.removeprefix("/dev/mapper/").removeprefix("/dev/disk/by-partlabel/").removeprefix("/dev/")
-  return find_or_create_cache(ZFSBackingBlockDevice, pool=zpool, dev=vdev_name)
+  return find_or_create_cache(ZFSBackingDevice, pool=zpool, dev=vdev_name)
 
 def get_zpool_status(zpool_name):
   rcode, zpool_status, _, _ = exec(f"zpool status {zpool_name}")#pylint: disable=exec-used

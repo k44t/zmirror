@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-from kpyutils.kiify import yaml_data, yaml_enum, KiEnum, KdStream
+from kpyutils.kiify import yaml_data, yaml_enum, KiEnum, KdStream, yes_no_absent_or_dict
 
 
 
@@ -121,6 +121,7 @@ class ZFSOperationState(KiEnum):
 class ZMirror:
   log_events: bool = False
   disable_commands: bool = False
+  timeout: str = "300s"
   maintenance_schedule: str = None
 
   content: list = field(default_factory=list) #pylint: disable=invalid-field-call
@@ -177,6 +178,9 @@ class Entity:
   last_online: datetime = None
   notes: str = None
 
+  @classmethod
+  def id_fields(cls):
+    raise NotImplementedError()
 
   def get_state(self):
     return cached(self).state.what
@@ -211,7 +215,7 @@ class Entity:
 
 
 
-  def set_requested(self, request):
+  def set_requested(self, request, origin):
     online = is_online(self)
     if not ((request == Request.ONLINE and online) or (request == Request.OFFLINE and not online)):
       self.requested.add(request)
@@ -282,26 +286,23 @@ class Entity:
 
   def request(self, request, origin=None, unrequest=False, all_dependencies=False):
     if unrequest:
-
-
       # yes origin is intended to not be == self here
-      request_dependencies(self, origin, request, True, all_dependencies, self.get_dependencies(request))
       if request in self.requested:
         self.requested.remove(request)
         log.info(f"request {request} unscheduled only for {entity_id_string(self)}")
+        request_dependencies(self, origin, request, True, all_dependencies, self.get_dependencies(request))
         return True
       else:
         log.info(f"request {request} has not been requested and cannot be canceled")
         return False
     else:
       deps = self.get_dependencies(request)
-      #if request == Request.SCRUB and not self.request(Request.ONLINE, self, unrequest=False, all_dependencies=False):
-       # return False
-      
       # yes origin is intended to not be == self here
       dependent_success = request_dependencies(self, origin, request, unrequest, all_dependencies, deps)
       if dependent_success:
-        if self.set_requested(request):
+        if self.set_requested(request, origin):
+          if request == Request.OFFLINE:
+            self.requested.remove(Request.SCRUB)
           return True
         else:
           # yes origin is intended to not be == self here
@@ -387,15 +388,15 @@ def tell_parent_child_online(parent, child, prev_state):
 
 @dataclass
 class Children(Entity):
-  content: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  content: list = field(default_factory=list, kw_only=True) #pylint: disable=invalid-field-call
 
-  on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  on_children_offline: list = field(default_factory=list, kw_only=True) #pylint: disable=invalid-field-call
 
 
 
   def handle_onlined(self, prev_state):
     for c in self.content: #pylint: disable=not-an-iterable
-      if isinstance(c, ZFSBackingBlockDevice):
+      if isinstance(c, ZFSBackingDevice):
         c.handle_parent_onlined()
     tell_parent_child_online(self.parent, self, prev_state)
 
@@ -404,7 +405,7 @@ class Children(Entity):
   def handle_deactivated(self, prev_state):
     super().handle_deactivated(prev_state)
     for c in self.content: #pylint: disable=not-an-iterable
-      if isinstance(c, ZFSBackingBlockDevice):
+      if isinstance(c, ZFSBackingDevice):
         handle_disconnected(c)
 
 
@@ -412,7 +413,7 @@ class Children(Entity):
   def handle_disconnected(self, prev_state):
     super().handle_deactivated(prev_state)
     for c in self.content: #pylint: disable=not-an-iterable
-      if isinstance(c, ZFSBackingBlockDevice):
+      if isinstance(c, ZFSBackingDevice):
         handle_disconnected(c)
 
 
@@ -480,13 +481,18 @@ class Disk(Children):
 
   uuid: str = None
 
+
+  @classmethod
+  def id_fields(cls):
+    return ["uuid"]
+
   # TODO: implement me
   force_enable_trim: bool = False
 
   def handle_appeared(self, prev_state):
     pass
 
-  def set_requested(self, request):
+  def set_requested(self, request, origin):
     online = is_present_or_online(self)
     if (request == Request.ONLINE and online) or (request == Request.OFFLINE and not online):
       return True
@@ -516,6 +522,10 @@ class Disk(Children):
 class Partition(Children):
   name: str = None
 
+  @classmethod
+  def id_fields(cls):
+    return ["name"]
+
   def dev_path(self):
     return f"/dev/disk/by-partlabel/{self.name}"
 
@@ -527,7 +537,7 @@ class Partition(Children):
     for c in self.content: #pylint: disable=not-an-iterable
       handle_appeared(cached(c))
   
-  def set_requested(self, request):
+  def set_requested(self, request, origin):
     if request == Request.ONLINE:
       if isinstance(self.parent, ZMirror):
         if not is_present_or_online(self):
@@ -554,22 +564,13 @@ def load_disk_or_partition_initial_state(self):
     return state
 
 
-def yes_no_absent_or(e, prop, on_absent, error):
-  if prop not in e:
-    return on_absent
-  if e[prop] == "yes":
-    return True
-  if e[prop] == "no":
-    return False
-  if isinstance(e[prop], bool):
-    return e[prop]
-  raise ValueError(f"{error}: {prop} must either be `yes` or `no` (or alltogether absent for `no`)")
 
 @yaml_data
 class BackingDevice:
   device: Any
   required: bool = False
   online_dependencies: bool = True
+
 
 
   def request(self, request, origin=None, unschedule=False, all_dependencies=False):
@@ -598,8 +599,8 @@ def init_backing(self, pool, blockdevs):
         raise ValueError(f"misconfiguration: backing for {entity_id_string(pool)}. `name` missing in Mirror.")
       self.devices[i] = BackingDevice(  #pylint: disable=unsupported-assignment-operation
         unavailable_guard(blockdevs, dev["name"]),
-        yes_no_absent_or(dev, "required", False, f"misconfiguration: backing for {entity_id_string(pool)}"),
-        yes_no_absent_or(dev, "online_dependencies", True, f"misconfiguration: backing for {entity_id_string(pool)}")
+        yes_no_absent_or_dict(dev, "required", False, f"misconfiguration: backing for {entity_id_string(pool)}"),
+        yes_no_absent_or_dict(dev, "online_dependencies", True, f"misconfiguration: backing for {entity_id_string(pool)}")
       )
 
 
@@ -736,6 +737,9 @@ class ZPool(Children):
   backed_by: list = field(default_factory=list) #pylint: disable=invalid-field-call
 
 
+  @classmethod
+  def id_fields(cls):
+    return ["name"]
 
   on_backing_appeared: list = field(default_factory=list) #pylint: disable=invalid-field-call
 
@@ -838,6 +842,9 @@ class ZFSVolume(Children):
   name: str = None
   pool: str = None
 
+  @classmethod
+  def id_fields(cls):
+    return ["name", "pool"]
 
   on_appeared: list = field(default_factory=list) #pylint: disable=invalid-field-call
 
@@ -900,6 +907,10 @@ class DMCrypt(Children):
   name: str = None
   key_file: str = None
 
+  @classmethod
+  def id_fields(cls):
+    return ["name"]
+
   on_appeared: list = field(default_factory=list) #pylint: disable=invalid-field-call
 
   def id(self):
@@ -915,7 +926,7 @@ class DMCrypt(Children):
 
   def handle_onlined(self, prev_state):
     for c in self.content: #pylint: disable=not-an-iterable
-      if isinstance(c, ZFSBackingBlockDevice):
+      if isinstance(c, ZFSBackingDevice):
         c.handle_parent_onlined()
     tell_parent_child_online(self.parent, self, prev_state)
   
@@ -1054,9 +1065,13 @@ class UnavailableDependency:
 
 
 @yaml_data
-class ZFSBackingBlockDevice(Entity):
+class ZFSBackingDevice(Entity):
   pool: str = None
   dev: str = None
+
+  @classmethod
+  def id_fields(cls):
+    return ["dev", "pool"]
 
   on_appeared: list = field(default_factory=list) #pylint: disable=invalid-field-call
 
@@ -1093,8 +1108,9 @@ class ZFSBackingBlockDevice(Entity):
         return self.dev
     self.dev = do()
     return self.dev
-  
-    
+
+
+
   # must be overridden by child classes
   def get_dependencies(self, request):
     if request == Request.ONLINE:
@@ -1105,7 +1121,8 @@ class ZFSBackingBlockDevice(Entity):
       return [self.parent, pool]
     else:
       return []
-  
+
+
 
   def handle_appeared(self, prev_state):
     pool_id = f"ZPool|name:{self.pool}"
@@ -1115,18 +1132,30 @@ class ZFSBackingBlockDevice(Entity):
     run_actions(self, "appeared")
 
 
+
   def handle_onlined(self, prev_state):
     tell_parent_child_online(self.parent, self, prev_state)
     if Request.SCRUB in self.requested:
       self.start_scrub()
 
-    
 
-  def set_requested(self, request):
+
+  def set_requested(self, request, origin):
+    success = True
     if request == Request.OFFLINE and Request.SCRUB in self.requested:
-      log.warning(f"{entity_id_string(self)}: not accepting request {request} because scrub has been requested")
+      log.warning(f"{entity_id_string(self)}: OFFLINE requested while SCRUB was requested. Unrequesting SCRUB.")
+      if not self.request(Request.SCRUB, origin, True):
+        success = False
+
+    elif request == Request.SCRUB:
+      if not self.request(Request.ONLINE, self, unrequest=False, all_dependencies=False):
+        success = False
+    if success:
+      return super().set_requested(request, origin)
+    else:
       return False
-    return super().set_requested(request)
+
+
 
   def load_initial_state(self):
     state = EntityState.DISCONNECTED

@@ -21,7 +21,7 @@ log_env: yes
 #
 #   #disconnected|online
 #
-#   eva/eva-a-main @ZFSBackingBlockDevice
+#   eva/eva-a-main @ZFSBackingDevice
 #
 #     #disconnected | present-but-offline | online
 #
@@ -83,7 +83,7 @@ content:
 
         content:
           # the zfs blockdev inside the partition
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             # name for the zfs pool
             pool: eva
           
@@ -118,7 +118,7 @@ content:
 
         content:
           # the zfs blockdev inside the partition
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             # name for the zfs pool
             pool: eva
           
@@ -166,7 +166,7 @@ content:
 
         on_children_offline: offline
         content:
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             pool: eva
             dev: vg-eva-bak-gamma/lv-eva-bak-gamma
 
@@ -180,7 +180,7 @@ content:
         name: lv-big-bak-gamma
         on_children_offline: offline
         content: 
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             pool: big
             dev: vg-eva-bak-gamma/lv-big-gamma
 
@@ -202,7 +202,7 @@ content:
 
         content: 
           # zfs blockdev inside the partition
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             # name for the zfs pool
             pool: bak-delta
           
@@ -257,7 +257,7 @@ content:
         on_children_offline: offline
 
         content:
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             pool: eva
             dev: vg-bak-delta/eva
 
@@ -273,7 +273,7 @@ content:
         on_children_offline: offline
 
         content: 
-          - !ZFSBackingBlockDevice
+          - !ZFSBackingDevice
             pool: big
             dev: vg-bak-delta/big
 
