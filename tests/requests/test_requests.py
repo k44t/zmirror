@@ -137,7 +137,7 @@ class Tests():
 
   def test_request_zpool_sysfs_s_online(self):
 
-    result = operations.request(Request.ONLINE, ZFSBackingDevice, pool="zmirror-sysfs", dev="zmirror-sysfs-s")
+    result = operations.request(Request.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
 
     assert not result
 
@@ -159,7 +159,7 @@ class Tests():
 
   def test_request_zpool_sysfs_b_online(self):
 
-    result = operations.request(Request.ONLINE, ZFSBackingDevice, pool="zmirror-sysfs", dev="zmirror-sysfs-b")
+    result = operations.request(Request.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-b")
 
     assert result
 
@@ -173,7 +173,7 @@ class Tests():
 
   def test_request_zpool_sysfs_b_online_with_all_dependencies(self):
 
-    result = operations.request(Request.ONLINE, ZFSBackingDevice, pool="zmirror-sysfs", dev="zmirror-sysfs-b", all_dependencies=True)
+    result = operations.request(Request.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-b", all_dependencies=True)
 
     assert result
 
@@ -294,7 +294,7 @@ class Tests():
     
 
     def possibly_scrub(entity):
-      if isinstance(entity, ZFSBackingDevice) and entity.pool == "zmirror-sysfs":
+      if isinstance(entity, ZDev) and entity.pool == "zmirror-sysfs":
         entity.request(Request.SCRUB)
     entities.iterate_content_tree(config.config_root, possibly_scrub)
     entities.iterate_content_tree(config.config_root, operations.do_enact_request)
@@ -340,7 +340,7 @@ class Tests():
 
     zpool = config.cache_dict["ZPool|name:zmirror-bak-a"]
 
-    blockdev = config.cache_dict["ZFSBackingDevice|pool:zmirror-bak-a|dev:zmirror-bak-a"]
+    blockdev = config.cache_dict["ZDev|pool:zmirror-bak-a|name:zmirror-bak-a"]
 
     assert blockdev.state.what == EntityState.ONLINE
 
@@ -368,7 +368,7 @@ class Tests():
 
     trigger_event()
 
-    blockdev = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
+    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     volume = config.cache_dict["ZFSVolume|pool:zmirror-bak-a|name:sysfs"]
 
     assert_commands([
@@ -381,7 +381,7 @@ class Tests():
   def test_zpool_sysfs_backing_blockdev_bak_a_sysfs_online(self):
     trigger_event()
 
-    blockdev = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
+    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
 
     assert blockdev.state.what == EntityState.ONLINE
 
@@ -423,11 +423,11 @@ class Tests():
     
     trigger_event()
 
-    a = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-a"]
-    b = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-b"]
-    s = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-b"]
-    bak_a = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
-    bak_b = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-b/sysfs"]
+    a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+    b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
+    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
+    bak_a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    bak_b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
 
 
     assert a.operation.what == ZFSOperationState.SCRUBBING
@@ -445,11 +445,11 @@ class Tests():
     
     trigger_event()
 
-    a = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-a"]
-    b = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-b"]
-    s = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zmirror-sysfs-b"]
-    bak_a = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-a/sysfs"]
-    bak_b = config.cache_dict["ZFSBackingDevice|pool:zmirror-sysfs|dev:zvol/zmirror-bak-b/sysfs"]
+    a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+    b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
+    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
+    bak_a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    bak_b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
 
 
     assert a.operation.what != ZFSOperationState.SCRUBBING

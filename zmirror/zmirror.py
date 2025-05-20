@@ -15,6 +15,8 @@ from . import commands as commands
 from .daemon import daemon
 from kpyutils.kiify import KdStream
 
+from .user_commands import *
+
 from . import operations as operations
 
 
@@ -78,12 +80,6 @@ pyexec = exec
 exec = myexec#pylint: disable=redefined-builtin
 
 
-# zmirror scrub
-def scrub(args):#pylint: disable=unused-argument
-  init_config(config_path=args.config_path, cache_path=args.cache_path)
-  operations.scrub_all_overdue()
-  commands.execute_commands()
-
 
 
 
@@ -117,6 +113,8 @@ def main(args=None):
   socket_parser.add_argument("--socket-path", type=str, help="the path to the unix socket (used by zmirror.trigger)", default=env_var_or("ZMIRROR_SOCKET_PATH", ZMIRROR_SOCKET_PATH_DEFAULT))
   # shared_parser.add_argument("runtime-dir", type=str, help="the path to the runtime directory", default= "/var/run/zmirror")
 
+  cancel_parser = argparse.ArgumentParser(add_help=False)
+  cancel_parser.add_argument("--cancel", action="store_true")
 
   daemon_parser = subs.add_parser('daemon', parents=[shared_parser, socket_parser], help="starts the zmirror daemon")
   daemon_parser.set_defaults(func=daemon)
@@ -126,13 +124,18 @@ def main(args=None):
   # #######################
 
   clear_cache_parser = subs.add_parser('clear-cache', parents=[socket_parser], help= 'clear cache')
-  clear_cache_parser.set_defaults(func=send_simple_daemon_command("clear-cache"))
-
+  clear_cache_parser.set_defaults(func=make_send_simple_daemon_command("clear-cache"))
 
 
   # zmirror status   # called by user
-  status_parser = subs.add_parser('status', parents=[shared_parser, socket_parser], help='show status of zmirror')
-  clear_cache_parser.set_defaults(func=send_simple_daemon_command("status"))
+  status_parser = subs.add_parser('status', parents=[socket_parser], help='show status of zmirror')
+  status_parser.set_defaults(func=make_send_simple_daemon_command("status"))
+
+  scrub_all_parser = subs.add_parser('scrub-all', parents=[socket_parser], help='show status of zmirror')
+  scrub_all_parser.set_defaults(func=make_send_simple_daemon_command("scrub-all"))
+
+  scrub_overdue_parser = subs.add_parser('scrub-overdue', parents=[socket_parser, cancel_parser], help='show status of zmirror')
+  scrub_overdue_parser.set_defaults(func=make_send_simple_daemon_command("scrub-overdue"))
 
 
   # scrub_parser = subs.add_parser('scrub-overdue', parents=[], help='scrub devices that have not been scrubbed for too long')
@@ -150,30 +153,32 @@ def main(args=None):
     command_name = command_name_for_type[typ]
 
     common_parser = argparse.ArgumentParser(add_help=False)
-    common_parser.add_argument("--cancel", action='store_true')
     for fld in typ.id_fields(): 
-      common_parser.add_argument(f"--{fld}", type=str)
+      common_parser.add_argument(f"--{fld}", type=str, required=True)
     
-    online = online_subs.add_parser(command_name, parents=[common_parser])
-    online.set_defaults(func=send_request_daemon_command(Request.ONLINE, typ))
+    online = online_subs.add_parser(command_name, parents=[common_parser, cancel_parser])
+    online.set_defaults(func=make_send_request_daemon_command(Request.ONLINE, typ))
 
-    offline = offline_subs.add_parser(command_name, parents=[common_parser])
-    offline.set_defaults(func=send_request_daemon_command(Request.ONLINE, typ))
+    offline = offline_subs.add_parser(command_name, parents=[common_parser, cancel_parser])
+    offline.set_defaults(func=make_send_request_daemon_command(Request.OFFLINE, typ))
     
-  def make_command_request_command(command, request, typ):
-    parser = subs.add_parser(command, parents=[socket_parser])
-    for fld in typ.id_fields():
+
+
+
+
+
+  for typ in [Disk, Partition, ZPool, ZFSVolume, DMCrypt, ZDev]:
+    make_onlineable_commands(typ)
+
+
+  def make_scrub_request_command():
+    parser = subs.add_parser("scrub", parents=[socket_parser, cancel_parser])
+    for fld in ZDev.id_fields():
       parser.add_argument(f"--{fld}", type=str)
 
-    parser.add_argument("--cancel", action='store_true')
-    parser.set_defaults(func=send_request_daemon_command(request, typ))
+    parser.set_defaults(func=make_send_request_daemon_command(Request.SCRUB, ZFSVolume))
 
-
-
-  for typ in [Disk, Partition, ZPool, ZFSVolume, DMCrypt, ZFSBackingDevice]:
-      make_onlineable_commands(typ)
-
-  make_command_request_command("scrub", Request.SCRUB, ZFSBackingDevice)
+  make_scrub_request_command()
 
 
 

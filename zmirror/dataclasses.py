@@ -123,6 +123,7 @@ class ZMirror:
   disable_commands: bool = False
   timeout: str = "300s"
   maintenance_schedule: str = None
+  log_level: str = "info"
 
   content: list = field(default_factory=list) #pylint: disable=invalid-field-call
   notes: str = None
@@ -396,7 +397,7 @@ class Children(Entity):
 
   def handle_onlined(self, prev_state):
     for c in self.content: #pylint: disable=not-an-iterable
-      if isinstance(c, ZFSBackingDevice):
+      if isinstance(c, ZDev):
         c.handle_parent_onlined()
     tell_parent_child_online(self.parent, self, prev_state)
 
@@ -405,7 +406,7 @@ class Children(Entity):
   def handle_deactivated(self, prev_state):
     super().handle_deactivated(prev_state)
     for c in self.content: #pylint: disable=not-an-iterable
-      if isinstance(c, ZFSBackingDevice):
+      if isinstance(c, ZDev):
         handle_disconnected(c)
 
 
@@ -413,7 +414,7 @@ class Children(Entity):
   def handle_disconnected(self, prev_state):
     super().handle_deactivated(prev_state)
     for c in self.content: #pylint: disable=not-an-iterable
-      if isinstance(c, ZFSBackingDevice):
+      if isinstance(c, ZDev):
         handle_disconnected(c)
 
 
@@ -926,7 +927,7 @@ class DMCrypt(Children):
 
   def handle_onlined(self, prev_state):
     for c in self.content: #pylint: disable=not-an-iterable
-      if isinstance(c, ZFSBackingDevice):
+      if isinstance(c, ZDev):
         c.handle_parent_onlined()
     tell_parent_child_online(self.parent, self, prev_state)
   
@@ -1065,13 +1066,13 @@ class UnavailableDependency:
 
 
 @yaml_data
-class ZFSBackingDevice(Entity):
+class ZDev(Entity):
   pool: str = None
-  dev: str = None
+  name: str = None
 
   @classmethod
   def id_fields(cls):
-    return ["dev", "pool"]
+    return ["name", "pool"]
 
   on_appeared: list = field(default_factory=list) #pylint: disable=invalid-field-call
 
@@ -1094,7 +1095,7 @@ class ZFSBackingDevice(Entity):
     
 
   def id(self):
-    return make_id(self, pool=self.pool, dev=self.dev_name())
+    return make_id(self, pool=self.pool, name=self.dev_name())
 
   def dev_name(self):
     def do():
@@ -1105,9 +1106,9 @@ class ZFSBackingDevice(Entity):
       elif isinstance(self.parent, ZFSVolume):
         return f"zvol/{self.parent.parent.name}/{self.parent.name}"
       else:
-        return self.dev
-    self.dev = do()
-    return self.dev
+        return self.name
+    self.name = do()
+    return self.name
 
 
 

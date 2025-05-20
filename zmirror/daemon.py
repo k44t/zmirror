@@ -47,7 +47,7 @@ def handle(env):
 
       if zpool in globals.zfs_blockdevs:
         for dev in globals.zfs_blockdevs[zpool].values():
-          dev_cache = find_or_create_cache(ZFSBackingDevice, pool=zpool, dev=dev.dev)
+          dev_cache = find_or_create_cache(ZDev, pool=zpool, name=dev.name)
           handle_deactivated(dev_cache)
 
 
@@ -70,22 +70,22 @@ def handle(env):
         for match in POOL_DEVICES_REGEX.finditer(zpool_status):
           dev = match.group(1)
 
-          cache = find_or_create_cache(ZFSBackingDevice, pool=zpool, dev=dev)
+          cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
           if match.group(2) == "ONLINE":
 
             found_online = True
             cache.operation = Since(ZFSOperationState.NONE, now)
             if zevent == "scrub_finish":
-              log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing finished")
+              log.info(f"zdev {cache.pool}:{cache.name}: scrubbing finished")
               handle_scrub_finished(cache)
             elif zevent == "scrub_start":
-              log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing started")
+              log.info(f"zdev {cache.pool}:{cache.name}: scrubbing started")
               handle_scrub_started(cache)
             elif zevent == "scrub_abort":
-              log.info(f"zdev {cache.pool}:{cache.dev}: scrubbing cancelled")
+              log.info(f"zdev {cache.pool}:{cache.name}: scrubbing cancelled")
               handle_scrub_aborted(cache)
             elif zevent == "pool_import":
-              log.info(f"zdev {cache.pool}:{cache.dev}: pool imported, device online")
+              log.info(f"zdev {cache.pool}:{cache.name}: pool imported, device online")
               handle_onlined(cache)
           
       if found_online is False:
@@ -106,13 +106,13 @@ def handle(env):
       vdev_path = env["ZEVENT_VDEV_PATH"]
       cache = find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path)
       if zevent == "vdev_online":
-        log.info(f"zdev {cache.pool}:{cache.dev} went online")
+        log.info(f"zdev {cache.pool}:{cache.name} went online")
         handle_onlined(cache)
         event_handled = True
       elif zevent == "statechange":
         new_state = env["ZEVENT_VDEV_STATE_STR"]
         if new_state == "OFFLINE":
-          log.info(f"zdev {cache.pool}:{cache.dev} went offline")
+          log.info(f"zdev {cache.pool}:{cache.name} went offline")
           handle_deactivated(cache)
           event_handled = True
         else:
@@ -229,30 +229,41 @@ def udev_event_action(entity, action, now):
 
 
 
-def handle_client(connection: socket.socket, client_address, event_queue: queue.Queue):
-  try:
-    log.info(f"handling client connection to client_address {client_address}")
+def handle_client(con: socket.socket, client_address, event_queue: queue.Queue):
+  with con:
+    try:
+      log.info(f"handling connection to zmirror socket")
 
-    data = bytearray(b'')
-    while True:
-      buf = connection.recv(16)
-      if buf != b'':
-        data.extend(buf)
+
+      # Read until ':' to get the length
+      length_str = ""
+      while True:
+          char = con.recv(1).decode('utf-8')
+          if char == ':':
+              break
+          length_str += char
+
+      # Convert length to integer
+      total_length = int(length_str)
+
+      # Read the JSON data of the specified length
+      data = b""
+      while len(data) < total_length:
+          more_data = con.recv(total_length - len(data))
+          if not more_data:
+              raise ConnectionError("Connection closed before receiving all data")
+          data += more_data
+
+      message = data.decode('utf-8')
+      event = json.loads(message)
+      if "ZMIRROR_COMMAND" in event:
+        with con.makefile('w') as stream:
+          handle_command(event["ZMIRROR_COMMAND"], stream)
+          stream.flush()
       else:
-        break
-    message = data.decode('utf-8')
-    event = json.loads(message)
-    if "ZMIRROR_COMMAND" in event:
-      with connection.makefile('w') as stream:
-        handle_command(event["ZMIRROR_COMMAND"], stream)
-        stream.flush()
-    else:
-      event_queue.put(event)
-  except Exception as ex:
-    log.error("error while receiving data from zmirror-trigger: %s", ex)
-  finally:
-    # Clean up the connection
-    connection.close()
+        event_queue.put(event)
+    except Exception as ex:
+      log.error("error while receiving data from zmirror-trigger: %s", ex)
 
 
 

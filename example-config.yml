@@ -134,7 +134,7 @@ content:
           # (or in other words, that the partition is the blockdev that backs
           # the zpool)
           #
-          # zmirror currently only supports `ZFSBackingDevice`s to reside
+          # zmirror currently only supports `ZDev`s to reside
           # inside `Partition`s, `DMCrypt`s or `ZFSVolume`s. This is likely not going to change
           # because zmirror relies on unique names, and raw disks do not have names
           # while partitions and dm_crypts CAN have unique names (and MUST have if they
@@ -142,12 +142,9 @@ content:
           #
           # This means, when you connect unknown devices, you should disable zmirror-daemon
           # while playing around with them.
-          - !ZFSBackingDevice
+          - !ZDev
             # name for the zfs pool
             pool: zmirror-sysfs
-          
-            # the name of the zfs-backing blockdev as it appears in `zpool status`
-            dev: zmirror-sysfs-a
 
             # whether to take the device online when it appears
             on_appeared:
@@ -245,7 +242,7 @@ content:
             - online
 
           content:
-            - !ZFSBackingDevice
+            - !ZDev
             
               pool: zmirror-sysfs
 
@@ -309,7 +306,7 @@ content:
             - online
 
           content:
-            - !ZFSBackingDevice
+            - !ZDev
             
               pool: zmirror-sysfs
 
@@ -366,7 +363,7 @@ content:
               - online
 
             content:
-              - !ZFSBackingDevice
+              - !ZDev
               
                 pool: zmirror-sysfs
 
@@ -457,7 +454,7 @@ content:
           - online
 
         content:
-          - !ZFSBackingDevice
+          - !ZDev
           
 
             pool: zmirror-big
@@ -492,7 +489,7 @@ content:
 
         content:
 
-          - !ZFSBackingDevice
+          - !ZDev
           
 
             pool: zmirror-big
@@ -623,7 +620,7 @@ content:
         
         content:
 
-          - !ZFSBackingDevice
+          - !ZDev
             pool: zmirror-sysfs
 
             on_resilvered:
@@ -682,7 +679,7 @@ content:
         
         content:
           
-          - !ZFSBackingDevice
+          - !ZDev
             
             pool: zmirror-big
 
@@ -744,7 +741,7 @@ content:
           - offline
 
         content: 
-          - !ZFSBackingDevice
+          - !ZDev
             
             pool: zmirror-bak-a
           
@@ -800,7 +797,7 @@ content:
           - online
         content:
 
-          - !ZFSBackingDevice
+          - !ZDev
             pool: zmirror-sysfs
             
             on_appeared:
@@ -820,7 +817,7 @@ content:
         on_appeared:
           - online
         content:
-          - !ZFSBackingDevice
+          - !ZDev
             pool: zmirror-big
 
             on_appeared:
@@ -861,7 +858,7 @@ content:
 
         content: 
 
-          - !ZFSBackingDevice
+          - !ZDev
             pool: zmirror-bak-b
           
             on_appeared:
@@ -888,7 +885,7 @@ content:
 
         content: 
 
-          - !ZFSBackingDevice
+          - !ZDev
             pool: zmirror-bak-b
           
             on_appeared:
@@ -970,7 +967,7 @@ content:
 
         content: 
 
-          - !ZFSBackingDevice
+          - !ZDev
             pool: zmirror-blubak
           
             on_appeared:
@@ -1002,7 +999,7 @@ content:
           - offline
         content:
 
-          - !ZFSBackingDevice
+          - !ZDev
             pool: zmirror-blubak
             
             on_appeared:
@@ -1050,7 +1047,7 @@ content:
 
         content: 
 
-          - !ZFSBackingDevice
+          - !ZDev
             pool: zmirror-blubak-beta
 
 
@@ -1072,6 +1069,6 @@ content:
 
         content: 
 
-          - !ZFSBackingDevice
+          - !ZDev
             pool: zmirror-blubak-beta
 

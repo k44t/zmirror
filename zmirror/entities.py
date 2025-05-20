@@ -80,11 +80,11 @@ def index_entities(entity, parent, _ignored):
   #    config.lvm_physical_volumes[entity.lvm_volume_group].append(entity)
   #  else:
   #    config.lvm_physical_volumes[entity.lvm_volume_group] = [entity]
-  if isinstance(entity, ZFSBackingDevice):
+  if isinstance(entity, ZDev):
     if entity.pool in config.zfs_blockdevs:
-      config.zfs_blockdevs[entity.pool][entity.dev] = entity
+      config.zfs_blockdevs[entity.pool][entity.dev_name()] = entity
     else:
-      config.zfs_blockdevs[entity.pool] = {entity.dev: entity}
+      config.zfs_blockdevs[entity.pool] = {entity.dev_name(): entity}
   return _ignored
 
 
@@ -156,12 +156,19 @@ def find_or_create_cache(typ, create_args=None, identifier_prefix=None, **kwargs
 
 def find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path):
   vdev_name = vdev_path.removeprefix("/dev/mapper/").removeprefix("/dev/disk/by-partlabel/").removeprefix("/dev/")
-  return find_or_create_cache(ZFSBackingDevice, pool=zpool, dev=vdev_name)
+  return find_or_create_cache(ZDev, pool=zpool, name=vdev_name)
 
 def get_zpool_status(zpool_name):
   rcode, zpool_status, _, _ = exec(f"zpool status {zpool_name}")#pylint: disable=exec-used
   if rcode == 0:
     return zpool_status[0]
+  else:
+    return None
+  
+def get_zfs_volume_mode(zfs_path):
+  rcode, lines, _, _ = exec(f"zfs get volmode {zfs_path}")#pylint: disable=exec-used
+  if rcode == 0:
+    return lines[0]
   else:
     return None
 
@@ -175,12 +182,6 @@ def save_cache():
     raise ValueError("init() was not called")
   save_yaml_cache(config.cache_dict, config.cache_path)
 
-def get_zfs_volume_mode(zfs_path):
-  code, r, _, _ = exec(f"zfs get volmode {zfs_path}")
-  if code == 0:
-    return r
-  else:
-    return None
 
 
 
@@ -204,3 +205,4 @@ config.load_config_for_id = load_config_for_id
 config.find_or_create_cache = find_or_create_cache
 config.is_zpool_backing_device_online = is_zpool_backing_device_online
 config.get_zpool_status = get_zpool_status
+config.get_zfs_volume_mode = get_zfs_volume_mode

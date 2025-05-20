@@ -1,11 +1,12 @@
 
+import socket
 import dateparser
 
 from zmirror.entities import init_config, iterate_content_tree, remove_cache
 
 from .logging import log
 from .dataclasses import *
-from .util import myexec, outs, copy_attrs
+from .util import myexec, outs, copy_attrs, require_path
 from . import commands as commands
 from kpyutils.kiify import KdStream
 
@@ -13,10 +14,13 @@ import argparse
 import sys
 import logging
 import inspect
+import json
+import codecs
 
 
 
 def daemon_request(request, cancel, typ, kwargs):
+
   constructor_params = inspect.signature(typ).parameters
 
   # Filter the Namespace to include only the required arguments
@@ -25,7 +29,9 @@ def daemon_request(request, cancel, typ, kwargs):
   if entity is None:
     log.error(f"{make_id_string(make_id(typ, **filtered_args))}: entity not configured")
     return
-  if not entity.request(request, unschedule=cancel):
+  if entity.request(request, unschedule=cancel):
+    config.last_request_at = datetime.now()
+  else:
     log.error(f"{make_id_string(make_id(typ, **filtered_args))}: request {request} failed. See previous error messages.")
     return
   log.info(f"{make_id_string(make_id(typ, **filtered_args))}: requested {request} scheduled successfully")
@@ -93,7 +99,7 @@ def handle_reload_command():
 
 def handle_scrub_all_command():
   def do(entity):
-    if isinstance(entity, ZFSBackingDevice):
+    if isinstance(entity, ZDev):
       if Request.SCRUB not in entity.requested:
         entity.request(Request.SCRUB)
   iterate_content_tree(config.config_root, do)
@@ -102,7 +108,7 @@ def handle_scrub_all_command():
 
 def handle_scrub_overdue_command():
   def do(entity):
-    if isinstance(entity, ZFSBackingDevice):
+    if isinstance(entity, ZDev):
       cache = cached(entity)
       if entity.scrub_interval is not None:
         # parsing the schedule delta will result in a timestamp calculated from now
@@ -164,7 +170,7 @@ command_name_for_type = {
   Disk: "disk",
   Partition: "partition",
   ZPool: "zpool",
-  ZFSBackingDevice: "zfs-backing-device",
+  ZDev: "zdev",
   ZFSVolume: "zfs-volume",
   DMCrypt: "dm-crypt"
 }
@@ -176,3 +182,71 @@ request_for_name = {
   "offline": Request.OFFLINE,
   "scrub": Request.SCRUB
 }
+
+name_for_request = {value: key for key, value in request_for_name.items()}
+
+def make_send_daemon_wrapper(fn):
+  def do(args):
+    path = args.socket_path
+    delattr(args, "socket_path")
+    delattr(args, "func")
+    command = fn(args)
+    log.debug("sending command:")
+    log.debug(command)
+  
+    require_path(path, "no zmirror socket at")
+
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as con:
+
+      try:
+        # Connect the socket to the path where the server is listening
+        con.connect(path)
+        decoder = codecs.getincrementaldecoder('utf-8')()
+
+        # Send data
+        message = json.dumps({"ZMIRROR_COMMAND": command}, indent=4)
+        con.sendall(f"{len(message)}:{message}".encode('utf-8'))
+        
+        while True:
+          data = con.recv(4096)
+          if not data:
+              break
+          decoded_data = decoder.decode(data, final=False)
+          sys.stdout.write(decoded_data)
+          sys.stdout.flush()
+        remaining_data = decoder.decode(b'', final=True)
+        sys.stdout.write(remaining_data)
+        sys.stdout.flush()
+      except KeyboardInterrupt: #pylint: disable=try-except-raise
+        raise
+      except Exception as ex:
+        log.error(f"communication error: {ex}")
+  return do
+
+
+def make_send_simple_daemon_command(command):
+  def do(args):
+    r = {"command": command}
+    for k, v in vars(args).items():
+      r[k] = v
+    return r
+  return make_send_daemon_wrapper(do)
+
+
+def make_send_request_daemon_command(request, typ):
+  def do(args):
+
+    r = {
+      "command": name_for_request[request]
+    }
+
+    if args.cancel:
+      r["cancel"] = "yes"
+
+    delattr(args, "cancel")
+    r["type"] = command_name_for_type[typ]
+    r["args"] = vars(args)
+
+    return r
+  return make_send_daemon_wrapper(do)
+

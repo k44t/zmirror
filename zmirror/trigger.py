@@ -24,21 +24,18 @@ if path is None:
 require_path(path, "no zmirror socket at")
 
 # Create a UDS (Unix Domain Socket)
-client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
 
-# Connect the socket to the path where the server is listening
-client.connect(path)
+  try:
+    # Connect the socket to the path where the server is listening
+    client.connect(path)
 
 
 
-try:
-  # Send data
-  env = dict(os.environ)
-  message = json.dumps(env, indent=4)
-  print(f"Sending: {message}")
-  client.sendall(message.encode('utf-8'))
-except Exception as ex:
-  log.error(f"error while sending data to zmirror-daemon: {ex}")
-finally:
-  print("Closing client")
-  client.close()
+    # Send data
+    env = dict(os.environ)
+    message = json.dumps(env, indent=4)
+    print(f"Sending: {message}")
+    client.sendall(message.encode('utf-8'))
+  except Exception as ex:
+    log.error(f"error while sending data to zmirror-daemon: {ex}")
