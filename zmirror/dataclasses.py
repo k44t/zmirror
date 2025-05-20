@@ -139,22 +139,14 @@ def cached(entity):
 
 
 def make_id(o, **kwargs):
-  if isinstance(o, type):
-    return (o, kwargs)
-  else:
-    return (type(o), kwargs)
-
-
+  if not isinstance(o, type):
+    o = type(o)
+  return (o, kwargs)
 
 def entity_id_string(o):
-  return make_id_string(o.id())
+  tp = type(o)
+  return tp.__name__ + "|" + '|'.join(f"{key}:{getattr(o, key)}" for key in tp.id_fields())
 
-
-
-def make_id_string(the_id):
-  tp, kwargs = the_id
-  # kwargs maintains insertion order, so this is reproducible!!!
-  return tp.__name__ + "|" + '|'.join(f"{key}:{value}" for key, value in kwargs.items())
 
 
 
@@ -181,6 +173,9 @@ class Entity:
 
   @classmethod
   def id_fields(cls):
+    raise NotImplementedError()
+  
+  def id(self):
     raise NotImplementedError()
 
   def get_state(self):
@@ -840,12 +835,12 @@ class ZPool(Children):
 
 @yaml_data
 class ZFSVolume(Children):
-  name: str = None
   pool: str = None
+  name: str = None
 
   @classmethod
   def id_fields(cls):
-    return ["name", "pool"]
+    return ["pool", "name"]
 
   on_appeared: list = field(default_factory=list) #pylint: disable=invalid-field-call
 
@@ -1050,7 +1045,7 @@ def handle_onlined(cache):
 def find_dependent(self, tp, **kwargs):
   dep = config.load_config_for_id(make_id_string(make_id(tp, **kwargs)))
   if dep is None:
-    log.error(f"Configuration error: no corresponding {tp} configured for {self.id()}.")
+    log.error(f"Configuration error: no corresponding {tp} configured for {entity_id_string(self)}.")
   return dep
 
 

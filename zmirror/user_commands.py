@@ -16,15 +16,15 @@ import logging
 import inspect
 import json
 import codecs
+import traceback
 
 
-
-def daemon_request(request, cancel, typ, kwargs):
+def daemon_request(request, cancel, typ, ids):
 
   constructor_params = inspect.signature(typ).parameters
 
   # Filter the Namespace to include only the required arguments
-  filtered_args = {k: v for k, v in kwargs if k in constructor_params}
+  filtered_args = {k: v for k, v in ids.items() if k in constructor_params}
   entity = config.find_config(typ, **filtered_args)
   if entity is None:
     log.error(f"{make_id_string(make_id(typ, **filtered_args))}: entity not configured")
@@ -141,25 +141,20 @@ def handle_command(command, stream):
   try:
     name = command["command"]
     if name == "status":
-       handle_status_command(stream)
+      handle_status_command(stream)
     elif name == "clear-cache":
-       handle_clear_cache_command()
-    elif name == "scrub":
-      if yes_no_absent_or_dict(command, "all", False, "error"):
-        handle_scrub_all_command()
-      elif yes_no_absent_or_dict(command, "overdue", False, "error"):
-        handle_scrub_overdue_command()
-      else:
-        handle_request_command(command)
-    elif name == "online":
-      if yes_no_absent_or_dict(command, "all", False, "error"):
-        handle_online_all_command(command)
-      else:
-        handle_request_command(command)
+      handle_clear_cache_command()
+    elif name == "scrub-all":
+      handle_scrub_all_command()
+    elif name == "scrub-overdue":
+      handle_scrub_overdue_command()
+    elif name == "online-all":
+      handle_online_all_command(command)
     else:
-       handle_request_command(command)
+      handle_request_command(command)
   except Exception as ex:
-    log.error(f"failed to handle command: {ex}")
+    log.error(f"failed to handle command:")
+    log.error(f"exception : {traceback.format_exc()} --- {str(ex)}")
     # scrub_parser.set_defaults(func=request_scrub_all_overdue)
   finally:
     log.removeHandler(handler)
@@ -245,7 +240,7 @@ def make_send_request_daemon_command(request, typ):
 
     delattr(args, "cancel")
     r["type"] = command_name_for_type[typ]
-    r["args"] = vars(args)
+    r["identifiers"] = vars(args)
 
     return r
   return make_send_daemon_wrapper(do)

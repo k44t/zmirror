@@ -263,7 +263,7 @@ def handle_client(con: socket.socket, client_address, event_queue: queue.Queue):
       else:
         event_queue.put(event)
     except Exception as ex:
-      log.error("error while receiving data from zmirror-trigger: %s", ex)
+      log.error("communication error: %s", ex)
 
 
 
