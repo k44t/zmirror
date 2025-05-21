@@ -29,7 +29,8 @@ def handle(env):
   cache = None
 
   log.info("handling event")
-  log.info(json.dumps(env, indent=2))
+  if config.config_root.log_events:
+    log.info(json.dumps(env, indent=2))
 
   event_handled = False
 

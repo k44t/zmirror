@@ -7,6 +7,7 @@
 
 from datetime import datetime
 from dataclasses import dataclass, field
+import os
 from typing import Any
 
 
@@ -71,6 +72,8 @@ class Request(KiEnum):
 
   SCRUB = 2
 
+  TRIM = 3
+
   def opposite(self):
     if self == Request.ONLINE:
       return Request.OFFLINE
@@ -113,7 +116,8 @@ class ZFSOperationState(KiEnum):
   UNKNOWN = 0
   NONE = 1
   SCRUBBING = 2
-  RESILVERING = 3
+  TRIMMING = 3
+  RESILVERING = 4
 
 
 
@@ -143,9 +147,15 @@ def make_id(o, **kwargs):
     o = type(o)
   return (o, kwargs)
 
+def make_id_string(x, **kwargs):
+  if isinstance(x, tuple):
+    return make_id_string(x[0], **x[1])
+  elif not isinstance(x, type):
+    raise ValueError("value must be type or tuple of type and arguments")
+  return x.__name__ + "|" + '|'.join(f"{key}:{kwargs[key]}" for key in x.id_fields())
+
 def entity_id_string(o):
-  tp = type(o)
-  return tp.__name__ + "|" + '|'.join(f"{key}:{getattr(o, key)}" for key in tp.id_fields())
+  return make_id_string(o.id())
 
 
 
@@ -235,8 +245,13 @@ class Entity:
 
 
   def enact_request(self):
+
+
+
     cache = cached(self)
+
     state = cache.state.what
+
     for request in self.requested.copy():
       if state_corresponds_to_request(state, self.request):
         log.warning(f"{entity_id_string(self)}: request ({self.requested}) already fulfilled by state ({state}).")
@@ -265,6 +280,16 @@ class Entity:
         else:
           log.error(f"{entity_id_string(self)}: requested {self.requested}, entity cannot be scrubbed.")
           self.requested.remove(Request.SCRUB)
+      elif request == Request.TRIM:
+        if hasattr(self, "start_trim"):
+          if state == EntityState.ONLINE and cache.operation.what == ZFSOperationState.NONE:
+            log.info(f"{entity_id_string(self)}: fullfilling request ({self.requested})")
+            self.start_trim()
+          else:
+            log.debug(f"{entity_id_string(self)}: currently cannot fulfill request ({self.requested}) because of state ({state})")
+        else:
+          log.error(f"{entity_id_string(self)}: requested {self.requested}, entity cannot be trimmed.")
+          self.requested.remove(Request.TRIM)
       else:
           log.debug(f"{entity_id_string(self)}: currently cannot fulfill request ({self.requested}) because of state ({state})")
 
@@ -299,6 +324,7 @@ class Entity:
         if self.set_requested(request, origin):
           if request == Request.OFFLINE:
             self.requested.remove(Request.SCRUB)
+            self.requested.remove(Request.TRIM)
           return True
         else:
           # yes origin is intended to not be == self here
@@ -349,8 +375,8 @@ def run_action(self, event):
     else:
       log.error(f"misconfiguration: entity {make_id(self)} cannot be scrubbed")
   elif event == "trim":
-    if hasattr(self, "do_trim"):
-      self.do_trim()
+    if hasattr(self, "start_trim"):
+      self.start_trim()
     else:
       log.error(f"misconfiguration: entity {make_id(self)} cannot be trimmed")
 
@@ -472,6 +498,16 @@ def handle_online_request(self):
 
 
 
+def possibly_force_enable_trim(self):
+  if self.force_enable_trim:
+    path = config.find_provisioning_mode(self.dev_path())
+    if path is None:
+      log.warning(f"{entity_id_string(self)}: failed to force enable trim, could not find kernel flag in /sys/...")
+    else:
+      log.warning(f"{entity_id_string(self)}: force enabling trim")
+      commands.add_command(f"echo unmap > {path}")
+
+
 @yaml_data
 class Disk(Children):
 
@@ -486,7 +522,7 @@ class Disk(Children):
   force_enable_trim: bool = False
 
   def handle_appeared(self, prev_state):
-    pass
+    possibly_force_enable_trim(self)
 
   def set_requested(self, request, origin):
     online = is_present_or_online(self)
@@ -502,6 +538,11 @@ class Disk(Children):
 
   def load_initial_state(self):
     return load_disk_or_partition_initial_state(self)
+  
+  def finalize_init(self):
+    if cached(self).state.what == EntityState.INACTIVE:
+      possibly_force_enable_trim(self)
+
 
 
   content: list = field(default_factory=list) #pylint: disable=invalid-field-call
@@ -806,6 +847,7 @@ class ZPool(Children):
     commands.add_command(f"zpool scrub -s {self.name}")
     commands.add_command(f"zpool scrub {self.name}")
 
+
   def take_offline(self):
       commands.add_command(f"zpool export {self.name}")
 
@@ -1009,9 +1051,28 @@ def handle_scrub_finished(cache):
   uncached(cache, do)
 
 
+
+def handle_trim_started(cache):
+  cache.operation = Since(ZFSOperationState.TRIMMING, datetime.now())
+
+
+def handle_trim_finished(cache):
+  now = datetime.now()
+  cache.operation = Since(ZFSOperationState.NONE, now)
+  cache.last_trimmed = now
+  def do(entity):
+    entity.handle_trimmed()
+  uncached(cache, do)
+
+
 def handle_scrub_aborted(cache):
   cache.operation = Since(ZFSOperationState.NONE, datetime.now())
   uncached_userevent_by_name(cache, "scrub_aborted")
+
+
+def handle_trim_aborted(cache):
+  cache.operation = Since(ZFSOperationState.NONE, datetime.now())
+  uncached_userevent_by_name(cache, "trim_aborted")
 
 
 
@@ -1042,11 +1103,6 @@ def handle_onlined(cache):
 
 
 
-def find_dependent(self, tp, **kwargs):
-  dep = config.load_config_for_id(make_id_string(make_id(tp, **kwargs)))
-  if dep is None:
-    log.error(f"Configuration error: no corresponding {tp} configured for {entity_id_string(self)}.")
-  return dep
 
 
 @yaml_data
@@ -1067,7 +1123,7 @@ class ZDev(Entity):
 
   @classmethod
   def id_fields(cls):
-    return ["name", "pool"]
+    return ["pool", "name"]
 
   on_appeared: list = field(default_factory=list) #pylint: disable=invalid-field-call
 
@@ -1075,6 +1131,7 @@ class ZDev(Entity):
 
   last_online: datetime = None
   last_scrubbed: datetime = None
+  last_trimmed: datetime = None
 
 
   on_trimmed: list = field(default_factory=list) #pylint: disable=invalid-field-call
@@ -1087,6 +1144,18 @@ class ZDev(Entity):
   def handle_scrub_finished(self):
     self.requested.remove(Request.SCRUB)
     run_actions(self, "scrubbed")
+
+  def handle_trim_finished(self):
+    self.requested.remove(Request.TRIM)
+    run_actions(self, "trimmed")
+  
+  def enact_request(self):
+    oper = cached(self).operation.what
+    if oper == ZFSOperationState.TRIMMING and not Request.TRIM in self.requested:
+      self.stop_trim()
+    elif oper == ZFSOperationState.SCRUBBING and not Request.SCRUB in self.requested:
+      self.stop_scrub()
+    return super().enact_request()
     
 
   def id(self):
@@ -1133,6 +1202,8 @@ class ZDev(Entity):
     tell_parent_child_online(self.parent, self, prev_state)
     if Request.SCRUB in self.requested:
       self.start_scrub()
+    if Request.TRIM in self.requested:
+      self.start_trim()
 
 
 
@@ -1143,7 +1214,7 @@ class ZDev(Entity):
       if not self.request(Request.SCRUB, origin, True):
         success = False
 
-    elif request == Request.SCRUB:
+    elif request == Request.SCRUB or request == Request.TRIM:
       if not self.request(Request.ONLINE, self, unrequest=False, all_dependencies=False):
         success = False
     if success:
@@ -1189,6 +1260,12 @@ class ZDev(Entity):
   def start_scrub(self):
     commands.add_command(f"zpool scrub -s {self.pool}")
     commands.add_command(f"zpool scrub {self.pool}")
+
+  def stop_scrub(self):
+    commands.add_command(f"zpool scrub -s {self.pool}")
+
+  def stop_trim(self):
+    commands.add_command(f"zpool trim -s {self.pool} {self.dev_name()}")
 
   def __kiify__(self, kd_stream: KdStream):
     kd_stream.print_partial_obj(self, ["pool", "dev", "state", "operation", "last_resilvered", "last_scrubbed"])

@@ -18,22 +18,37 @@ timeout: 60s
 # we schedule maintenance tasks (scrubbing/trimming) every tuesday at 3 AM.
 #
 # At the scheduled time zmirror will try to online all devices
-# that need trimming (and likely succeed for those that are present). This 
+# that need scrubbing/trimming (and likely succeed for those that are present). This 
 # will of course only happen if the zmirror daemon is actually running at the
 # scheduled time.
 #
 # it will then try to start the maintenance tasks that are configured 
 # for the devices.
-maintenance_schedule: Tue 03:00
-# zmirror itself does not support more complex scheduling. But you can use
-# some other scheduler that simply tells zmirror to do maintenance:
+#
+# The only way to configure trimming for a device is to add it to an event handler like
+#
+# ::
+#   on_scrubbed: 
+#     - trim
+#
+# which will trim the device right after it was scrubbed.
+#
+# or
+#
+# ::
+#   on_resilvered: 
+#     - trim
+#
+#
+
+# zmirror itself does not support scheduling, since there are great tools
+# that do just that. Basically you create a systemd service that runs at whatever
+# interval you prefer and that calls: `zmirror scrub-all` or `zmirror trim-all` (depending on whether you configured all your disks
+# to always be trimmed after a scrub or no)
 # 
-# `zmirror maintenance`
-# 
-# you can also use `zmirror scrub` and `zmirror trim` respectively.
-# 
-# You can of course always do `zpool scrub` or `zpool trim` directly. Please 
-# note that zmirror should be running/restarted with `disable_commands: yes` when
+# You can of course always do `zpool scrub-all` or `zpool trim-all` directly. 
+#
+# Please note that zmirror should always be running/restarted with `disable_commands: yes` when
 # you do anything manual, so that it can ubdate its disk state information accordingly.
 
 
@@ -152,6 +167,7 @@ content:
 
             on_scrubbed:
               - trim
+            
 
             scrub_interval: 3 weeks
 

@@ -38,6 +38,7 @@ def setup_before_all_methods():
   insert_zpool_status_stub()
   insert_dev_exists_stub()
   insert_get_zfs_volume_mode_stub()
+  insert_find_provisioning_mode_stub()
 
 
 def assert_commands(cmds):
@@ -459,9 +460,35 @@ class Tests():
     assert bak_b.operation.what != ZFSOperationState.SCRUBBING
 
     assert_commands([
+      "zpool trim zmirror-sysfs zmirror-sysfs-a",
+      "zpool trim zmirror-sysfs zmirror-sysfs-b",
+      "zpool trim zmirror-sysfs zmirror-sysfs-s",
       "zpool offline zmirror-sysfs zvol/zmirror-bak-a/sysfs"
     ])
+  
+  def test_zpool_sysfs_backing_blockdev_sysfs_s_trim_start(self):
+    
+    trigger_event()
 
+    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+
+    assert s.operation.what != ZFSOperationState.TRIMMING
+
+    assert_commands([
+    ])
+
+  def test_zpool_sysfs_backing_blockdev_sysfs_s_trim_finish(self):
+    
+    trigger_event()
+
+    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+    assert s.operation.what != ZFSOperationState.NONE
+
+    assert_commands([
+      "zpool offline zmirror-sysfs zmirror-sysfs-s"
+    ])
 
 if __name__ == '__main__':
   pytest.main()

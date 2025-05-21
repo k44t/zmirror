@@ -21,6 +21,16 @@ def dev_exists(dev_path):
   return os.path.exists("/dev/" + dev_path)
 
 
+def find_provisioning_mode(dev_link):
+  dev_path = os.path.realpath(dev_link)
+  dev_name = dev_path[5]
+  path = f"/sys/block/{dev_name}/device"
+  if os.path.exists(path):
+    for root, dirs, files in os.walk(path):
+      if 'provisioning_mode' in files:
+        return os.path.join(root, 'provisioning_mode')
+  return None
+
 def get_zfs_volume_mode(zfs_path):
   raise NotImplementedError()
 

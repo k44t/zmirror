@@ -13,7 +13,7 @@ from .util import myexec, outs, copy_attrs, env_var_or
 from .entities import *
 from . import commands as commands
 from .daemon import daemon
-from kpyutils.kiify import KdStream
+from kpyutils.kiify import KdStream, date_or_datetime
 
 from .user_commands import *
 
@@ -137,6 +137,11 @@ def main(args=None):
   scrub_overdue_parser = subs.add_parser('scrub-overdue', parents=[socket_parser, cancel_parser], help='show status of zmirror')
   scrub_overdue_parser.set_defaults(func=make_send_simple_daemon_command("scrub-overdue"))
 
+  trim_all_parser = subs.add_parser('scrub-all', parents=[socket_parser], help='show status of zmirror')
+  trim_all_parser.set_defaults(func=make_send_simple_daemon_command("trim-all"))
+
+  online_all_parser = subs.add_parser('scrub-all', parents=[socket_parser], help='show status of zmirror')
+  online_all_parser.set_defaults(func=make_send_simple_daemon_command("online-all"))
 
   # scrub_parser = subs.add_parser('scrub-overdue', parents=[], help='scrub devices that have not been scrubbed for too long')
   # scrub_parser.set_defaults(func=scrub)

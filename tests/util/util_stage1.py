@@ -121,6 +121,17 @@ def insert_dev_exists_stub():
   config.dev_exists = dev_exists_stub
 
 
+
+def insert_find_provisioning_mode_stub():
+  package_path, module_path, _ = get_frame_data(1)  #pylint: disable=unused-variable
+
+  def find_provisioning_mode_stub(zfs_path): #pylint: disable=unused-argument
+    return "/sys/block/sdX/device/scsi_device/provisioning_mode"
+  
+  import zmirror.config as config #pylint: disable=import-outside-toplevel
+  config.find_provisioning_mode = find_provisioning_mode_stub
+
+
 def insert_get_zfs_volume_mode_stub():
 
   package_path, module_path, _ = get_frame_data(1)  #pylint: disable=unused-variable

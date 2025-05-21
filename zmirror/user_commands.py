@@ -104,6 +104,13 @@ def handle_scrub_all_command():
         entity.request(Request.SCRUB)
   iterate_content_tree(config.config_root, do)
 
+def handle_trim_all_command():
+  def do(entity):
+    if isinstance(entity, ZDev):
+      if Request.TRIM not in entity.requested:
+        entity.request(Request.TRIM)
+  iterate_content_tree(config.config_root, do)
+
 
 
 def handle_scrub_overdue_command():
@@ -113,6 +120,9 @@ def handle_scrub_overdue_command():
       if entity.scrub_interval is not None:
         # parsing the schedule delta will result in a timestamp calculated from now
         allowed_delta = dateparser.parse(entity.scrub_interval)
+        # this means that allowed_delta is a timestamp in the past
+
+
         if (cache.last_scrubbed is None or allowed_delta > cache.last_scrubbed):
           if Request.SCRUB not in entity.requested:
             log.info(f"{entity_id_string(entity)}: requesting scrub")
@@ -148,12 +158,16 @@ def handle_command(command, stream):
       handle_scrub_all_command()
     elif name == "scrub-overdue":
       handle_scrub_overdue_command()
+    elif name == "trim-all":
+      handle_trim_all_command()
     elif name == "online-all":
+      handle_online_all_command(command)
+    elif name == "maintenance":
       handle_online_all_command(command)
     else:
       handle_request_command(command)
   except Exception as ex:
-    log.error(f"failed to handle command:")
+    log.error("failed to handle command")
     log.error(f"exception : {traceback.format_exc()} --- {str(ex)}")
     # scrub_parser.set_defaults(func=request_scrub_all_overdue)
   finally:
@@ -175,7 +189,8 @@ type_for_command_name = {value: key for key, value in command_name_for_type.item
 request_for_name = {
   "online": Request.ONLINE,
   "offline": Request.OFFLINE,
-  "scrub": Request.SCRUB
+  "scrub": Request.SCRUB,
+  "trim": Request.SCRUB
 }
 
 name_for_request = {value: key for key, value in request_for_name.items()}

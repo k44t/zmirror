@@ -38,6 +38,7 @@ def setup_before_all_methods():
   insert_zpool_status_stub()
   insert_dev_exists_stub()
   insert_get_zfs_volume_mode_stub()
+  insert_find_provisioning_mode_stub()
 
 
 def assert_commands(cmds):
@@ -101,7 +102,9 @@ class Tests():
 
 
     # zmirror needs to do nothing (issue no commands)
-    assert_commands([])
+    assert_commands([
+      'echo unmap > /sys/block/sdX/device/scsi_device/provisioning_mode'
+    ])
 
 
   # partition of sysfs-a appears (udev: add)
@@ -154,8 +157,10 @@ class Tests():
   def test_disk_sysfs_b_online(self):
     trigger_event()
 
-    # zmirror needs to do nothing (issue no commands)
-    assert_commands([])
+    assert_commands([
+      # we set force_enable_trim for this device
+      'echo unmap > /sys/block/sdX/device/scsi_device/provisioning_mode'
+    ])
 
   # partition of sysfs-b appears (udev: add)
   def test_partition_sysfs_b_online(self):
@@ -209,8 +214,10 @@ class Tests():
 
     trigger_event()
 
-    # zmirror needs to do nothing (issue no commands)
-    assert_commands([])
+    assert_commands([
+      # we set force_enable_trim for this device
+      'echo unmap > /sys/block/sdX/device/scsi_device/provisioning_mode'
+    ])
 
   # partition of sysfs-s appears (udev: add)
   def test_partition_sysfs_s_online(self):

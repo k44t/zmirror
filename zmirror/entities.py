@@ -103,6 +103,7 @@ def load_config_for_id(identifier):
   return local_config
 
 
+
 def find_config(typ, **identifier):
   return load_config_for_id(make_id_string(make_id(typ, **identifier)))
 
