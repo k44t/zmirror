@@ -24,10 +24,10 @@ from zmirror.dataclasses import *
 import zmirror.config
 import zmirror.entities as entities
 from zmirror.zmirror import main
-import zmirror.operations as operations
 
 from util.util_stage2 import *
 
+import zmirror.user_commands as user_commands
 
 
 
@@ -138,7 +138,7 @@ class Tests():
 
   def test_request_zpool_sysfs_s_online(self):
 
-    result = operations.request(Request.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
+    result = user_commands.request(Request.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
 
     assert not result
 
@@ -160,7 +160,7 @@ class Tests():
 
   def test_request_zpool_sysfs_b_online(self):
 
-    result = operations.request(Request.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-b")
+    result = user_commands.request(Request.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-b")
 
     assert result
 
@@ -174,7 +174,7 @@ class Tests():
 
   def test_request_zpool_sysfs_b_online_with_all_dependencies(self):
 
-    result = operations.request(Request.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-b", all_dependencies=True)
+    result = user_commands.request(Request.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-b", all_dependencies=True)
 
     assert result
 
@@ -298,7 +298,7 @@ class Tests():
       if isinstance(entity, ZDev) and entity.pool == "zmirror-sysfs":
         entity.request(Request.SCRUB)
     entities.iterate_content_tree(config.config_root, possibly_scrub)
-    entities.iterate_content_tree(config.config_root, operations.do_enact_request)
+    entities.iterate_content_tree(config.config_root, user_commands.do_enact_request)
 
     assert_commands([
       'zpool scrub -s zmirror-sysfs', 
@@ -473,11 +473,52 @@ class Tests():
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
 
+    assert s.operation.what == ZFSOperationState.TRIMMING
+
+    assert_commands([
+    ])
+
+
+  # an administrator has stopped the trim via the `zpool trim -s zmirror-sysfs` command.
+  def test_zpool_sysfs_backing_blockdev_sysfs_s_trim_cancel(self):
+    
+    trigger_event()
+
+    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+
+    assert s.operation.what != ZFSOperationState.TRIMMING
+    assert Request.TRIM not in s.requested
+
+    assert_commands([
+      # zmirror should do nothing
+    ])
+
+
+  # the user tells zmirror to request trim again
+  def test_zpool_sysfs_backing_blockdev_sysfs_s_trim_request(self):
+    
+    user_commands.request(Request.TRIM, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
+
+    assert_commands([
+      "zpool trim zmirror-sysfs-s"
+    ])
+
+
+  # trimming has started
+  def test_zpool_sysfs_backing_blockdev_sysfs_s_trim_start2(self):
+    
+    trigger_event()
+
+    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+
     assert s.operation.what != ZFSOperationState.TRIMMING
 
     assert_commands([
     ])
 
+  # trimming has finished
   def test_zpool_sysfs_backing_blockdev_sysfs_s_trim_finish(self):
     
     trigger_event()

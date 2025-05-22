@@ -170,13 +170,16 @@ class DependentNotFound(Exception):
 
 
 
-@dataclass
+def since_factory():
+  return Since(EntityState.UNKNOWN, None)
+
+@yaml_data
 class Entity:
 
   parent = None
   cache = None
-  requested: set = field(default_factory=set)
-  state = Since(EntityState.UNKNOWN, None)
+  requested: set = field(default_factory=set)#pylint: disable=invalid-field-call
+  state: Since = field(default_factory=since_factory)#pylint: disable=invalid-field-call
   last_online: datetime = None
   notes: str = None
 
@@ -542,10 +545,6 @@ class Disk(Children):
     if cached(self).state.what == EntityState.INACTIVE:
       possibly_force_enable_trim(self)
 
-
-
-  content: list = field(default_factory=list) #pylint: disable=invalid-field-call
-  notes: str = None
 
   def id(self):
     if self.uuid is not None:
@@ -1245,10 +1244,7 @@ class ZDev(Entity):
     run_actions(self, "scrub_aborted")
 
   def take_offline(self):
-    if Request.SCRUB in self.requested:
-      log.warning(f"{entity_id_string(self)}: not taking offline because scrub requested")
-    else:
-      commands.add_command(f"zpool offline {self.pool} {self.dev_name()}")
+    commands.add_command(f"zpool offline {self.pool} {self.dev_name()}")
 
   def take_online(self):
     commands.add_command(f"zpool online {self.pool} {self.dev_name()}")
@@ -1257,7 +1253,7 @@ class ZDev(Entity):
     commands.add_command(f"zpool trim {self.pool} {self.dev_name()}")
 
   def start_scrub(self):
-    commands.add_command(f"zpool scrub -s {self.pool}")
+    self.stop_scrub()
     commands.add_command(f"zpool scrub {self.pool}")
 
   def stop_scrub(self):

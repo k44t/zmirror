@@ -108,7 +108,7 @@ def handle(env):
       # zpool create my-pool mirror /dev/vg-my-vg/my-lv /dev/disk/by-partlabel/my-partition /dev/mapper/my-dm-crypt
 
     # zpool-vdev event
-    elif zevent in ["vdev_online", "statechange"]:
+    elif zevent in ["vdev_online", "statechange", "trim_start", "trim_finish", "trim_suspend"]:
       # possible cases:
         # ZEVENT_POOL:: mypoolname
         # ZEVENT_VDEV_PATH:: /dev/mapper/mypoolname-b-main
@@ -130,6 +130,13 @@ def handle(env):
         else:
           log.warning(f"(potential bug) unknown statechange event: { new_state }")
           set_cache_state(cache, EntityState.UNKNOWN)
+      elif zevent == "trim_start":
+        handle_trim_started(cache)
+      elif zevent == "trim_finish":
+        handle_trim_finished(cache)
+      elif zevent == "trim_suspend":
+        handle_trim_aborted(cache)
+
 
     # zool-vdev event
     elif zevent in ["resilver_start", "resilver_finish"]:
@@ -255,7 +262,13 @@ def handle_client(con: socket.socket, client_address, event_queue: queue.Queue):
         length_str += char
 
     # Convert length to integer
-    total_length = int(length_str)
+    try:
+      total_length = int(length_str)
+    except:
+      log.error("client did not send length of message")
+      con.close()
+      return
+
 
     # Read the JSON data of the specified length
     data = b""
@@ -272,7 +285,8 @@ def handle_client(con: socket.socket, client_address, event_queue: queue.Queue):
     else:
       event_queue.put(event)
   except Exception as ex:
-    log.error("communication error: %s", ex)
+    log.error("communication error", exc_info=True)
+    log.error(f"exception {ex}")
     
 
 

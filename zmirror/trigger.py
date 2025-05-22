@@ -26,18 +26,17 @@ if path is None or len(sys.argv) > 1:
 require_path(path, "no zmirror socket at")
 
 # Create a UDS (Unix Domain Socket)
-with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as con:
 
   try:
     # Connect the socket to the path where the server is listening
-    client.connect(path)
+    con.connect(path)
 
 
 
     # Send data
     env = dict(os.environ)
-    message = json.dumps(env, indent=4)
-    print(f"Sending: {message}")
-    client.sendall(message.encode('utf-8'))
+    message = json.dumps(env).encode('utf-8')
+    con.sendall(f"{len(message)}:".encode('utf-8') + message)
   except Exception as ex:
-    log.error(f"error while sending data to zmirror-daemon: {ex}")
+    print(f"error while sending data to zmirror-daemon: {ex}")

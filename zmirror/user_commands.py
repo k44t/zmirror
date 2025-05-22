@@ -25,16 +25,16 @@ def do_enact_request(entity):
     entity.enact_request()
 
 
-# def request(rqst, typ, all_dependencies=False, **identifiers):
-#   tid = make_id_string(make_id(typ, **identifiers))
-#   entity = load_config_for_id(tid)
-#   if config is None:
-#     raise ValueError(f"{tid} not configured")
-#   result = entity.request(rqst, all_dependencies = all_dependencies)
-#   if result:
-#     iterate_content_tree(config.config_root, do_enact_request)
-#     return True
-#   return False
+def request(rqst, typ, all_dependencies=False, **identifiers):
+  tid = make_id_string(make_id(typ, **identifiers))
+  entity = load_config_for_id(tid)
+  if config is None:
+    raise ValueError(f"{tid} not configured")
+  result = entity.request(rqst, all_dependencies = all_dependencies)
+  if result:
+    iterate_content_tree(config.config_root, do_enact_request)
+    return True
+  return False
 
 
 
@@ -257,10 +257,10 @@ def make_send_daemon_wrapper(fn):
         con.connect(path)
         decoder = codecs.getincrementaldecoder('utf-8')()
 
-        # Send data
-        message = json.dumps({"ZMIRROR_COMMAND": command}, indent=4)
-        con.sendall(f"{len(message)}:{message}".encode('utf-8'))
-        
+        # Send data        
+        message = json.dumps({"ZMIRROR_COMMAND": command}).encode('utf-8')
+        con.sendall(f"{len(message)}:".encode('utf-8') + message)
+
         while True:
           data = con.recv(4096)
           if not data:
