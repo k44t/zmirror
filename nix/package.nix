@@ -1,32 +1,52 @@
-/*{ python3
-, stdenv
-, callPackage
- }:
+{ lib, stdenv, zfs, python3Packages, writeShellScript, python3 }:
 let
 
-  python = callPackage ./python.nix {};
 
-in
+py = python3.withPackages (ptpkgs: [zmirror-core ptpkgs.pyyaml]);
 
-stdenv.mkDerivation rec {
-  name = "zmirror";
+script = writeShellScript "zmirror" ''
+  PATH=${zfs}/bin:$PATH ${py}/bin/python -m zmirror "$@"
+'';
+trigger-script = writeShellScript "zmirror-trigger" ''
+  ${py}/bin/python -m zmirror.trigger "$@"
+'';
+
+# python -Xfrozen_modules=off -m debugpy --wait-for-client --listen localhost:8888 /#/projects/zmirror/src/zmirror.py "$@"
+
+zmirror-core = python3Packages.callPackage ./python-package.nix {};
+
+
+package = stdenv.mkDerivation rec {
+  pname = "zmirror";
+  version = "0.1.0";
+
+  # this needs to be done so nix really copies all source files into the nix store (instead of symlinking)
+  src = builtins.path { path = ./..; };
+  
+
+  postInstall = ''
+
+    mkdir -p $out/bin
+    cp ${script} $out/bin/zmirror
+    cp ${trigger-script} $out/bin/zmirror-trigger
+    chmod a+x $out/bin/*
+
+    mkdir -p $out/lib/udev/rules.d
+    cp ./udev/99-zmirror.rules $out/lib/udev/rules.d
+    sed -i "s|/usr/local/bin/|$out/bin/|g" $out/lib/udev/rules.d/99-zmirror.rules
+
+  '';
+
   propagatedBuildInputs = [
-    python
+    zmirror-core
   ];
-  dontUnpack = true;
-  installPhase = "install -Dm755 ${./zmirror.py} $out/bin/$name";
-}*/
 
-{
-  writeShellScriptBin
-, callPackage
-, zfs}: 
+  meta = with lib; {
+    description = "zmirror zfs backup sync service";
+    license = licenses.mit;
+    maintainers = with maintainers; [ ];
+  };
+};
 
 
-writeShellScriptBin "zmirror" ''
-  #!/usr/bin/env bash
-  export PATH=${callPackage ./python.nix {}}/bin:${zfs}/bin
-  python /#/zion/zmirror/src/zmirror.py "$@"
-  # python -Xfrozen_modules=off -m debugpy --wait-for-client --listen localhost:8888 /#/zion/zmirror/src/zmirror.py "$@"
-''
-
+in package

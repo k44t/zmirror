@@ -10,14 +10,14 @@ import json
 import os
 
 from .util import require_path
-from .logging import log
+from .defaults import *
 
 # Define the path for the Unix socket
-path = os.getenv("ZMIRROR_SOCKET")
+path = os.getenv("ZMIRROR_SOCKET_PATH")
 if path is None:
   import argparse
   parser = argparse.ArgumentParser(prog="zmirror-trigger")
-  parser.add_argument("--socket-path", type=str, help="the path to the unix socket (used by zmirror.trigger)", default="/var/run/zmirror/zmirror_service.socket")
+  parser.add_argument("--socket-path", type=str, help="the path to the unix socket (used by zmirror.trigger)", default=ZMIRROR_SOCKET_PATH_DEFAULT)
   args = parser.parse_args()
   path = args.socket_path
 

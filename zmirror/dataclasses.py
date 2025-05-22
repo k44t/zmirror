@@ -125,8 +125,7 @@ class ZFSOperationState(KiEnum):
 class ZMirror:
   log_events: bool = False
   disable_commands: bool = False
-  timeout: str = "300s"
-  maintenance_schedule: str = None
+  timeout: int = 300
   log_level: str = "info"
 
   content: list = field(default_factory=list) #pylint: disable=invalid-field-call

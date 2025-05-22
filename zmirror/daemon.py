@@ -7,8 +7,10 @@ import os
 import threading
 import json
 import traceback
+from enum import Enum
+from threading import Timer
 
-from zmirror.user_commands import handle_command
+from zmirror.user_commands import clear_requests, handle_command
 
 
 
@@ -22,13 +24,22 @@ from kpyutils.kiify import to_kd
 from . import config as globals
 
 
+@dataclass
+class UserEvent:
+  event: dict
+  con: socket.socket
+
+class TimerEvent(Enum):
+  RESTART = 0
+  TIMEOUT = 1
 
 
 
 def handle(env):
+  log.debug("handling event")
+
   cache = None
 
-  log.info("handling event")
   if config.config_root.log_events:
     log.info(json.dumps(env, indent=2))
 
@@ -231,49 +242,63 @@ def udev_event_action(entity, action, now):
 
 
 def handle_client(con: socket.socket, client_address, event_queue: queue.Queue):
-  with con:
-    try:
-      log.info(f"handling connection to zmirror socket")
+  try:
+    log.info(f"handling connection to zmirror socket")
 
 
-      # Read until ':' to get the length
-      length_str = ""
-      while True:
-          char = con.recv(1).decode('utf-8')
-          if char == ':':
-              break
-          length_str += char
+    # Read until ':' to get the length
+    length_str = ""
+    while True:
+        char = con.recv(1).decode('utf-8')
+        if char == ':':
+            break
+        length_str += char
 
-      # Convert length to integer
-      total_length = int(length_str)
+    # Convert length to integer
+    total_length = int(length_str)
 
-      # Read the JSON data of the specified length
-      data = b""
-      while len(data) < total_length:
-          more_data = con.recv(total_length - len(data))
-          if not more_data:
-              raise ConnectionError("Connection closed before receiving all data")
-          data += more_data
+    # Read the JSON data of the specified length
+    data = b""
+    while len(data) < total_length:
+        more_data = con.recv(total_length - len(data))
+        if not more_data:
+            raise ConnectionError("Connection closed before receiving all data")
+        data += more_data
 
-      message = data.decode('utf-8')
-      event = json.loads(message)
-      if "ZMIRROR_COMMAND" in event:
-        with con.makefile('w') as stream:
-          handle_command(event["ZMIRROR_COMMAND"], stream)
-          stream.flush()
-      else:
-        event_queue.put(event)
-    except Exception as ex:
-      log.error("communication error: %s", ex)
-
+    message = data.decode('utf-8')
+    event = json.loads(message)
+    if "ZMIRROR_COMMAND" in event:
+      event_queue.put(UserEvent(event["ZMIRROR_COMMAND"], con))
+    else:
+      event_queue.put(event)
+  except Exception as ex:
+    log.error("communication error: %s", ex)
+    
 
 
-def handle_event(event_queue: queue.Queue):
+def handle_events():
+  event_queue = queue.Queue()
+  timer: Timer = None
+  def timeout():
+    event_queue.put(TimerEvent.TIMEOUT)
   while True:
     event = event_queue.get()
     try:
-      handle(event)
-      commands.execute_commands()
+      if isinstance(event, UserEvent):
+        handle_command(event.event, event.con)
+        log.debug("event handled")
+        return
+      elif isinstance(event, TimerEvent):
+        if event == TimerEvent.RESTART:
+          if timer is not None:
+            timer.cancel()
+          timer = Timer(config.config_root.timeout, timeout)
+          timer.start()
+        elif event == TimerEvent.TIMEOUT:
+          clear_requests()
+      else:
+        handle(event)
+        commands.execute_commands()
     except Exception as ex:
       log.error(f"failed to handle event: {str(event)}")
       log.error(f"Exception : {traceback.format_exc()} --- {str(ex)}")
@@ -327,12 +352,11 @@ def daemon(args):# pylint: disable=unused-argument
   log.info(f"listening on {socket_path}")
 
 
-  event_queue = queue.Queue()
 
 
 
   # Create a thread-safe list
-  handle_event_thread = threading.Thread(target=handle_event, args=(event_queue, ))
+  handle_event_thread = threading.Thread(target=handle_events)
   handle_event_thread.start()
   # TODO: closing the handle event thread is not implemented
 

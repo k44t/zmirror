@@ -1,0 +1,5 @@
+SUBSYSTEM=="block", RUN+="/usr/local/bin/zmirror-trigger"
+
+SUBSYSTEM=="block", ACTION=="add|change", PROGRAM="/usr/local/bin/zmirror-extract-raid-name", ENV{ZMIRROR_MD_NAME}="%c", SYMLINK+="mapper/%c"
+
+SUBSYSTEM=="block", ACTION=="add|change", PROGRAM=/usr/local/bin/zmirror-extract-raid-name-with-partition", SYMLINK+="mapper/%c"

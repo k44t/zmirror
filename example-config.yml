@@ -8,38 +8,22 @@ log_events: yes
 # but only logs the commands that it would execute. This is helpful when you
 # want to test things and/or manually interact with the devices without zmirror 
 # interfering
-disable_commands: no
+disable_commands: yes
 
-# the timeout for user requests (ONLINE/OFFLINE/SCRUB), after which the 
-# request will be considered failed and removed.
-timeout: 60s
+# the timeout for user requests after which the request will be considered failed 
+# and removed.
+#
+# Please note that this timeout will not affect requests that can be fulfilled
+# at a later time in respect to the current state. For example if you request a `scrub`
+# while a `resilver` is in progress, then zmirror considers the `scrub` to be 
+# fulfillable once the `resilver` has finished. The same holds for `trim`.
+#
+# A `scrub` request however may be cancelled after the timeout, if the device is currently
+# offline and the `online` request that is automatically scheduled when you schedule a 
+# `scrub` cannot be fulfilled before the timeout ends.
+timeout: 60
 
 
-# we schedule maintenance tasks (scrubbing/trimming) every tuesday at 3 AM.
-#
-# At the scheduled time zmirror will try to online all devices
-# that need scrubbing/trimming (and likely succeed for those that are present). This 
-# will of course only happen if the zmirror daemon is actually running at the
-# scheduled time.
-#
-# it will then try to start the maintenance tasks that are configured 
-# for the devices.
-#
-# The only way to configure trimming for a device is to add it to an event handler like
-#
-# ::
-#   on_scrubbed: 
-#     - trim
-#
-# which will trim the device right after it was scrubbed.
-#
-# or
-#
-# ::
-#   on_resilvered: 
-#     - trim
-#
-#
 
 # zmirror itself does not support scheduling, since there are great tools
 # that do just that. Basically you create a systemd service that runs at whatever

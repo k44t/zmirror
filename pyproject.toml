@@ -7,18 +7,17 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.12"
-# python-dateutil = "^2.9.0"
-natsort = "^8.4.0"
-pyyaml = "^6.0.2"
-jsonpickle = "^4.0.5"
-dateparser = "^1.2.1"
-cysystemd = "^2.0.1"
-debugpy = "^1.8.14"
-pytest = "^8.3.5"
+
+natsort = ">=8.4.0"
+pyyaml = ">=6.0.2"
+dateparser = ">=1.2.0"
+systemd-python = ">=234"
 kpyutils = "^0.1.0"
 
 [tool.poetry.dev-dependencies]
 kpyutils = { path = "../kpyutils", develop = true }
+debugpy = ">=1.8.14"
+pytest = ">=8.3.5"
 
 
 

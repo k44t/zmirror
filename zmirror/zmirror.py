@@ -19,10 +19,7 @@ from .user_commands import *
 
 from . import operations as operations
 
-
-ZMIRROR_CONFIG_PATH_DEFAULT = "/etc/zmirror/zmirror-config.yml"
-ZMIRROR_CACHE_PATH_DEFAULT = "/var/lib/zmirror/zmirror-cache.yml"
-ZMIRROR_SOCKET_PATH_DEFAULT = "/run/zmirror/zmirror.socket"
+from .defaults import *
 
 #alexTODO: delete this
 #def my_constructor(loader, node):
@@ -111,6 +108,7 @@ def main(args=None):
 
   socket_parser = argparse.ArgumentParser(add_help=False)
   socket_parser.add_argument("--socket-path", type=str, help="the path to the unix socket (used by zmirror.trigger)", default=env_var_or("ZMIRROR_SOCKET_PATH", ZMIRROR_SOCKET_PATH_DEFAULT))
+  
   # shared_parser.add_argument("runtime-dir", type=str, help="the path to the runtime directory", default= "/var/run/zmirror")
 
   cancel_parser = argparse.ArgumentParser(add_help=False)
@@ -123,25 +121,24 @@ def main(args=None):
   # daemon commands
   # #######################
 
-  clear_cache_parser = subs.add_parser('clear-cache', parents=[socket_parser], help= 'clear cache')
-  clear_cache_parser.set_defaults(func=make_send_simple_daemon_command("clear-cache"))
+
+  def subcmd(command, help=None, cancel=False):
+    parents = [socket_parser]
+    if cancel:
+      parents.append(cancel_parser)
+    subpsr = subs.add_parser(command, parents=parents, help=help)
+    subpsr.set_defaults(func=make_send_simple_daemon_command(command))
 
 
-  # zmirror status   # called by user
-  status_parser = subs.add_parser('status', parents=[socket_parser], help='show status of zmirror')
-  status_parser.set_defaults(func=make_send_simple_daemon_command("status"))
+  subcmd("status")
+  subcmd("clear-cache")
+  subcmd("reload")
+  subcmd("scrub-all", cancel=True)
+  subcmd("scrub-overdue")
+  subcmd("trim-all", cancel=True)
+  subcmd("online-all", cancel=True)
+  subcmd("maintenance")
 
-  scrub_all_parser = subs.add_parser('scrub-all', parents=[socket_parser], help='show status of zmirror')
-  scrub_all_parser.set_defaults(func=make_send_simple_daemon_command("scrub-all"))
-
-  scrub_overdue_parser = subs.add_parser('scrub-overdue', parents=[socket_parser, cancel_parser], help='show status of zmirror')
-  scrub_overdue_parser.set_defaults(func=make_send_simple_daemon_command("scrub-overdue"))
-
-  trim_all_parser = subs.add_parser('scrub-all', parents=[socket_parser], help='show status of zmirror')
-  trim_all_parser.set_defaults(func=make_send_simple_daemon_command("trim-all"))
-
-  online_all_parser = subs.add_parser('scrub-all', parents=[socket_parser], help='show status of zmirror')
-  online_all_parser.set_defaults(func=make_send_simple_daemon_command("online-all"))
 
   # scrub_parser = subs.add_parser('scrub-overdue', parents=[], help='scrub devices that have not been scrubbed for too long')
   # scrub_parser.set_defaults(func=scrub)
@@ -166,8 +163,6 @@ def main(args=None):
 
     offline = offline_subs.add_parser(command_name, parents=[common_parser, cancel_parser])
     offline.set_defaults(func=make_send_request_daemon_command(Request.OFFLINE, typ))
-    
-
 
 
 
