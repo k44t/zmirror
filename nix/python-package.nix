@@ -3,7 +3,7 @@ let
 
 package = buildPythonPackage rec {
   pname = "zmirror-core";
-  version = "0.1.1";
+  version = "0.1.2";
 
   # this needs to be done so nix really copies all source files into the nix store (instead of symlinking)
   src = builtins.path { path = ./..; };

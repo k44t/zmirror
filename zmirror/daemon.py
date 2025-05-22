@@ -276,8 +276,7 @@ def handle_client(con: socket.socket, client_address, event_queue: queue.Queue):
     
 
 
-def handle_events():
-  event_queue = queue.Queue()
+def handle_events(event_queue):
   timer: Timer = None
   def timeout():
     event_queue.put(TimerEvent.TIMEOUT)
@@ -353,10 +352,11 @@ def daemon(args):# pylint: disable=unused-argument
 
 
 
+  event_queue = queue.Queue()
 
 
   # Create a thread-safe list
-  handle_event_thread = threading.Thread(target=handle_events)
+  handle_event_thread = threading.Thread(target=handle_events,args=(event_queue,))
   handle_event_thread.start()
   # TODO: closing the handle event thread is not implemented
 

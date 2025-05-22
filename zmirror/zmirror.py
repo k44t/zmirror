@@ -88,6 +88,7 @@ def main(args=None):
 
 
   parser = argparse.ArgumentParser(prog="zmirror")
+  parser.add_argument('--version', action='version', version=f'zmirror {VERSION}')
   subs = parser.add_subparsers(required=True)
 
 
@@ -108,7 +109,7 @@ def main(args=None):
 
   socket_parser = argparse.ArgumentParser(add_help=False)
   socket_parser.add_argument("--socket-path", type=str, help="the path to the unix socket (used by zmirror.trigger)", default=env_var_or("ZMIRROR_SOCKET_PATH", ZMIRROR_SOCKET_PATH_DEFAULT))
-  
+
   # shared_parser.add_argument("runtime-dir", type=str, help="the path to the runtime directory", default= "/var/run/zmirror")
 
   cancel_parser = argparse.ArgumentParser(add_help=False)

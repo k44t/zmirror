@@ -18,7 +18,7 @@ zmirror-core = python3Packages.callPackage ./python-package.nix {};
 
 package = stdenv.mkDerivation rec {
   pname = "zmirror";
-  version = "0.1.0";
+  version = zmirror-core.version;
 
   # this needs to be done so nix really copies all source files into the nix store (instead of symlinking)
   src = builtins.path { path = ./..; };
@@ -38,7 +38,6 @@ package = stdenv.mkDerivation rec {
   '';
 
   propagatedBuildInputs = [
-    zmirror-core
   ];
 
   meta = with lib; {

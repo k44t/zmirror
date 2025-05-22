@@ -8,15 +8,17 @@
 import socket
 import json
 import os
+import sys
 
 from .util import require_path
 from .defaults import *
 
 # Define the path for the Unix socket
 path = os.getenv("ZMIRROR_SOCKET_PATH")
-if path is None:
+if path is None or len(sys.argv) > 1:
   import argparse
   parser = argparse.ArgumentParser(prog="zmirror-trigger")
+  parser.add_argument('--version', action='version', version=f'zmirror-trigger {VERSION}')
   parser.add_argument("--socket-path", type=str, help="the path to the unix socket (used by zmirror.trigger)", default=ZMIRROR_SOCKET_PATH_DEFAULT)
   args = parser.parse_args()
   path = args.socket_path
