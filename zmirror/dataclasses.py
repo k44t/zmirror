@@ -1008,7 +1008,7 @@ def uncached(cache, fn):
   else:
     entity = config.load_config_for_cache(cache) #pylint: disable=no-member
     if entity is None:
-      log.warning(f"backing block device not configured: {entity_id_string(cache)}")
+      log.warning(f"entity not configured: {entity_id_string(cache)}")
       return
     entity.cache = cache
   fn(entity)
@@ -1034,19 +1034,23 @@ def uncached_userevent_by_name(cache, name):
 
 
 def handle_resilver_started(cache):
+  log.info(f"{entity_id_string(cache)}: resilver started")
   cache.operation = Since(ZFSOperationState.RESILVERING, datetime.now())
 
 
 def handle_resilver_finished(cache):
+  log.info(f"{entity_id_string(cache)}: resilvered")
   cache.operation = Since(ZFSOperationState.NONE, datetime.now())
   uncached_operation_handle_by_name(cache, "resilver_finished")
 
 
 def handle_scrub_started(cache):
+  log.info(f"{entity_id_string(cache)}: scrub started")
   cache.operation = Since(ZFSOperationState.SCRUBBING, datetime.now())
 
 
 def handle_scrub_finished(cache):
+  log.info(f"{entity_id_string(cache)}: scrubbed")
   now = datetime.now()
   cache.operation = Since(ZFSOperationState.NONE, now)
   cache.last_scrubbed = now
@@ -1057,10 +1061,12 @@ def handle_scrub_finished(cache):
 
 
 def handle_trim_started(cache):
+  log.info(f"{entity_id_string(cache)}: trim started")
   cache.operation = Since(ZFSOperationState.TRIMMING, datetime.now())
 
 
 def handle_trim_finished(cache):
+  log.info(f"{entity_id_string(cache)}: trimmed")
   now = datetime.now()
   cache.operation = Since(ZFSOperationState.NONE, now)
   cache.last_trimmed = now
@@ -1070,11 +1076,13 @@ def handle_trim_finished(cache):
 
 
 def handle_scrub_canceled(cache):
+  log.info(f"{entity_id_string(cache)}: scrub canceled")
   cache.operation = Since(ZFSOperationState.NONE, datetime.now())
   uncached_userevent_by_name(cache, "scrub_canceled")
 
 
 def handle_trim_canceled(cache):
+  log.info(f"{entity_id_string(cache)}: trim canceled")
   cache.operation = Since(ZFSOperationState.NONE, datetime.now())
   uncached_userevent_by_name(cache, "trim_canceled")
 
@@ -1084,18 +1092,21 @@ def handle_trim_canceled(cache):
 
 # the device or zpool has been taken offline and is not even passively available (it must be reactivated somehow)
 def handle_disconnected(cache):
+  log.info(f"{entity_id_string(cache)}: disconnected")
   prev_state = set_cache_state(cache, EntityState.DISCONNECTED)
   if prev_state:
     uncached_handle_by_name(cache, "disconnected", prev_state)
 
 # the device is still passively available
 def handle_deactivated(cache):
+  log.info(f"{entity_id_string(cache)}: deactivated")
   prev_state = set_cache_state(cache, EntityState.INACTIVE)
   if prev_state:
     uncached_handle_by_name(cache, "deactivated", prev_state)
 
 # the device became passively available
 def handle_appeared(cache):
+  log.info(f"{entity_id_string(cache)}: appeared")
   prev_state = set_cache_state(cache, EntityState.INACTIVE)
   if prev_state:
     uncached_handle_by_name(cache, "appeared", prev_state)
@@ -1103,6 +1114,7 @@ def handle_appeared(cache):
 
 # the device has activated
 def handle_onlined(cache):
+  log.info(f"{entity_id_string(cache)}: onlined")
   prev_state = set_cache_state(cache, EntityState.ONLINE)
   if prev_state:
     uncached_handle_by_name(cache, "onlined", prev_state)

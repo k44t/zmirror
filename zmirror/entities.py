@@ -116,8 +116,6 @@ def load_config_for_id(identifier):
   local_config = None
   if identifier in config.config_dict:
     local_config = config.config_dict[identifier]
-  else:
-    log.error(f"id `{identifier}` not found in core.config_dict.")
   return local_config
 
 
@@ -178,18 +176,19 @@ def find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path):
   return find_or_create_cache(ZDev, pool=zpool, name=vdev_name)
 
 def get_zpool_status(zpool_name):
-  rcode, zpool_status, _, _ = exec(f"zpool status {zpool_name}")#pylint: disable=exec-used
+  return simple_string_command(f"zpool status {zpool_name}", f"failed to get status of zpool {zpool_name}", log.debug)
+
+
+def simple_string_command(command, error, logfn=log.error):
+  rcode, zpool_status, _, _ = exec(command)#pylint: disable=exec-used
   if rcode == 0:
     return zpool_status[0]
   else:
+    logfn(error)
     return None
   
 def get_zfs_volume_mode(zfs_path):
-  rcode, lines, _, _ = exec(f"zfs get volmode {zfs_path}")#pylint: disable=exec-used
-  if rcode == 0:
-    return lines[0]
-  else:
-    return None
+  return simple_string_command(f"zfs get volmode {zfs_path}", f"failed to get volmode of zfs volume {zfs_path}", log.debug)
 
 
 
@@ -214,8 +213,7 @@ def is_zpool_backing_device_online(zpool, dev):
   return False
 
 
-POOL_DEVICES_REGEX = re.compile(r'^ {12}([-/a-zA-Z0-9_]+) +([A-Z]+) +[0-9]+ +[0-9]+ +[0-9]+ *.*$', \
-                         re.MULTILINE)
+POOL_DEVICES_REGEX = re.compile(r'^ {12}([-/a-zA-Z0-9_]+) +([A-Z]+) +[0-9][^\s]* +[0-9][^\s]* +[0-9][^\s]*(?:\s* \(([^\)]+)\))?$')
 
 
 

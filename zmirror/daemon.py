@@ -118,18 +118,17 @@ def handle(env):
       vdev_path = env["ZEVENT_VDEV_PATH"]
       cache = find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path)
       if zevent == "vdev_online":
-        log.info(f"zdev {cache.pool}:{cache.name} went online")
         handle_onlined(cache)
+        handle_resilver_started(cache)
         event_handled = True
       elif zevent == "statechange":
         new_state = env["ZEVENT_VDEV_STATE_STR"]
         if new_state == "OFFLINE":
-          log.info(f"zdev {cache.pool}:{cache.name} went offline")
           handle_deactivated(cache)
           event_handled = True
-        else:
-          log.warning(f"(potential bug) unknown statechange event: { new_state }")
-          set_cache_state(cache, EntityState.UNKNOWN)
+        # else:
+          # log.debug(f"unknown statechange event: { new_state }")
+          # set_cache_state(cache, EntityState.UNKNOWN)
       elif zevent == "trim_start" or zevent == "trim_resume":
         handle_trim_started(cache)
         event_handled = True
@@ -143,26 +142,28 @@ def handle(env):
 
     # zool-vdev event
     elif zevent in ["resilver_start", "resilver_finish"]:
-      vdev_path = env["ZEVENT_VDEV_PATH"]
-      cache = find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path)
-      if zevent == "resilver_start":
-        handle_resilver_started(cache)
-        event_handled = True
-      elif zevent == "resilver_finish":
-        handle_resilver_finished(cache)
-        event_handled = True
+
+      zpool_status = config.get_zpool_status(zpool)
+      
+
+      for match in POOL_DEVICES_REGEX.finditer(zpool_status):
+        if match.group(2) == "ONLINE" and match.group(3) != "resilvering":
+          dev = match.group(1)
+          cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
+          if cache.operation == ZFSOperationState.RESILVERING and zevent == "resilver_finish":
+            handle_resilver_finished(cache)
+            event_handled = True
 
   elif "DEVTYPE" in env:
     action = env["ACTION"]
     devtype = env["DEVTYPE"]
-    log.info(f"handling udev block event: {action}")
+    log.debug(f"handling udev block event: {action}")
 
 
     if action == "add" or action == "remove":
       if devtype == "disk":
         if "ID_PART_TABLE_UUID" in env:
           cache = find_or_create_cache(Disk, uuid=env["ID_PART_TABLE_UUID"])
-          log.info(f"{cache.__class__.__name__} {cache.uuid}: {to_kd(cache.state)}")
           udev_event_action(cache, action, now)
           event_handled = True
 
@@ -182,7 +183,6 @@ def handle(env):
             handle_onlined(cache)
           else:
             handle_deactivated(cache)
-          log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
           event_handled = True
 
         # virtual device
@@ -202,7 +202,6 @@ def handle(env):
                   handle_onlined(cache)
                 else:
                   handle_deactivated(cache)
-                log.info(f"{cache.__class__.__name__} {cache.get_pool()}/{cache.name}: {to_kd(cache.state)}")
                 event_handled = True
                 break
           # elif "ID_FS_UUID" in env:
@@ -211,14 +210,13 @@ def handle(env):
           #  log.info(f"{cache.__class__.__name__} {cache.fs_uuid}: {to_kd(cache.state)}")
           #  event_handled = True
           else:
-            log.warning("need a filesystem uuid or a zvol devlink (if applicable) to identify virtual blockdevices")
+            log.debug("need a filesystem uuid or a zvol devlink (if applicable) to identify virtual blockdevices")
         else:
           log.info("nothing to do for disk event")
 
       elif devtype == "partition":
         cache = find_or_create_cache(Partition, name=env["PARTNAME"])
         udev_event_action(cache, action, now)
-        log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
     
     # TODO: figure out what this event actually is.
     elif action == "change" and "DM_ACTIVATION" in env and env["DM_ACTIVATION"] == "1":
@@ -230,14 +228,15 @@ def handle(env):
 
           cache = find_or_create_cache(DMCrypt, name=dm_name)
           handle_onlined(cache)
-          log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
           event_handled = True
 
           break
     if event_handled:
       log.info("event handled by zmirror")
+      return True
     else:
       log.debug("event not handled by zmirror")
+      return False
 
 
 
@@ -254,7 +253,7 @@ def udev_event_action(entity, action, now):
 
 def handle_client(con: socket.socket, client_address, event_queue: queue.Queue):
   try:
-    log.info(f"handling connection to zmirror socket")
+    log.debug(f"client connected")
 
 
     # Read until ':' to get the length
@@ -300,11 +299,12 @@ def handle_events(event_queue):
   while True:
     event = event_queue.get()
     try:
-      if event == None:
+      if event is None:
+        save_cache()
         break
       elif isinstance(event, UserEvent):
         handle_command(event.event, event.con)
-        log.debug("event handled")
+        save_cache()
         return
       elif isinstance(event, TimerEvent):
         if event == TimerEvent.RESTART:
@@ -315,15 +315,15 @@ def handle_events(event_queue):
         elif event == TimerEvent.TIMEOUT:
           clear_requests()
       else:
-        handle(event)
+        handled = handle(event)
+        if handled:
+          save_cache()
         commands.execute_commands()
     except Exception as ex:
-      log.error(f"failed to handle event: {str(event)}")
+      log.error(f"failed to handle event: {json.dumps(event, indent=2)}")
       log.error(f"Exception : {traceback.format_exc()} --- {str(ex)}")
-    finally:
-      if event_queue.empty():
-        save_cache()
-    save_cache()
+    
+  
 
 
 # starts a daemon, or rather a service, or maybe it should be called simply a server,
@@ -392,7 +392,7 @@ def daemon(args):# pylint: disable=unused-argument
       client_thread = threading.Thread(target=handle_client, args=(connection, client_address, event_queue))
       client_thread.start()
   except KeyboardInterrupt:
-    log.info("Keyboard Interrupt.")
+    log.info("shutting down...")
   except Exception as exception:
     log.error(str(exception))
   finally:
@@ -400,7 +400,7 @@ def daemon(args):# pylint: disable=unused-argument
       event_queue.put(None)
       handle_event_thread.join()
     except Exception:
-      log.debug("failed to exist handle thread")
+      log.debug("failed to exit handle thread")
     try:
       server.close()
       log.info("Server shut down gracefully")

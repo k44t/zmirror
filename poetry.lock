@@ -111,7 +111,7 @@ files = []
 develop = true
 
 [package.dependencies]
-pyyaml = "^6.0.2"
+pyyaml = ">=6.0.2"
 
 [package.source]
 type = "directory"
@@ -410,4 +410,4 @@ devenv = ["check-manifest", "pytest (>=4.3)", "pytest-cov", "pytest-mock (>=3.3)
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "777d75dbd6bd49f2a8c19b1a5b6b5f134ee5468f0e081335fc219fd1d07e9502"
+content-hash = "7479d274cb0b582b4dc78a1197888258fe1e49ba7917c537e06e3a5628a1faf2"
