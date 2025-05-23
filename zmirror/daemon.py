@@ -48,7 +48,7 @@ def handle(env):
   now = datetime.now()
   if "ZEVENT_SUBCLASS" in env:
     zevent = env["ZEVENT_SUBCLASS"]
-    log.info(f"handling zfs event: {zevent}")
+    log.debug(f"handling zfs event: {zevent}")
     zpool = env["ZEVENT_POOL"]
 
     if zevent == "pool_export":
@@ -95,7 +95,7 @@ def handle(env):
               handle_scrub_started(cache)
             elif zevent == "scrub_abort":
               log.info(f"zdev {cache.pool}:{cache.name}: scrubbing cancelled")
-              handle_scrub_aborted(cache)
+              handle_scrub_canceled(cache)
             elif zevent == "pool_import":
               log.info(f"zdev {cache.pool}:{cache.name}: pool imported, device online")
               handle_onlined(cache)
@@ -108,7 +108,7 @@ def handle(env):
       # zpool create my-pool mirror /dev/vg-my-vg/my-lv /dev/disk/by-partlabel/my-partition /dev/mapper/my-dm-crypt
 
     # zpool-vdev event
-    elif zevent in ["vdev_online", "statechange", "trim_start", "trim_finish", "trim_suspend"]:
+    elif zevent in ["vdev_online", "statechange", "trim_start", "trim_finish", "trim_suspend", "trim_resume"]:
       # possible cases:
         # ZEVENT_POOL:: mypoolname
         # ZEVENT_VDEV_PATH:: /dev/mapper/mypoolname-b-main
@@ -130,12 +130,15 @@ def handle(env):
         else:
           log.warning(f"(potential bug) unknown statechange event: { new_state }")
           set_cache_state(cache, EntityState.UNKNOWN)
-      elif zevent == "trim_start":
+      elif zevent == "trim_start" or zevent == "trim_resume":
         handle_trim_started(cache)
+        event_handled = True
       elif zevent == "trim_finish":
         handle_trim_finished(cache)
+        event_handled = True
       elif zevent == "trim_suspend":
-        handle_trim_aborted(cache)
+        handle_trim_canceled(cache)
+        event_handled = True
 
 
     # zool-vdev event
@@ -147,7 +150,6 @@ def handle(env):
         event_handled = True
       elif zevent == "resilver_finish":
         handle_resilver_finished(cache)
-
         event_handled = True
 
   elif "DEVTYPE" in env:
@@ -232,8 +234,10 @@ def handle(env):
           event_handled = True
 
           break
-    if not event_handled:
-      log.warning("event not handled by zmirror")
+    if event_handled:
+      log.info("event handled by zmirror")
+    else:
+      log.debug("event not handled by zmirror")
 
 
 
@@ -284,9 +288,8 @@ def handle_client(con: socket.socket, client_address, event_queue: queue.Queue):
       event_queue.put(UserEvent(event["ZMIRROR_COMMAND"], con))
     else:
       event_queue.put(event)
-  except Exception as ex:
-    log.error("communication error", exc_info=True)
-    log.error(f"exception {ex}")
+  except Exception:
+    log.error("communication error", exc_info=config.log_level <= logging.DEBUG)
     
 
 
@@ -297,7 +300,9 @@ def handle_events(event_queue):
   while True:
     event = event_queue.get()
     try:
-      if isinstance(event, UserEvent):
+      if event == None:
+        break
+      elif isinstance(event, UserEvent):
         handle_command(event.event, event.con)
         log.debug("event handled")
         return
@@ -318,6 +323,7 @@ def handle_events(event_queue):
     finally:
       if event_queue.empty():
         save_cache()
+    save_cache()
 
 
 # starts a daemon, or rather a service, or maybe it should be called simply a server,
@@ -390,10 +396,14 @@ def daemon(args):# pylint: disable=unused-argument
   except Exception as exception:
     log.error(str(exception))
   finally:
-    server.close()
-    os.unlink(socket_path)
-    log.info("Server gracefully shut down")
     try:
-      os.remove(socket_path)
-    except Exception as exception:
-      log.warning(exception)
+      event_queue.put(None)
+      handle_event_thread.join()
+    except Exception:
+      log.debug("failed to exist handle thread")
+    try:
+      server.close()
+      log.info("Server shut down gracefully")
+    except Exception:
+      log.info("Server shut down")
+    os.unlink(socket_path)

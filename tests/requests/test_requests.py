@@ -322,6 +322,18 @@ class Tests():
     ])
 
 
+  # the event when the blockdev actually goes online inside the zpool
+  def test_backing_blockdev_sysfs_s_online(self):
+    
+    trigger_event()
+    
+    assert_commands([
+      'zpool scrub -s zmirror-sysfs', 
+      'zpool scrub zmirror-sysfs', 
+    ])
+
+
+
   # when dmcrypt of bak-a appears
   def test_dmcrypt_bak_a_online(self):
     
@@ -426,10 +438,11 @@ class Tests():
 
     a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
     b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
-    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
+    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
     bak_a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     bak_b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
 
+    assert s.state.what == EntityState.ONLINE
 
     assert a.operation.what == ZFSOperationState.SCRUBBING
     assert b.operation.what == ZFSOperationState.SCRUBBING
@@ -448,7 +461,7 @@ class Tests():
 
     a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
     b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
-    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
+    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
     bak_a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     bak_b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
 
@@ -459,6 +472,8 @@ class Tests():
     assert bak_a.operation.what != ZFSOperationState.SCRUBBING
     assert bak_b.operation.what != ZFSOperationState.SCRUBBING
 
+    assert s.state.what == EntityState.ONLINE
+
     assert_commands([
       "zpool trim zmirror-sysfs zmirror-sysfs-a",
       "zpool trim zmirror-sysfs zmirror-sysfs-b",
@@ -468,10 +483,14 @@ class Tests():
   
   def test_zpool_sysfs_backing_blockdev_sysfs_s_trim_start(self):
     
-    trigger_event()
-
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
+    assert s.state.what == EntityState.ONLINE
+
+
+    trigger_event()
+
+    assert s.state.what == EntityState.ONLINE
 
     assert s.operation.what == ZFSOperationState.TRIMMING
 
@@ -487,6 +506,9 @@ class Tests():
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
 
+    assert s.state.what == EntityState.ONLINE
+
+
     assert s.operation.what != ZFSOperationState.TRIMMING
     assert Request.TRIM not in s.requested
 
@@ -500,8 +522,14 @@ class Tests():
     
     user_commands.request(Request.TRIM, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
 
+
+    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+    assert s.state.what == EntityState.ONLINE
+    assert s.operation.what != ZFSOperationState.TRIMMING
+
     assert_commands([
-      "zpool trim zmirror-sysfs-s"
+      "zpool trim zmirror-sysfs zmirror-sysfs-s"
     ])
 
 
@@ -513,7 +541,7 @@ class Tests():
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
 
-    assert s.operation.what != ZFSOperationState.TRIMMING
+    assert s.operation.what == ZFSOperationState.TRIMMING
 
     assert_commands([
     ])
@@ -525,7 +553,7 @@ class Tests():
 
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
-    assert s.operation.what != ZFSOperationState.NONE
+    assert s.operation.what == ZFSOperationState.NONE
 
     assert_commands([
       "zpool offline zmirror-sysfs zmirror-sysfs-s"

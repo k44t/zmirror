@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 from threading import Timer
+import logging
 
 lvm_physical_volumes = dict()
 zfs_blockdevs = dict()
@@ -13,6 +14,7 @@ cache_path = None
 config_path = None
 disable_commands = False
 last_request_at = datetime.now()
+log_level = logging.INFO
 
 is_daemon = False
 

@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 import re
-
+import logging
 
 from .util import load_yaml_cache, load_yaml_config, save_yaml_cache, remove_yaml_cache, require_path
 from .util import myexec as exec#pylint: disable=redefined-builtin
@@ -17,13 +17,20 @@ from . import util
 
 
 
-# CONFIG_FILE_PATH = "/etc/zmirror/config.yml"
+# CONFIG_FILE_PATH = "/config.yml"
 # CACHE_FILE_PATH = "/var/lib/zmirror/cache.yml"
 # os.makedirs(os.path.dirname(CACHE_FILE_PATH), exist_ok = True)
 
 
 
 
+log_level_for_name = {
+  "info": logging.INFO,
+  "debug": logging.DEBUG,
+  "warning": logging.WARNING,
+  "error": logging.ERROR,
+  "critical": logging.CRITICAL,
+}
 
 
 
@@ -31,6 +38,17 @@ from . import util
 def init_config(cache_path, config_path):
   config.cache_path = cache_path
   config.config_path = config_path
+
+
+  require_path(config.config_path, "config file does not exist")
+  config.config_root = load_yaml_config(config.config_path)
+
+  if config.config_root.log_level in log_level_for_name:
+    config.log_level = log_level_for_name[config.config_root.log_level]
+    logging.getLogger().setLevel(config.log_level)
+  else:
+    log.error(f"misconfiguration, unknown log level: {config.config_root.log_level}")
+
   os.makedirs(os.path.dirname(cache_path), exist_ok = True)
   config.cache_dict = load_yaml_cache(cache_path)
   if config.cache_dict is None:
@@ -38,9 +56,9 @@ def init_config(cache_path, config_path):
   config.config_dict = dict()
   config.lvm_physical_volumes = dict()
   config.zfs_blockdevs = dict()
-  require_path(config.config_path, "config file does not exist")
-  config.config_root = load_yaml_config(config.config_path)
+
   config.find_config = find_config
+
   iterate_content_tree3(config.config_root, index_entities, None, None)
   iterate_content_tree3_depth_first(config.config_root, load_initial_state, None, None)
   iterate_content_tree3_depth_first(config.config_root, update_initial_state, None, None)

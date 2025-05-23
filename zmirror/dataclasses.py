@@ -3,6 +3,9 @@
 
 #pylint: disable=unsubscriptable-object
 #pylint: disable=not-an-iterable
+#pylint: disable=invalid-field-call  
+#pylint: disable=no-member
+#pylint: disable=unsupported-membership-test
 
 
 from datetime import datetime
@@ -128,7 +131,7 @@ class ZMirror:
   timeout: int = 300
   log_level: str = "info"
 
-  content: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  content: list = field(default_factory=list) 
   notes: str = None
 
 
@@ -136,7 +139,7 @@ class ZMirror:
 def cached(entity):
   if entity.cache is None:
     tp, kwargs = entity.id()
-    entity.cache = config.find_or_create_cache(tp, **kwargs) #pylint: disable=no-member
+    entity.cache = config.find_or_create_cache(tp, **kwargs)
   return entity.cache
 
 
@@ -358,35 +361,38 @@ def run_actions(self, event_name):
 def run_action(self, event):
   if event == "offline":
     if hasattr(self, "take_offline"):
-      self.take_offline()
+      if any(e in [Request.TRIM, Request.SCRUB] for e in self.requested):
+        log.info(f"{entity_id_string(self)}: not taking offline since other operations are pending")
+      else:
+        self.take_offline()
     else:
-      log.error(f"misconfiguration: entity {make_id(self)} does not support being taken offline manually")
+      log.error(f"{entity_id_string(self)}: entity does not support being taken offline manually")
   elif event == "online":
     if hasattr(self, "take_online"):
       self.take_online()
     else:
-      log.error(f"misconfiguration: entity {make_id(self)} does not support being taken online manually")
+      log.error(f"{entity_id_string(self)}: entity does not support being taken online manually")
   elif event == "snapshot":
     if hasattr(self, "take_snapshot"):
       self.take_snapshot()
     else:
-      log.error(f"misconfiguration: entity {make_id(self)} does not have the ability to create snapshots")
+      log.error(f"{entity_id_string(self)}: entity does not have the ability to create snapshots")
   elif event == "scrub":
     if hasattr(self, "start_scrub"):
       self.start_scrub()
     else:
-      log.error(f"misconfiguration: entity {make_id(self)} cannot be scrubbed")
+      log.error(f"{entity_id_string(self)}: entity cannot be scrubbed")
   elif event == "trim":
     if hasattr(self, "start_trim"):
       self.start_trim()
     else:
-      log.error(f"misconfiguration: entity {make_id(self)} cannot be trimmed")
+      log.error(f"{entity_id_string(self)}: entity cannot be trimmed")
 
   elif event == "snapshot-parent":
     if hasattr(self.parent, "take_snapshot"):
       self.parent.take_snapshot()
     else:
-      log.error(f"misconfiguration: the parent entity of {make_id(self)} does not have the ability to create snapshots")
+      log.error(f"{make_id(self)}: the parent entity does not have the ability to create snapshots")
   elif event == "pass":
     # do nothing
     pass
@@ -1033,7 +1039,7 @@ def handle_resilver_started(cache):
 
 def handle_resilver_finished(cache):
   cache.operation = Since(ZFSOperationState.NONE, datetime.now())
-  uncached_operation_handle_by_name(cache, "resilvered")
+  uncached_operation_handle_by_name(cache, "resilver_finished")
 
 
 def handle_scrub_started(cache):
@@ -1059,18 +1065,20 @@ def handle_trim_finished(cache):
   cache.operation = Since(ZFSOperationState.NONE, now)
   cache.last_trimmed = now
   def do(entity):
-    entity.handle_trimmed()
+    entity.handle_trim_finished()
   uncached(cache, do)
 
 
-def handle_scrub_aborted(cache):
+def handle_scrub_canceled(cache):
   cache.operation = Since(ZFSOperationState.NONE, datetime.now())
-  uncached_userevent_by_name(cache, "scrub_aborted")
+  uncached_userevent_by_name(cache, "scrub_canceled")
 
 
-def handle_trim_aborted(cache):
+def handle_trim_canceled(cache):
   cache.operation = Since(ZFSOperationState.NONE, datetime.now())
-  uncached_userevent_by_name(cache, "trim_aborted")
+  uncached_userevent_by_name(cache, "trim_canceled")
+
+
 
 
 
@@ -1134,24 +1142,18 @@ class ZDev(Entity):
 
   on_trimmed: list = field(default_factory=list) #pylint: disable=invalid-field-call
   on_scrubbed: list = field(default_factory=list) #pylint: disable=invalid-field-call
-  on_scrub_aborted: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  on_scrub_canceled: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  on_trim_canceled: list = field(default_factory=list) #pylint: disable=invalid-field-call
   on_resilvered: list = field(default_factory=list) #pylint: disable=invalid-field-call
 
   scrub_interval: str = None
 
-  def handle_scrub_finished(self):
-    self.requested.remove(Request.SCRUB)
-    run_actions(self, "scrubbed")
-
-  def handle_trim_finished(self):
-    self.requested.remove(Request.TRIM)
-    run_actions(self, "trimmed")
   
   def enact_request(self):
     oper = cached(self).operation.what
-    if oper == ZFSOperationState.TRIMMING and not Request.TRIM in self.requested:
+    if oper == ZFSOperationState.TRIMMING and Request.TRIM not in self.requested:
       self.stop_trim()
-    elif oper == ZFSOperationState.SCRUBBING and not Request.SCRUB in self.requested:
+    elif oper == ZFSOperationState.SCRUBBING and Request.SCRUB not in self.requested:
       self.stop_scrub()
     return super().enact_request()
     
@@ -1187,22 +1189,6 @@ class ZDev(Entity):
 
 
 
-  def handle_appeared(self, prev_state):
-    pool_id = f"ZPool|name:{self.pool}"
-    if pool_id in config.config_dict: #pylint: disable=unsupported-membership-test
-      config.config_dict[pool_id].handle_backing_device_appeared() #pylint: disable=unsubscriptable-object
-    handle_online_request(self)
-    run_actions(self, "appeared")
-
-
-
-  def handle_onlined(self, prev_state):
-    tell_parent_child_online(self.parent, self, prev_state)
-    if Request.SCRUB in self.requested:
-      self.start_scrub()
-    if Request.TRIM in self.requested:
-      self.start_trim()
-
 
 
   def set_requested(self, request, origin):
@@ -1234,14 +1220,44 @@ class ZDev(Entity):
     return state
 
 
+  def handle_appeared(self, prev_state):
+    pool_id = f"ZPool|name:{self.pool}"
+    if pool_id in config.config_dict: #pylint: disable=unsupported-membership-test
+      config.config_dict[pool_id].handle_backing_device_appeared() #pylint: disable=unsubscriptable-object
+    handle_online_request(self)
+    run_actions(self, "appeared")
 
-  def handle_resilvered(self):
+
+
+  def handle_onlined(self, prev_state):
+    tell_parent_child_online(self.parent, self, prev_state)
+    if Request.SCRUB in self.requested:
+      self.start_scrub()
+    if Request.TRIM in self.requested:
+      self.start_trim()
+
+
+
+  def handle_resilver_finished(self):
     if Request.SCRUB in self.requested:
       self.start_scrub()
     run_actions(self, "resilvered")
 
-  def handle_scrub_aborted(self):
-    run_actions(self, "scrub_aborted")
+  def handle_scrub_canceled(self):
+    run_actions(self, "scrub_canceled")
+
+  def handle_scrub_finished(self):
+    self.requested.remove(Request.SCRUB)
+    run_actions(self, "scrubbed")
+
+
+  def handle_trim_canceled(self):
+    run_actions(self, "trim_canceled")
+
+  def handle_trim_finished(self):
+    self.requested.remove(Request.TRIM)
+    run_actions(self, "trimmed")
+
 
   def take_offline(self):
     commands.add_command(f"zpool offline {self.pool} {self.dev_name()}")
@@ -1265,112 +1281,3 @@ class ZDev(Entity):
   def __kiify__(self, kd_stream: KdStream):
     kd_stream.print_partial_obj(self, ["pool", "dev", "state", "operation", "last_resilvered", "last_scrubbed"])
 
-
-
-
-
-
-
-
-
-
-"""
-@yaml_data
-class LVMLogicalVolume:
-  name: str
-  vg: str = None
-  parent: object = None
-
-  state = Since(EntityState.UNKNOWN, None)
-  last_online: datetime = None
-
-  on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
-  content: list = field(default_factory=list)
-  notes = str
-
-  def get_devpath(self):
-    if self.parent is not None:
-      return f"/dev/{self.parent.name}/{self.name}"
-    else:
-      return f"/dev/{self.vg}/{self.name}"
-
-
-  def id(self):
-    if self.parent is not None:
-      return f"{self.parent.name}|{self.name}"
-    else:
-      return f"{self.vg}|{self.name}"
-
-  def take_offline(self):
-    commands.add_command(f"lvchange --activate n {self.get_devpath()}")
-
-  def take_online(self):
-    commands.add_command(f"lvchange --activate y {self.get_devpath()}")
-
-
-
-@yaml_data
-class LVMPhysicalVolume:
-  pv_uuid: str
-  lvm_volume_group: str
-  parent: object = None
-
-  notes = str
-
-  def id(self):
-    return self.pv_uuid
-
-
-
-@yaml_data
-class LVMVolumeGroup:
-  name: str
-
-  state = Since(EntityState.UNKNOWN, None)
-  last_online: datetime = None
-
-  on_children_offline: list = field(default_factory=list) #pylint: disable=invalid-field-call
-
-  content: list = field(default_factory=list)
-  notes = str
-
-  def handle_offline(self):
-    set_entity_state(self, EntityState.DISCONNECTED)
-    for lvm_physical_volume in config.lvm_physical_volumes[self.name]:
-      set_entity_state(lvm_physical_volume, EntityState.DISCONNECTED)
-
-
-  def handle_child_online(self):
-    if self.state.what is not EntityState.ONLINE:
-      set_entity_state(self, EntityState.ONLINE)
-
-  def handle_child_offline(self):
-    at_least_one_child_online = False
-    for children in self.content:
-      if is_offline(children.state.what):
-        at_least_one_child_online = True
-    if not at_least_one_child_online:
-      self.handle_offline()
-
-      
-@yaml_data
-class VirtualDisk:
-
-  fs_uuid: str
-  devpath: str = None
-
-  parent: object = None
-  state = Since(EntityState.UNKNOWN, None)
-  last_online: datetime = None
-
-  content: list = field(default_factory=list)
-  notes = str
-
-  def id(self):
-    return self.fs_uuid
-
-  def get_devpath(self):
-    return self.devpath
-      
-
-"""

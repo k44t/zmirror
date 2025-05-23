@@ -35,12 +35,12 @@ def __init__():
 
   # Configure the root logger
   logging.basicConfig(
-  level=logging.DEBUG,
-  format='%(asctime)s %(name)s.%(levelname)s: %(message)s',
-  handlers=[
-      # logging.FileHandler(logfile_path + datetime.now().strftime("%d-%m-%Y_%H:%M:%S.%f") ),  # File handler
-      logging.StreamHandler(sys.stdout)   # Stream handler for stdout
-  ]
+    level=logging.INFO,
+    format='%(asctime)s %(name)s.%(levelname)s: %(message)s',
+    handlers=[
+        # logging.FileHandler(logfile_path + datetime.now().strftime("%d-%m-%Y_%H:%M:%S.%f") ),  # File handler
+        logging.StreamHandler(sys.stdout)   # Stream handler for stdout
+    ]
   )
 
   logger = logging.getLogger("zmirror")
@@ -51,9 +51,8 @@ def __init__():
   logger.original_warning = logger.warning
   logger.original_critical = logger.critical
   def customized_logger(level, message, *args, **kwargs):
-    message = str(message)
-    printCallstack = True
-    if printCallstack:
+    if logger.getEffectiveLevel() <= logging.DEBUG:
+      message = str(message)
       callstack = ""
       raw_tb = traceback.extract_stack()
       entries = traceback.format_list(raw_tb)
@@ -86,15 +85,15 @@ def __init__():
     else:
       modified_message = message
     if level == logging.ERROR:
-        logger.original_error(modified_message)
+        logger.original_error(modified_message, *args, **kwargs)
     elif level == logging.INFO:
-        logger.original_info(modified_message)
+        logger.original_info(modified_message, *args, **kwargs)
     elif level == logging.DEBUG:
-        logger.original_debug(modified_message)
+        logger.original_debug(modified_message, *args, **kwargs)
     elif level == logging.WARNING:
-        logger.original_warning(modified_message)
+        logger.original_warning(modified_message, *args, **kwargs)
     elif level == logging.CRITICAL:
-        logger.original_critical(modified_message)
+        logger.original_critical(modified_message, *args, **kwargs)
   def customized_error(message, *args, **kwargs):
     customized_logger(logging.ERROR, message, *args, **kwargs)
   def customized_info(message, *args, **kwargs):

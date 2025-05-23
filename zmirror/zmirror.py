@@ -105,7 +105,7 @@ def main(args=None):
 
   shared_parser.add_argument("--config-path", type=str, help="the path to the config file", default=env_var_or("ZMIRROR_CONFIG_PATH", ZMIRROR_CONFIG_PATH_DEFAULT))
 
-  shared_parser.add_argument("--cache-path", type=str, help="the path to the cache file", default=env_var_or("ZMIRROR_CACHE_PATH", ZMIRROR_CONFIG_PATH_DEFAULT))
+  shared_parser.add_argument("--cache-path", type=str, help="the path to the cache file", default=env_var_or("ZMIRROR_CACHE_PATH", ZMIRROR_CACHE_PATH_DEFAULT))
 
   socket_parser = argparse.ArgumentParser(add_help=False)
   socket_parser.add_argument("--socket-path", type=str, help="the path to the unix socket (used by zmirror.trigger)", default=env_var_or("ZMIRROR_SOCKET_PATH", ZMIRROR_SOCKET_PATH_DEFAULT))
@@ -193,19 +193,10 @@ def main(args=None):
   try:
     args.func(args)
   except Exception as exception:
-    traceback.print_exc()
     error_message = str(exception)
     log.error(error_message)
+    traceback.print_exc()
 
-    outs.newlines(3)
-    outs.print("error")
-    outs.newline()
-    outs.print("################")
-    outs.newlines(2)
-    outs.print(error_message)
-    exit(error_message)
-
-  log.info("zmirror finished!")
 
 
 if __name__ == "__main__":

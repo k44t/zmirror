@@ -45,7 +45,7 @@ def terminate_thread(thread):
 
 
 def myexec(command):
-  log.info(f"Executing command: `{command}`")
+  log.debug(f"Executing command: `{command}`")
   process = subprocess.Popen(command,
                  shell=True,
                  stdout=subprocess.PIPE,
@@ -66,7 +66,7 @@ def myexec(command):
       if process.stdout is not None:
         response_line = process.stdout.readline().decode("utf-8").replace("\n", "")
         if response_line != "":
-          log.info(f"stdout: {response_line}")
+          log.debug(f"stdout: {response_line}")
         if response_line != "":
           timestamp_last_stdout_readline_start = datetime.now()
           timestamp_last_stdout_readline = timestamp_last_stdout_readline_start
@@ -74,7 +74,7 @@ def myexec(command):
       if process.stderr is not None:
         error_line = process.stderr.readline().decode("utf-8").replace("\n", "")
         if error_line != "":
-          log.error(f"stderr: {error_line}")
+          log.debug(f"stderr: {error_line}")
         if error_line != "":
           timestamp_last_stderr_readline_start = datetime.now()
           timestamp_last_stderr_readline = timestamp_last_stderr_readline_start
@@ -87,21 +87,21 @@ def myexec(command):
             timestamp_stdout_now > (timestamp_last_stdout_readline + timedelta(seconds=5)):
           no_output_since = min(timestamp_stderr_now - timestamp_last_stderr_readline_start,
                       timestamp_stdout_now - timestamp_last_stdout_readline_start)
-          log.warning(
+          log.debug(
             f"Command `{command}` had no stderr and stdout output since {no_output_since}.")
           timestamp_last_stdout_readline = timestamp_stdout_now
           timestamp_last_stderr_readline = timestamp_stderr_now
       elif (process.stderr is not None and error_line == ""):
         timestamp_stderr_now = datetime.now()
         if timestamp_stderr_now > (timestamp_last_stderr_readline + timedelta(seconds=5)):
-          log.warning(
+          log.debug(
             f"Command `{command}` had no stderr output since \
               {timestamp_stderr_now - timestamp_last_stderr_readline_start}.")
           timestamp_last_stderr_readline = timestamp_stderr_now
       elif (process.stdout is not None and response_line == ""):
         timestamp_stdout_now = datetime.now()
         if timestamp_stdout_now > (timestamp_last_stdout_readline + timedelta(seconds=5)):
-          log.warning(
+          log.debug(
             f"Command `{command}` had no stdout output since \
               {timestamp_stdout_now - timestamp_last_stdout_readline_start}.")
           timestamp_last_stdout_readline = timestamp_stdout_now
@@ -118,7 +118,7 @@ def myexec(command):
     for line in response:
       line = line.decode("utf-8").replace("\n", "")
       if line != "":
-        log.info(f"stdout: {line}")
+        log.debug(f"stdout: {line}")
         formatted_response.append(line)
         formatted_output.append(line)
   except Exception:
@@ -128,16 +128,13 @@ def myexec(command):
     for line in error:
       line = line.decode("utf-8").replace("\n", "")
       if line != "":
-        log.error(f"stderr: {line}")
+        log.debug(f"stderr: {line}")
         formatted_error.append(line)
         formatted_output.append(line)
   except Exception:
     pass
   if process.returncode != 0:
-    try:
-      raise BaseException()
-    except BaseException:
-      log.exception(f"Command `{command}` failed with return code {process.returncode}.")
+      log.debug(f"Command `{command}` failed with return code {process.returncode}.")
   return process.returncode, formatted_output, formatted_response, formatted_error
 
 
@@ -147,8 +144,11 @@ def load_yaml_cache(cache_file_path):
       cache_dict = yaml.full_load(stream)
       if not isinstance(cache_dict, dict):
         cache_dict = dict()
-  except BaseException as exception:
-    log.warning(exception)
+  except FileNotFoundError:
+    log.warning("failed to load cache: cache file does not exist")
+    cache_dict = dict()
+  except BaseException:
+    log.warning("failed to load cache")
     cache_dict = dict()
   return cache_dict
 
@@ -219,7 +219,7 @@ def save_yaml_cache(cache_dict, cache_file_path):
   log.info("writing cache")
   with open(cache_file_path, 'w', encoding="utf-8") as stream:
     yaml.dump(cache_dict, stream)
-  log.info("cache written.")
+  log.debug("cache written.")
 
 
 def copy_attrs(lft, rgt):
