@@ -270,6 +270,7 @@ request_for_name = {
 
 name_for_request = {value: key for key, value in request_for_name.items()}
 
+
 def make_send_daemon_wrapper(fn):
   def do(args):
     path = args.socket_path
@@ -285,7 +286,11 @@ def make_send_daemon_wrapper(fn):
 
       try:
         # Connect the socket to the path where the server is listening
-        con.connect(path)
+        try:
+          con.connect(path)
+        except Exception as ex:
+          log.error(f"failed to connect to zmirror daemon ({path}): {ex}")
+          return
         decoder = codecs.getincrementaldecoder('utf-8')()
 
         # Send data        
