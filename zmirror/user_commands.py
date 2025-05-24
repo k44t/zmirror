@@ -84,14 +84,39 @@ def handle_request_command(command):
 
 
 
-def handle_status_command(out):
-   
-  stream = KdStream(out)
-  # log.info("starting zfs scrubs if necessary")
-  def do(entity):
-    stream.print_obj(cached(entity).cache)
+def handle_status_command(command, stream):
     
-  iterate_content_tree(config.config_root, do)
+  if not "type" in command:
+    raise ValueError(f"missing type for handling command: status")
+ 
+  type_name = command["type"]
+  if not type_name in type_for_command_name:
+    raise ValueError(f"unknown type: {type_name}")
+  typ = type_for_command_name[type_name]
+  if not "identifiers" in command:
+    raise ValueError(f"no identifiers given for type: {typ}")
+  ids = command["identifiers"]
+  if not isinstance(ids, dict):
+    raise ValueError("identifiers are not a dict of type {{str:str}}")
+
+  constructor_params = inspect.signature(typ).parameters
+
+  # Filter the Namespace to include only the required arguments
+  filtered_args = {k: v for k, v in ids.items() if k in constructor_params}
+  entity = config.find_config(typ, **filtered_args)
+  if entity is None:
+    log.error(f"{make_id_string(make_id(typ, **filtered_args))}: entity not configured")
+    return
+  kdstream = KdStream(stream)
+  print_status(entity, kdstream)
+  kdstream.newline()
+
+
+def handle_status_all_command(out):
+  
+  kdstream = KdStream(out)
+  # log.info("starting zfs scrubs if necessary")
+  print_status_many(config.config_root.content, kdstream)
 
 
 
@@ -150,12 +175,7 @@ def handle_scrub_overdue_command():
     if isinstance(entity, ZDev):
       cache = cached(entity)
       if entity.scrub_interval is not None:
-        # parsing the schedule delta will result in a timestamp calculated from now
-        allowed_delta = dateparser.parse(entity.scrub_interval)
-        # this means that allowed_delta is a timestamp in the past
-
-
-        if (cache.last_scrubbed is None or allowed_delta > cache.last_scrubbed):
+        if cache.is_scrub_overdue():
           if Request.SCRUB not in entity.requested:
             log.info(f"{entity_id_string(entity)}: requesting scrub")
             entity.request(Request.SCRUB)
@@ -182,40 +202,51 @@ def handle_maintenance_command():
 
 
 def handle_command(command, con):
-  with con:
-    with con.makefile('w') as stream:
-      handler = logging.StreamHandler(stream)
-      log.addHandler(handler)
-      try:
-        name = command["command"]
-        if name == "status":
-          handle_status_command(stream)
-        elif name == "clear-cache":
-          handle_clear_cache_command()
-        elif name == "reload":
-          handle_reload_command()
-        elif name == "scrub-all":
-          handle_scrub_all_command()
-        elif name == "scrub-overdue":
-          handle_scrub_overdue_command()
-        elif name == "trim-all":
-          handle_trim_all_command()
-        elif name == "online-all":
-          handle_online_all_command(command)
-        elif name == "maintenance":
-          handle_maintenance_command()
-        else:
-          handle_request_command(command)
-      except Exception as ex:
-        log.error("failed to handle command")
-        log.error(f"exception : {traceback.format_exc()} --- {str(ex)}")
-        # scrub_parser.set_defaults(func=request_scrub_all_overdue)
-      finally:
-        try:
-          stream.flush()
-        except: #pylint: disable=bare-except
-          pass
-        log.removeHandler(handler)
+  try:
+    stream = con.makefile('w')
+    handler = logging.StreamHandler(stream)
+    log.addHandler(handler)
+    name = command["command"]
+    if name == "status-all":
+      handle_status_all_command(stream)
+    elif name == "status":
+      handle_status_command(command, stream)
+    elif name == "clear-cache":
+      handle_clear_cache_command()
+    elif name == "reload":
+      handle_reload_command()
+    elif name == "scrub-all":
+      handle_scrub_all_command()
+    elif name == "scrub-overdue":
+      handle_scrub_overdue_command()
+    elif name == "trim-all":
+      handle_trim_all_command()
+    elif name == "online-all":
+      handle_online_all_command(command)
+    elif name == "maintenance":
+      handle_maintenance_command()
+    else:
+      handle_request_command(command)
+  except Exception as ex:
+    log.error("failed to handle command")
+    log.error(f"exception : {traceback.format_exc()} --- {str(ex)}")
+    # scrub_parser.set_defaults(func=request_scrub_all_overdue)
+  finally:
+    try:
+      stream.flush()
+    except: #pylint: disable=bare-except
+      pass
+    log.removeHandler(handler)
+    try:
+      stream.close()
+    except: #pylint: disable=bare-except
+      pass
+    try:
+      con.close()
+    except: #pylint: disable=bare-except
+      pass
+    log.info(f"handled user command: {name}")
+  # print("client handled")
 
 
 
@@ -302,5 +333,17 @@ def make_send_request_daemon_command(request, typ):
     r["identifiers"] = vars(args)
 
     return r
+  return make_send_daemon_wrapper(do)
+
+
+
+def make_send_entity_daemon_command(command, typ):
+  def do(args):
+
+    return {
+      "command": command,
+      "type": command_name_for_type[typ],
+      "identifiers": vars(args)
+    }
   return make_send_daemon_wrapper(do)
 

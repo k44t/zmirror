@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 import os
 from typing import Any
 
+import dateparser
 
 from kpyutils.kiify import yaml_data, yaml_enum, KiEnum, KdStream, yes_no_absent_or_dict
 
@@ -173,23 +174,46 @@ class DependentNotFound(Exception):
 
 
 
-def since_factory():
+def state_since_factory():
   return Since(EntityState.UNKNOWN, None)
+
+def operation_since_factory():
+  return Since(ZFSOperationState.UNKNOWN, None)
 
 @yaml_data
 class Entity:
 
   parent = None
   cache = None
-  requested: set = field(default_factory=set)#pylint: disable=invalid-field-call
-  state: Since = field(default_factory=since_factory)#pylint: disable=invalid-field-call
+  requested: set = field(default_factory=set)
+  state: Since = field(default_factory=state_since_factory)
   last_online: datetime = None
   notes: str = None
+
+
 
   @classmethod
   def id_fields(cls):
     raise NotImplementedError()
   
+
+  def print_status(self, kdstream):
+    for prop in type(self).id_fields():
+      kdstream.print_property(self, prop)
+    kdstream.newline()
+    
+    cache = cached(self)
+    kdstream.print_property(cache, "state")
+
+    if self.requested:
+      kdstream.print_property(self, "requested")
+
+
+    if cache.state.what is not EntityState.ONLINE:
+      kdstream.print_property(cache, "last_online")
+
+
+
   def id(self):
     raise NotImplementedError()
 
@@ -352,9 +376,10 @@ def request_dependencies(self, origin, request, unschedule, all_dependencies, de
 
 
 
-def run_actions(self, event_name):
+def run_actions(self, event_name, excepted=None):
   for event in getattr(self, "on_" + event_name): #pylint: disable=not-an-iterable
-    run_action(self, event)
+    if event != excepted:
+      run_action(self, event)
 
 
 
@@ -423,6 +448,14 @@ class Children(Entity):
   on_children_offline: list = field(default_factory=list, kw_only=True) #pylint: disable=invalid-field-call
 
 
+  def print_status(self, kdstream):
+    super().print_status(kdstream)
+
+    if self.content:
+      kdstream.newline()
+      print_status_many(self.content, kdstream)
+
+
 
   def handle_onlined(self, prev_state):
     for c in self.content: #pylint: disable=not-an-iterable
@@ -459,8 +492,8 @@ class Children(Entity):
 
 
   def handle_children_offline(self):
-    handle_offline_request(self)
-    run_actions(self, "children_offline")
+    onlining = handle_offline_request(self)
+    run_actions(self, "children_offline", "online" if onlining else None)
 
 
 
@@ -495,6 +528,7 @@ def handle_offline_request(self):
     self.take_offline()
     self.requested.remove(Request.OFFLINE)
     return True
+  return False
 
 
 
@@ -503,6 +537,7 @@ def handle_online_request(self):
     self.take_online()
     self.requested.remove(Request.ONLINE)
     return True
+  return False
 
 
 
@@ -510,7 +545,7 @@ def possibly_force_enable_trim(self):
   if self.force_enable_trim:
     path = config.find_provisioning_mode(self.dev_path())
     if path is None:
-      log.warning(f"{entity_id_string(self)}: failed to force enable trim, could not find kernel flag in /sys/...")
+      log.warning(f"{entity_id_string(self)}: failed to force enable trim, device (or provisioning_mode flag) not found.")
     else:
       log.warning(f"{entity_id_string(self)}: force enabling trim")
       commands.add_command(f"echo unmap > {path}")
@@ -521,13 +556,15 @@ class Disk(Children):
 
   uuid: str = None
 
+  # TODO: implement me
+  force_enable_trim: bool = False
 
   @classmethod
   def id_fields(cls):
     return ["uuid"]
 
-  # TODO: implement me
-  force_enable_trim: bool = False
+
+
 
   def handle_appeared(self, prev_state):
     possibly_force_enable_trim(self)
@@ -548,8 +585,7 @@ class Disk(Children):
     return load_disk_or_partition_initial_state(self)
   
   def finalize_init(self):
-    if cached(self).state.what == EntityState.INACTIVE:
-      possibly_force_enable_trim(self)
+    possibly_force_enable_trim(self)
 
 
   def id(self):
@@ -563,9 +599,15 @@ class Disk(Children):
 class Partition(Children):
   name: str = None
 
+
+
+
+
   @classmethod
   def id_fields(cls):
     return ["name"]
+
+
 
   def dev_path(self):
     return f"/dev/disk/by-partlabel/{self.name}"
@@ -749,6 +791,8 @@ class ParityRaid(DevicesAgregate):
 
   def init(self, parent, blockdevs):
     init_backing(self, parent, blockdevs)
+  
+
 
 
   def request(self, request, origin=None, unschedule=False, all_dependencies=False):
@@ -777,14 +821,47 @@ class ZPool(Children):
 
   backed_by: list = field(default_factory=list) #pylint: disable=invalid-field-call
 
+  on_backing_appeared: list = field(default_factory=list) #pylint: disable=invalid-field-call
+
+  _backed_by: list = None
 
   @classmethod
   def id_fields(cls):
     return ["name"]
 
-  on_backing_appeared: list = field(default_factory=list) #pylint: disable=invalid-field-call
 
-  _backed_by: list = None
+
+
+  def print_status(self, kdstream):
+    Entity.print_status(self, kdstream)
+
+    if self.name in config.zfs_blockdevs:
+
+      def get_name(entity):
+        return entity.name
+
+      devs = config.zfs_blockdevs[self.name]
+      if devs:
+        devs = devs.values()
+        devs = sorted(devs, key=get_name)
+
+        kdstream.newline()
+        kdstream.print_property_prefix("backing")
+        kdstream.print_raw(" [:")
+        kdstream.indent()
+        print_status_many(devs, kdstream)
+        kdstream.dedent()
+
+    if self.content:
+        kdstream.newline()
+        kdstream.print_property_prefix("backing")
+        kdstream.print_raw(" [:")
+        kdstream.indent()
+        print_status_many(self.content, kdstream)
+        kdstream.dedent()
+
+      
+    
   
 
   def id(self):
@@ -797,8 +874,8 @@ class ZPool(Children):
 
   def handle_backing_device_appeared(self):
     if (not is_online(self)) and self.run_on_backing(is_present_or_online):
-      handle_online_request(self)
-      run_actions(self, "backing_appeared")
+      onlining = handle_online_request(self)
+      run_actions(self, "backing_appeared", "online" if onlining else None)
 
   def handle_children_offline(self):
     return super().handle_children_offline()
@@ -848,12 +925,13 @@ class ZPool(Children):
 
 
   def start_scrub(self):
-    commands.add_command(f"zpool scrub -s {self.name}")
-    commands.add_command(f"zpool scrub {self.name}")
+    commands.add_command(f"zpool scrub -s {self.name}", unless_redundant = True)
+    commands.add_command(f"zpool scrub {self.name}", unless_redundant = True)
+
 
 
   def take_offline(self):
-      commands.add_command(f"zpool export {self.name}")
+      commands.add_command(f"zpool export {self.name}", unless_redundant = True)
 
   def take_online(self):
     if is_online(self):
@@ -863,7 +941,7 @@ class ZPool(Children):
     sufficient = self.run_on_backing(is_present_or_online)
     if sufficient:
       log.info(f"sufficient backing devices available to import zpool {self.name}")
-      commands.add_command(f"zpool import {self.name}")
+      commands.add_command(f"zpool import {self.name}", unless_redundant = True)
     else:
       log.info(f"insufficient backing devices available to import zpool {self.name}")
       
@@ -884,18 +962,20 @@ class ZFSVolume(Children):
   pool: str = None
   name: str = None
 
+
+  on_appeared: list = field(default_factory=list) #pylint: disable=invalid-field-call
+
   @classmethod
   def id_fields(cls):
     return ["pool", "name"]
 
-  on_appeared: list = field(default_factory=list) #pylint: disable=invalid-field-call
 
   def id(self):
     return make_id(self, pool=self.get_pool(), name=self.name)
 
   def handle_appeared(self, prev_state):
-    handle_online_request(self)
-    run_actions(self, "appeared")
+    onlining = handle_online_request(self)
+    run_actions(self, "appeared", "online" if onlining else None)
 
   def handle_children_offline(self):
     return super().handle_children_offline()
@@ -963,8 +1043,8 @@ class DMCrypt(Children):
   
 
   def handle_appeared(self, prev_state):
-    handle_online_request(self)
-    run_actions(self, "appeared")
+    onlining = handle_online_request(self)
+    run_actions(self, "appeared", "online" if onlining else None)
 
   def handle_onlined(self, prev_state):
     for c in self.content: #pylint: disable=not-an-iterable
@@ -1034,8 +1114,9 @@ def uncached_userevent_by_name(cache, name):
 
 
 def handle_resilver_started(cache):
-  log.info(f"{entity_id_string(cache)}: resilver started")
-  cache.operation = Since(ZFSOperationState.RESILVERING, datetime.now())
+  if cache.operation.what != ZFSOperationState.RESILVERING:
+    log.info(f"{entity_id_string(cache)}: resilver started")
+    cache.operation = Since(ZFSOperationState.RESILVERING, datetime.now())
 
 
 def handle_resilver_finished(cache):
@@ -1132,35 +1213,73 @@ class UnavailableDependency:
     return False
   
 
+def print_status(entity, kdstream):
+  kdstream.print_class_name(entity)
+  kdstream.indent()
+  entity.print_status(kdstream)
+  kdstream.dedent()
 
+def print_status_many(lst, kdstream):
+  for c in lst:
+
+    kdstream.newlines(2)
+    print_status(c, kdstream)
+    
 
 @yaml_data
 class ZDev(Entity):
   pool: str = None
   name: str = None
 
-  @classmethod
-  def id_fields(cls):
-    return ["pool", "name"]
 
-  on_appeared: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  on_appeared: list = field(default_factory=list)
 
-  operation = Since(ZFSOperationState.UNKNOWN, None)
+  operation: Since = field(default_factory=operation_since_factory)
 
   last_online: datetime = None
   last_scrubbed: datetime = None
   last_trimmed: datetime = None
 
 
-  on_trimmed: list = field(default_factory=list) #pylint: disable=invalid-field-call
-  on_scrubbed: list = field(default_factory=list) #pylint: disable=invalid-field-call
-  on_scrub_canceled: list = field(default_factory=list) #pylint: disable=invalid-field-call
-  on_trim_canceled: list = field(default_factory=list) #pylint: disable=invalid-field-call
-  on_resilvered: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  on_trimmed: list = field(default_factory=list) 
+  on_scrubbed: list = field(default_factory=list)
+  on_scrub_canceled: list = field(default_factory=list)
+  on_trim_canceled: list = field(default_factory=list)
+  on_resilvered: list = field(default_factory=list)
 
   scrub_interval: str = None
 
-  
+  @classmethod
+  def id_fields(cls):
+    return ["pool", "name"]
+
+  def is_scrub_overdue(self):
+    if self.scrub_interval is not None:
+      cache = cached(self)
+      # parsing the schedule delta will result in a timestamp calculated from now
+      allowed_delta = dateparser.parse(self.scrub_interval)
+          # this means that allowed_delta is a timestamp in the past
+      return cache.last_scrubbed is None or allowed_delta > cache.last_scrubbed
+    return False
+
+  def print_status(self, kdstream):
+    Entity.print_status(self, kdstream)
+    cache = cached(self)
+    if cache.operation.what != ZFSOperationState.UNKNOWN and cache.operation.what != ZFSOperationState.NONE:
+      kdstream.newline()
+      kdstream.print_property(cache, "operation")
+    kdstream.newline()
+    kdstream.print_property_prefix("last_scrubbed")
+    kdstream.print_obj(cache.last_scrubbed)
+    if self.is_scrub_overdue():
+      kdstream.print_raw(" # OVERDUE")
+    if self.scrub_interval:
+      kdstream.print_property(self, "scrub_interval")
+    kdstream.newline()
+    kdstream.print_property(cache, "last_trimmed")
+
+
+
   def enact_request(self):
     oper = cached(self).operation.what
     if oper == ZFSOperationState.TRIMMING and Request.TRIM not in self.requested:
@@ -1236,8 +1355,8 @@ class ZDev(Entity):
     pool_id = f"ZPool|name:{self.pool}"
     if pool_id in config.config_dict: #pylint: disable=unsupported-membership-test
       config.config_dict[pool_id].handle_backing_device_appeared() #pylint: disable=unsubscriptable-object
-    handle_online_request(self)
-    run_actions(self, "appeared")
+    onlining = handle_online_request(self)
+    run_actions(self, "appeared", "online" if onlining else None)
 
 
 
@@ -1251,9 +1370,11 @@ class ZDev(Entity):
 
 
   def handle_resilver_finished(self):
+    scrubbing = False
     if Request.SCRUB in self.requested:
       self.start_scrub()
-    run_actions(self, "resilvered")
+      scrubbing = True
+    run_actions(self, "resilvered", "scrub" if scrubbing else None)
 
   def handle_scrub_canceled(self):
     run_actions(self, "scrub_canceled")
@@ -1272,23 +1393,23 @@ class ZDev(Entity):
 
 
   def take_offline(self):
-    commands.add_command(f"zpool offline {self.pool} {self.dev_name()}")
+    commands.add_command(f"zpool offline {self.pool} {self.dev_name()}", unless_redundant = True)
 
   def take_online(self):
-    commands.add_command(f"zpool online {self.pool} {self.dev_name()}")
+    commands.add_command(f"zpool online {self.pool} {self.dev_name()}", unless_redundant = True)
 
   def start_trim(self):
-    commands.add_command(f"zpool trim {self.pool} {self.dev_name()}")
+    commands.add_command(f"zpool trim {self.pool} {self.dev_name()}", unless_redundant = True)
 
   def start_scrub(self):
     self.stop_scrub()
-    commands.add_command(f"zpool scrub {self.pool}")
+    commands.add_command(f"zpool scrub {self.pool}", unless_redundant = True)
 
   def stop_scrub(self):
-    commands.add_command(f"zpool scrub -s {self.pool}")
+    commands.add_command(f"zpool scrub -s {self.pool}", unless_redundant = True)
 
   def stop_trim(self):
-    commands.add_command(f"zpool trim -s {self.pool} {self.dev_name()}")
+    commands.add_command(f"zpool trim -s {self.pool} {self.dev_name()}", unless_redundant = True)
 
   def __kiify__(self, kd_stream: KdStream):
     kd_stream.print_partial_obj(self, ["pool", "dev", "state", "operation", "last_resilvered", "last_scrubbed"])

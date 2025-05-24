@@ -27,7 +27,7 @@ def dev_exists(dev_path):
 
 def find_provisioning_mode(dev_link):
   dev_path = os.path.realpath(dev_link)
-  dev_name = dev_path[5]
+  dev_name = dev_path[5:]
   path = f"/sys/block/{dev_name}/device"
   if os.path.exists(path):
     for root, dirs, files in os.walk(path):

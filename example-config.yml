@@ -154,7 +154,7 @@ content:
               
             
 
-            scrub_interval: 3 weeks
+            scrub_interval: 4 weeks
 
 
 
@@ -254,7 +254,7 @@ content:
               on_scrubbed:
                 - trim
 
-              scrub_interval: 1 week
+              scrub_interval: 4 weeks
 
 
 
@@ -317,7 +317,7 @@ content:
               on_scrubbed:
                 - trim
 
-              scrub_interval: 1 week
+              scrub_interval: 4 weeks
 
 
 
@@ -385,7 +385,7 @@ content:
                 on_trimmed:
                   - offline
 
-                scrub_interval: 1 week
+                scrub_interval: 4 weeks
 
 
 
@@ -463,7 +463,7 @@ content:
             on_appeared:
               - online
 
-            scrub_interval: 3 weeks
+            scrub_interval: 4 weeks
 
 
 
@@ -499,7 +499,7 @@ content:
             on_appeared:
               - online
 
-            scrub_interval: 3 week
+            scrub_interval: 4 weeks
 
 
 
@@ -668,6 +668,8 @@ content:
 
             on_appeared:
               - online
+
+            scrub_interval: 4 weeks
       
       - !ZFSVolume
         name: big
@@ -694,6 +696,8 @@ content:
               - snapshot-parent
               - offline
 
+            scrub_interval: 4 weeks
+
 
 
 
@@ -719,7 +723,7 @@ content:
   # by my nixOS
   #
   # Zmirror issues a scrub of the zmirror-sysfs and the zmirror-big pools when
-  # this device is connected and at least 3 weeks have passed. This means that
+  # this device is connected and at least 4 weeks have passed. This means that
   # the newest data on this backup disk will be scrubbed and thus checked against
   # the life system. Hence bitrot can only affect older snapshots of the whole
   # backup disk, and never data or snapshots that are inside the zmirror-sysfs
@@ -747,7 +751,6 @@ content:
             pool: zmirror-bak-a
           
 
-            scrub_interval: 3 weeks
 
 
 
@@ -758,7 +761,7 @@ content:
   # two disks configured as mirrors of each other. 
   # For this to work it is necessary that (at least every now and
   # then) you connect both backing disks at the same time and ensure that
-  # they will be scrubbed (as this zmirror config does every 3 weeks as long 
+  # they will be scrubbed (as this zmirror config does every 4 weeks as long 
   # as you keep the disks connected over night)
   - !ZPool
     name: zmirror-bak-b
@@ -811,6 +814,8 @@ content:
               - snapshot-parent
               - offline
       
+            scrub_interval: 4 weeks
+
       - !ZFSVolume
         name: big
         on_children_offline:
@@ -830,6 +835,8 @@ content:
             on_resilvered:
               - snapshot-parent
               - offline
+
+            scrub_interval: 4 weeks
 
 
 
@@ -865,7 +872,7 @@ content:
             on_appeared:
               - online
 
-            scrub_interval: 3 weeks
+            scrub_interval: 4 weeks
 
 
   # this is the main partition of the second disk that is backing zmirror-bak-b
@@ -892,7 +899,7 @@ content:
             on_appeared:
               - online
             
-            scrub_interval: 3 weeks
+            scrub_interval: 4 weeks
 
 
 
@@ -974,7 +981,6 @@ content:
             on_appeared:
               - online
 
-            scrub_interval: 3 weeks
 
 
   # The second element in the mirror backing zmirror-blubak is more complex.

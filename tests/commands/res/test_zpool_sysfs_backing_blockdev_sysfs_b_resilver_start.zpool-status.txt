@@ -5,7 +5,8 @@ config:
 	NAME                         STATE     READ WRITE CKSUM
 	ignored                      ONLINE       0     0     0
 	  mirror-0                   ONLINE       0     0     0
-	    zmirror-bak-b-alpha      ONLINE       0     0     0
-	    zmirror-bak-b-beta       ONLINE       0     0     0
+	    zmirror-sysfs-a          ONLINE       0     0     0
+	    zmirror-sysfs-b          ONLINE       0     0     0 (resilvering)
+	    zmirror-sysfs-s          OFFLINE      0     0     0
 
 errors: No known data errors

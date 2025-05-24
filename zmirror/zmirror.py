@@ -131,7 +131,7 @@ def main(args=None):
     subpsr.set_defaults(func=make_send_simple_daemon_command(command))
 
 
-  subcmd("status")
+  subcmd("status-all")
   subcmd("clear-cache")
   subcmd("reload")
   subcmd("scrub-all", cancel=True)
@@ -146,9 +146,11 @@ def main(args=None):
 
   online_parser = subs.add_parser('online', parents=[socket_parser], help='online devices')
   offline_parser = subs.add_parser('offline', parents=[socket_parser], help='offline devices')
+  status_parser = subs.add_parser('status', parents=[socket_parser], help='device status')
 
   online_subs = online_parser.add_subparsers(required=True)
   offline_subs = offline_parser.add_subparsers(required=True)
+  status_subs = status_parser.add_subparsers(required=True)
 
 
 
@@ -164,6 +166,9 @@ def main(args=None):
 
     offline = offline_subs.add_parser(command_name, parents=[common_parser, cancel_parser])
     offline.set_defaults(func=make_send_request_daemon_command(Request.OFFLINE, typ))
+
+    status = status_subs.add_parser(command_name, parents=[common_parser])
+    status.set_defaults(func=make_send_entity_daemon_command("status", typ))
 
 
 

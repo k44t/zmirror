@@ -9,6 +9,6 @@ config:
 	    zmirror-sysfs-b          ONLINE       0     0     0
 	    zmirror-sysfs-s          ONLINE       0     0     0
 	    zvol/zmirror-bak-a/sysfs ONLINE       0     0     0
-	    zvol/zmirror-bak-b/sysfs OFFLINE      0     0     0
+	    zvol/zmirror-bak-b/sysfs ONLINE       0     0     0 (resilvering)
 
 errors: No known data errors

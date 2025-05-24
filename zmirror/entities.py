@@ -67,6 +67,8 @@ def init_config(cache_path, config_path):
 
   config.disable_commands = config.config_root.disable_commands
 
+  commands.execute_commands()
+
 def finalize_init(entity, _parent, _ignored):
   if hasattr(entity, "finalize_init"):
     entity.finalize_init()
@@ -182,7 +184,7 @@ def get_zpool_status(zpool_name):
 def simple_string_command(command, error, logfn=log.error):
   rcode, zpool_status, _, _ = exec(command)#pylint: disable=exec-used
   if rcode == 0:
-    return zpool_status[0]
+    return "\n".join(zpool_status)
   else:
     logfn(error)
     return None
@@ -213,7 +215,7 @@ def is_zpool_backing_device_online(zpool, dev):
   return False
 
 
-POOL_DEVICES_REGEX = re.compile(r'^ {12}([-/a-zA-Z0-9_]+) +([A-Z]+) +[0-9][^\s]* +[0-9][^\s]* +[0-9][^\s]*(?:\s* \(([^\)]+)\))?$')
+POOL_DEVICES_REGEX = re.compile(r'^\t {4}([^\s]+) +([^\s]+) +[^\s]+ +[^\s]+ +[^\s]+\s*(?:\s* \(([^\)]+)\))?$', re.MULTILINE)
 
 
 

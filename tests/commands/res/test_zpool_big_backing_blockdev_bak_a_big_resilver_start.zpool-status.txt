@@ -6,6 +6,8 @@ config:
 	ignored                      ONLINE       0     0     0
 	  mirror-0                   ONLINE       0     0     0
 	    zmirror-big-a            ONLINE       0     0     0
-	    zmirror-big-b            OFFLINE      0     0     0
+	    zmirror-big-b            ONLINE       0     0     0
+	    zvol/zmirror-bak-a/big   ONLINE       0     0     0 (resilvering)
+	    zvol/zmirror-bak-b/big   OFFLINE      0     0     0
 
 errors: No known data errors

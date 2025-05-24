@@ -6,8 +6,12 @@ from . import config as config
 
 commands = []
 
-def add_command(command):
-  commands.append(command)
+def add_command(command, unless_redundant = False):
+  if unless_redundant:
+    if command not in commands:
+      commands.append(command)
+  else:
+    commands.append(command)
 
 
 def execute_commands():
@@ -20,11 +24,11 @@ def execute_commands():
     log.warning("command execution currently disabled via config file. will not execute any of the following commands:")
   for cmd in commands:
     if config.config_root.disable_commands:
-      log.info(f"skipping command: {cmd}")
+      log.warning(f"skipping command: {cmd}")
     else:
       log.info(f"executing command: {cmd}")
       returncode, _, _, _ = exec(cmd) #pylint: disable=exec-used
       if returncode != 0:
-        log.info(f"command failed: {cmd}")
+        log.warning(f"command failed: {cmd}")
 
   commands = []

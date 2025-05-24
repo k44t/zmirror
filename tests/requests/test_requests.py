@@ -303,8 +303,6 @@ class Tests():
     assert_commands([
       'zpool scrub -s zmirror-sysfs', 
       'zpool scrub zmirror-sysfs', 
-      'zpool scrub -s zmirror-sysfs', 
-      'zpool scrub zmirror-sysfs', 
       'cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-s zmirror-sysfs-s --key-file ./test/zmirror-key', 
       'cryptsetup open /dev/disk/by-partlabel/zmirror-bak-a zmirror-bak-a --key-file ./test/zmirror-key'
     ])

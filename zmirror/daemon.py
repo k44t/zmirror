@@ -99,6 +99,8 @@ def handle(env):
             elif zevent == "pool_import":
               log.info(f"zdev {cache.pool}:{cache.name}: pool imported, device online")
               handle_onlined(cache)
+              if "resilvering" in (match.group(3) or ""):
+                handle_resilver_started(cache)
           
       if found_online is False:
         log.error("likely bug: zpool event but no devices online")
@@ -119,6 +121,9 @@ def handle(env):
       cache = find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path)
       if zevent == "vdev_online":
         handle_onlined(cache)
+        # we have no event by witch we can reliably capture that a resilver started for a zdev
+        # (resilver_started is a pool event). Hence we automatically assume that a zdev
+        # that has been onlined in an active pool will resilver
         handle_resilver_started(cache)
         event_handled = True
       elif zevent == "statechange":
@@ -145,14 +150,21 @@ def handle(env):
 
       zpool_status = config.get_zpool_status(zpool)
       
-
       for match in POOL_DEVICES_REGEX.finditer(zpool_status):
-        if match.group(2) == "ONLINE" and match.group(3) != "resilvering":
+        if match.group(2) == "ONLINE":
           dev = match.group(1)
           cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
-          if cache.operation == ZFSOperationState.RESILVERING and zevent == "resilver_finish":
-            handle_resilver_finished(cache)
-            event_handled = True
+
+          if zevent == "resilver_start":
+            if "resilvering" in (match.group(3) or ""):
+              # this method will only have an effect if the operation is not currently resilvering
+              handle_resilver_started(cache)
+          else:
+            if "resilvering" not in (match.group(3) or ""):
+              if cache.operation.what == ZFSOperationState.RESILVERING:
+                handle_resilver_finished(cache)
+          
+      event_handled = True
 
   elif "DEVTYPE" in env:
     action = env["ACTION"]
@@ -287,6 +299,8 @@ def handle_client(con: socket.socket, client_address, event_queue: queue.Queue):
       event_queue.put(UserEvent(event["ZMIRROR_COMMAND"], con))
     else:
       event_queue.put(event)
+    log.debug("registered event")
+    # print("registered event")
   except Exception:
     log.error("communication error", exc_info=config.log_level <= logging.DEBUG)
     
@@ -297,15 +311,14 @@ def handle_events(event_queue):
   def timeout():
     event_queue.put(TimerEvent.TIMEOUT)
   while True:
-    event = event_queue.get()
     try:
+      event = event_queue.get()
       if event is None:
         save_cache()
         break
       elif isinstance(event, UserEvent):
         handle_command(event.event, event.con)
         save_cache()
-        return
       elif isinstance(event, TimerEvent):
         if event == TimerEvent.RESTART:
           if timer is not None:
@@ -320,8 +333,12 @@ def handle_events(event_queue):
           save_cache()
         commands.execute_commands()
     except Exception as ex:
-      log.error(f"failed to handle event: {json.dumps(event, indent=2)}")
-      log.error(f"Exception : {traceback.format_exc()} --- {str(ex)}")
+      try:
+        log.error(f"failed to handle event: {json.dumps(event, indent=2)}")
+        log.error(f"Exception : {traceback.format_exc()} --- {str(ex)}")
+      except:
+        pass
+    # print("event loop has run")
     
   
 
