@@ -52,6 +52,17 @@ class Since(When):
   def __init__(self, what, when=None):
     super().__init__(what, when)
 
+
+def since_in(x, lst):
+  return any(since.what == x for since in lst)
+
+def since_remove(x, lst):
+  lst[:] = [e for e in lst if e.what != x]
+
+def since_insert_if_not_in(x: Since, lst):
+  if not since_in(x.what, lst):
+    lst.append(x)
+
 @yaml_enum
 class EntityState(KiEnum):
   # unknown state
@@ -84,6 +95,12 @@ class Request(KiEnum):
     return Request.ONLINE
 
 
+@yaml_enum
+class ZFSOperationState(KiEnum):
+  RESILVERING = 1
+  SCRUBBING = 2
+  TRIMMING = 3
+
 
 
 def is_online(entity):
@@ -115,13 +132,6 @@ def set_cache_state(o, st, since_unknown=False):
 
 
 
-@yaml_enum
-class ZFSOperationState(KiEnum):
-  UNKNOWN = 0
-  NONE = 1
-  SCRUBBING = 2
-  TRIMMING = 3
-  RESILVERING = 4
 
 
 
@@ -310,7 +320,7 @@ class Entity:
           log.error(f"{entity_id_string(self)}: requested {self.requested}, but no take_offline method. This is a bug in zmirror")
       elif request == Request.SCRUB:
         if hasattr(self, "start_scrub"):
-          if state == EntityState.ONLINE and cache.operation.what == ZFSOperationState.NONE:
+          if state == EntityState.ONLINE and not since_in(ZFSOperationState.RESILVERING, cache.operations):
             log.info(f"{entity_id_string(self)}: fullfilling request ({self.requested})")
             self.start_scrub()
           else:
@@ -320,7 +330,7 @@ class Entity:
           self.unset_requested(Request.SCRUB)
       elif request == Request.TRIM:
         if hasattr(self, "start_trim"):
-          if state == EntityState.ONLINE and cache.operation.what == ZFSOperationState.NONE:
+          if state == EntityState.ONLINE:
             log.info(f"{entity_id_string(self)}: fullfilling request ({self.requested})")
             self.start_trim()
           else:
@@ -446,6 +456,7 @@ def tell_parent_child_online(parent, child, prev_state):
   if parent is not None:
     if hasattr(parent, "handle_child_online"):
       parent.handle_child_online(child, prev_state)
+
 
 
 
@@ -675,9 +686,9 @@ class BackingDevice:
 
 def unavailable_guard(blockdevs, devname):
   if devname in blockdevs:
-    return blockdevs[devname] #pylint: disable=unsupported-assignment-operation
+    return blockdevs[devname]
   else:
-    return UnavailableDependency(devname) #pylint: disable=unsupported-assignment-operation
+    return UnavailableDependency(devname)
 
 def init_backing(self, pool, blockdevs):
   self.parent = pool
@@ -687,7 +698,7 @@ def init_backing(self, pool, blockdevs):
     else:
       if not "name" in dev:
         raise ValueError(f"misconfiguration: backing for {entity_id_string(pool)}. `name` missing in Mirror.")
-      self.devices[i] = BackingDevice(  #pylint: disable=unsupported-assignment-operation
+      self.devices[i] = BackingDevice(
         unavailable_guard(blockdevs, dev["name"]),
         yes_no_absent_or_dict(dev, "required", False, f"misconfiguration: backing for {entity_id_string(pool)}"),
         yes_no_absent_or_dict(dev, "online_dependencies", True, f"misconfiguration: backing for {entity_id_string(pool)}")
@@ -1115,26 +1126,26 @@ def uncached_userevent_by_name(cache, name):
 
 
 def handle_resilver_started(cache):
-  if cache.operation.what != ZFSOperationState.RESILVERING:
+  if not since_in(ZFSOperationState.RESILVERING, cache.operations):
     log.info(f"{entity_id_string(cache)}: resilver started")
-    cache.operation = Since(ZFSOperationState.RESILVERING, datetime.now())
+    cache.operations.append(Since(ZFSOperationState.RESILVERING, datetime.now()))
 
 
 def handle_resilver_finished(cache):
   log.info(f"{entity_id_string(cache)}: resilvered")
-  cache.operation = Since(ZFSOperationState.NONE, datetime.now())
+  since_remove(ZFSOperationState.RESILVERING, cache.operations)
   uncached_operation_handle_by_name(cache, "resilver_finished")
 
 
 def handle_scrub_started(cache):
   log.info(f"{entity_id_string(cache)}: scrub started")
-  cache.operation = Since(ZFSOperationState.SCRUBBING, datetime.now())
+  since_insert_if_not_in(Since(ZFSOperationState.SCRUBBING, datetime.now()), cache.operations)
 
 
 def handle_scrub_finished(cache):
   log.info(f"{entity_id_string(cache)}: scrubbed")
   now = datetime.now()
-  cache.operation = Since(ZFSOperationState.NONE, now)
+  since_remove(ZFSOperationState.SCRUBBING, cache.operations)
   cache.last_scrubbed = now
   def do(entity):
     entity.handle_scrub_finished()
@@ -1144,13 +1155,13 @@ def handle_scrub_finished(cache):
 
 def handle_trim_started(cache):
   log.info(f"{entity_id_string(cache)}: trim started")
-  cache.operation = Since(ZFSOperationState.TRIMMING, datetime.now())
+  since_insert_if_not_in(Since(ZFSOperationState.TRIMMING, datetime.now()), cache.operations)
 
 
 def handle_trim_finished(cache):
   log.info(f"{entity_id_string(cache)}: trimmed")
   now = datetime.now()
-  cache.operation = Since(ZFSOperationState.NONE, now)
+  since_remove(ZFSOperationState.TRIMMING, cache.operations)
   cache.last_trimmed = now
   def do(entity):
     entity.handle_trim_finished()
@@ -1159,13 +1170,13 @@ def handle_trim_finished(cache):
 
 def handle_scrub_canceled(cache):
   log.info(f"{entity_id_string(cache)}: scrub canceled")
-  cache.operation = Since(ZFSOperationState.NONE, datetime.now())
+  since_remove(ZFSOperationState.SCRUBBING, cache.operations)
   uncached_userevent_by_name(cache, "scrub_canceled")
 
 
 def handle_trim_canceled(cache):
   log.info(f"{entity_id_string(cache)}: trim canceled")
-  cache.operation = Since(ZFSOperationState.NONE, datetime.now())
+  since_remove(ZFSOperationState.TRIMMING, cache.operations)
   uncached_userevent_by_name(cache, "trim_canceled")
 
 
@@ -1237,7 +1248,7 @@ class ZDev(Entity):
 
   # TODO: apparently scrub is impossible while resilvering, but trim is possible
   # now we need to check whether trim is possible while scrubbing, probably yes
-  operation: Since = field(default_factory=operation_since_factory)
+  operations: list = field(default_factory=list)
 
   last_online: datetime = None
   last_scrubbed: datetime = None
@@ -1268,9 +1279,9 @@ class ZDev(Entity):
   def print_status(self, kdstream):
     Entity.print_status(self, kdstream)
     cache = cached(self)
-    if cache.operation.what != ZFSOperationState.UNKNOWN and cache.operation.what != ZFSOperationState.NONE:
+    if cache.operations.what:
       kdstream.newline()
-      kdstream.print_property(cache, "operation")
+      kdstream.print_property(cache, "operations")
     kdstream.newline()
     kdstream.print_property_prefix("last_scrubbed")
     kdstream.print_obj(cache.last_scrubbed)
@@ -1284,10 +1295,10 @@ class ZDev(Entity):
 
 
   def enact_request(self):
-    oper = cached(self).operation.what
-    if oper == ZFSOperationState.TRIMMING and Request.TRIM not in self.requested:
+    cache = cached(self)
+    if since_in(ZFSOperationState.TRIMMING, cache.operations) and Request.TRIM not in self.requested:
       self.stop_trim()
-    elif oper == ZFSOperationState.SCRUBBING and Request.SCRUB not in self.requested:
+    elif since_in(ZFSOperationState.SCRUBBING, cache.operations) and Request.SCRUB not in self.requested:
       self.stop_scrub()
     return super().enact_request()
     
@@ -1416,5 +1427,5 @@ class ZDev(Entity):
     commands.add_command(f"zpool trim -s {self.pool} {self.dev_name()}", unless_redundant = True)
 
   def __kiify__(self, kd_stream: KdStream):
-    kd_stream.print_partial_obj(self, ["pool", "dev", "state", "operation", "last_resilvered", "last_scrubbed"])
+    kd_stream.print_partial_obj(self, ["pool", "dev", "state", "operations", "last_resilvered", "last_scrubbed"])
 

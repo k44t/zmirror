@@ -455,11 +455,11 @@ class Tests():
 
     assert s.state.what == EntityState.ONLINE
 
-    assert a.operation.what == ZFSOperationState.SCRUBBING
-    assert b.operation.what == ZFSOperationState.SCRUBBING
-    assert s.operation.what == ZFSOperationState.SCRUBBING
-    assert bak_a.operation.what == ZFSOperationState.SCRUBBING
-    assert bak_b.operation.what != ZFSOperationState.SCRUBBING
+    assert since_in(ZFSOperationState.SCRUBBING, a.operations)
+    assert since_in(ZFSOperationState.SCRUBBING, b.operations)
+    assert since_in(ZFSOperationState.SCRUBBING, s.operations)
+    assert since_in(ZFSOperationState.SCRUBBING, bak_a.operations)
+    assert not since_in(ZFSOperationState.SCRUBBING, bak_b.operations)
 
     assert_commands([])
 
@@ -480,11 +480,11 @@ class Tests():
 
 
 
-    assert a.operation.what != ZFSOperationState.SCRUBBING
-    assert b.operation.what != ZFSOperationState.SCRUBBING
-    assert s.operation.what != ZFSOperationState.SCRUBBING
-    assert bak_a.operation.what != ZFSOperationState.SCRUBBING
-    assert bak_b.operation.what != ZFSOperationState.SCRUBBING
+    assert not since_in(ZFSOperationState.SCRUBBING, a.operations)
+    assert not since_in(ZFSOperationState.SCRUBBING, b.operations)
+    assert not since_in(ZFSOperationState.SCRUBBING, s.operations)
+    assert not since_in(ZFSOperationState.SCRUBBING, bak_a.operations)
+    assert not since_in(ZFSOperationState.SCRUBBING, bak_b.operations)
 
     assert s.state.what == EntityState.ONLINE
 
@@ -506,7 +506,7 @@ class Tests():
 
     assert s.state.what == EntityState.ONLINE
 
-    assert s.operation.what == ZFSOperationState.TRIMMING
+    assert since_in(ZFSOperationState.TRIMMING, s.operations)
 
     assert_commands([
     ])
@@ -523,7 +523,7 @@ class Tests():
     assert s.state.what == EntityState.ONLINE
 
 
-    assert s.operation.what != ZFSOperationState.TRIMMING
+    assert not since_in(ZFSOperationState.TRIMMING, s.operations)
     assert Request.TRIM not in s.requested
 
     assert_commands([
@@ -540,7 +540,7 @@ class Tests():
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     assert s.state.what == EntityState.ONLINE
-    assert s.operation.what != ZFSOperationState.TRIMMING
+    assert not since_in(ZFSOperationState.TRIMMING, s.operations)
 
     assert_commands([
       "zpool trim zmirror-sysfs zmirror-sysfs-s"
@@ -555,7 +555,7 @@ class Tests():
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
 
-    assert s.operation.what == ZFSOperationState.TRIMMING
+    assert since_in(ZFSOperationState.TRIMMING, s.operations)
 
     assert_commands([
     ])
@@ -567,7 +567,7 @@ class Tests():
 
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
-    assert s.operation.what == ZFSOperationState.NONE
+    assert not since_in(ZFSOperationState.TRIMMING, s.operations)
 
     assert_commands([
       "zpool offline zmirror-sysfs zmirror-sysfs-s"

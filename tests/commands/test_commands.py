@@ -837,12 +837,12 @@ class Tests():
 
     blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
     assert blockdev.state.what == EntityState.ONLINE
-    assert blockdev.operation.what == ZFSOperationState.RESILVERING
+    assert since_in(ZFSOperationState.RESILVERING, blockdev.operations)
 
     trigger_event()
 
     assert blockdev.state.what == EntityState.ONLINE
-    assert blockdev.operation.what == ZFSOperationState.NONE
+    assert not since_in(ZFSOperationState.RESILVERING, blockdev.operations)
 
     assert_commands([
       
