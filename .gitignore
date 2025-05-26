@@ -6,3 +6,5 @@ doc/Zmirror.one
 .venv
 dist
 temp
+.notifier
+.pytest_cache

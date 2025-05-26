@@ -1,6 +1,0 @@
-{
-  "DEVTYPE": "disk",
-  "ACTION": "remove",
-  "DM_VG_NAME": "vg-alpha",
-  "DM_LV_NAME": "lv-1"
-}

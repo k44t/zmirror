@@ -1,7 +1,0 @@
-{
-  "DEVTYPE": "disk",
-  "ACTION": "remove",
-  "DEVPATH": "/devices/virtual/block/my-dev",
-  "ID_FS_UUID": "0123456789abcdef",
-  "DEVNAME": "/dev/nbd1"
-}

@@ -1,6 +1,0 @@
-{
-  "DEVTYPE": "partition",
-  "ACTION": "add",
-  "PARTNAME": "partition-a",
-  "DEVNAME": "/dev/sda1"
-}

@@ -1316,7 +1316,7 @@ class ZDev(Entity):
   def print_status(self, kdstream):
     Entity.print_status(self, kdstream)
     cache = cached(self)
-    if cache.operations.what:
+    if cache.operations:
       kdstream.newline()
       kdstream.print_property(cache, "operations")
     kdstream.newline()
