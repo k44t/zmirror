@@ -28,29 +28,41 @@ def log_func_end():
 
 
 
+
+
+
 # LOGFILE_PATH = '/var/lib/zmirror/log.st'
 
 def __init__():
 
-  handlers=[
-        # logging.FileHandler(logfile_path + datetime.now().strftime("%d-%m-%Y_%H:%M:%S.%f") ),  # File handler
-        logging.StreamHandler(sys.stdout)   # Stream handler for stdout
-    ]
-  
-  # Add systemd journal handler if available
-  if USE_JOURNAL:
-    journal_handler = JournalHandler()
-    handlers.append(journal_handler)
 
   # Configure the root logger
   logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s %(name)s.%(levelname)-7s: %(message)s',
-    handlers=handlers
+    format='%(asctime)s %(levelname)7s: %(message)s',
+    handlers=[
+        # logging.FileHandler(logfile_path + datetime.now().strftime("%d-%m-%Y_%H:%M:%S.%f") ),  # File handler
+        logging.StreamHandler(sys.stdout)   # Stream handler for stdout
+    ]
   )
 
   logger = logging.getLogger("zmirror")
-  
+  logger = logging.LoggerAdapter(logger, {'SYSLOG_IDENTIFIER': "zmirror"})
+
+  def addHandler(handler):
+    return logger.logger.addHandler(handler)
+  def removeHandler(handler):
+    return logger.logger.removeHandler(handler)
+  logger.addHandler = addHandler
+  logger.removeHandler = removeHandler
+
+
+  # Add systemd journal handler if available
+  if USE_JOURNAL:
+    journal_handler = JournalHandler()
+    formatter = logging.Formatter('%(levelname)7s: %(message)s')
+    journal_handler.setFormatter(formatter)
+    logging.getLogger().addHandler(journal_handler)
   if not USE_JOURNAL:
     logger.warning("systemd log not available")
 

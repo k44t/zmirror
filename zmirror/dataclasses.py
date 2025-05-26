@@ -205,9 +205,6 @@ class Entity:
   last_online: datetime = None
   notes: str = None
 
-  scrub_interval = None
-  trim_interval = None
-
 
 
   @classmethod
@@ -1288,13 +1285,14 @@ class ZDev(Entity):
   on_resilvered: list = field(default_factory=list)
 
   scrub_interval: str = None
+  trim_interval: str = None
 
   @classmethod
   def id_fields(cls):
     return ["pool", "name"]
 
   def is_scrub_overdue(self):
-    interval = get_attr_or_ancestor(self, "scrub_interval")
+    interval = self.scrub_interval or config.config_root.scrub_interval
     if interval is not None:
       cache = cached(self)
       # parsing the schedule delta will result in a timestamp calculated from now
@@ -1304,7 +1302,7 @@ class ZDev(Entity):
     return False
 
   def is_trim_overdue(self):
-    interval = get_attr_or_ancestor(self, "trim_interval")
+    interval = self.trim_interval or config.config_root.trim_interval
     if interval is not None:
       cache = cached(self)
       # parsing the schedule delta will result in a timestamp calculated from now

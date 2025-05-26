@@ -21,7 +21,7 @@ def execute_commands():
 
 
   if not config.commands_enabled and len(commands) > 0:
-    log.warning("command execution currently disabled via config file. will not execute any of the following commands:")
+    log.warning("command execution currently disabled.")
   for cmd in commands:
     if not config.commands_enabled:
       log.warning(f"skipping command: {cmd}")

@@ -221,6 +221,10 @@ def handle_command(command, con):
   try:
     stream = con.makefile('w')
     handler = logging.StreamHandler(stream)
+
+    formatter = logging.Formatter('%(levelname)7s: %(message)s')
+    handler.setFormatter(formatter)
+
     log.addHandler(handler)
     name = command["command"]
     if name == "status-all":

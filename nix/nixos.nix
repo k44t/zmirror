@@ -68,14 +68,24 @@ in with lib; with types; {
       };
       services = {
         "zmirror" = {
-          script = "zmirror daemon ${optionalString (cfg.config-path != null) "--config-path '${cfg.config-path}'"}";
+          script = "zmirror daemon ${optionalString (cfg.config-path != null) "--config-path '${cfg.config-path}'"} >> /dev/null";
           path = with pkgs; [zfs zmirror];
           wantedBy = ["local-fs.target"];
-          reloadTriggers = [cfg.config-file cfg.config-path];
-          reload = "zmirror reload-config";
+          reloadTriggers = [
+
+            # reloadTriggers is a functionality implemented by nixOS (rather than systemd) and does 
+            # not actually monitor file system changes, so this is useless:
+            ## cfg.config-path
+
+            # what it does is register changes when a new nixos configuration is applied
+            # so this works:
+            cfg.config-file
+
+          ];
+          reload = "zmirror reload-config >> /dev/null";
         };
         "zmirror-maintenance" = lib.mkIf (cfg.maintenance-schedule != null) {
-          script = "zmirror maintenance";
+          script = "zmirror maintenance >> /dev/null";
           path = with pkgs; [zmirror];
         };
       };

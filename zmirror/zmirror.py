@@ -146,7 +146,7 @@ def main(args=None):
   subcmd("disable-commands", help="disables command execution. This will be reset when the config is reloaded")
   subcmd("enable-commands", help="enables command execution. This will be reset when the config is reloaded")
 
-  subcmd("maintenance", help="triggers all maintenance tasks (scrub and trim as scheduled). Usually called by a cronjob or a systemd timer. This should be done at night on a day where there is not much load on your machine. This will online all devices that are present and need maintenance. Whether they will be offlined again depends on the zmirror configuration.")
+  subcmd("maintenance", help="triggers all maintenance tasks (scrub and trim as scheduled). Usually called by a cronjob or a systemd timer. This should be done at night on a day where there is not much load on your machine. This will online all devices that are present and need maintenance. Whether they will be offlined afterwards depends on your zmirror configuration.")
 
 
   # scrub_parser = subs.add_parser('scrub-overdue', parents=[], help='scrub devices that have not been scrubbed for too long')
