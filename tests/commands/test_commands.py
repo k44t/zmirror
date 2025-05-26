@@ -101,9 +101,9 @@ class Tests():
     disk = config.cache_dict["Disk|uuid:00000000-0000-0000-0000-000000000001"]
 
 
-    # zmirror needs to do nothing (issue no commands)
     assert_commands([
-      'echo unmap > /sys/block/sdX/device/scsi_device/provisioning_mode'
+      # zmirror needs to do nothing (issue no commands)
+      ## 'echo unmap > /sys/block/sdX/device/scsi_device/provisioning_mode'
     ])
 
 

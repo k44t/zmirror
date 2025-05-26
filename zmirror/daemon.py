@@ -80,13 +80,12 @@ def handle(env):
         log.error(f"zpool status failed for pool {zpool}")
       else:
         for match in POOL_DEVICES_REGEX.finditer(zpool_status):
-          dev = match.group(1)
+          dev = match.group("dev")
 
           cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
-          if match.group(2) == "ONLINE":
+          if match.group("state") == "ONLINE":
 
             found_online = True
-            cache.operation = Since(ZFSOperationState.NONE, now)
             if zevent == "scrub_finish":
               log.info(f"zdev {cache.pool}:{cache.name}: scrubbing finished")
               handle_scrub_finished(cache)
@@ -99,7 +98,7 @@ def handle(env):
             elif zevent == "pool_import":
               log.info(f"zdev {cache.pool}:{cache.name}: pool imported, device online")
               handle_onlined(cache)
-              if "resilvering" in (match.group(3) or ""):
+              if "resilvering" in (match.group("operations") or ""):
                 handle_resilver_started(cache)
           
       if found_online is False:
@@ -151,16 +150,16 @@ def handle(env):
       zpool_status = config.get_zpool_status(zpool)
       
       for match in POOL_DEVICES_REGEX.finditer(zpool_status):
-        if match.group(2) == "ONLINE":
-          dev = match.group(1)
+        if match.group("state") == "ONLINE":
+          dev = match.group("dev")
           cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
 
           if zevent == "resilver_start":
-            if "resilvering" in (match.group(3) or ""):
+            if "resilvering" in (match.group("operations") or ""):
               # this method will only have an effect if the operation is not currently resilvering
               handle_resilver_started(cache)
           else:
-            if "resilvering" not in (match.group(3) or ""):
+            if "resilvering" not in (match.group("operations") or ""):
               if cache.operation.what == ZFSOperationState.RESILVERING:
                 handle_resilver_finished(cache)
           
@@ -227,8 +226,11 @@ def handle(env):
           log.info("nothing to do for disk event")
 
       elif devtype == "partition":
-        cache = find_or_create_cache(Partition, name=env["PARTNAME"])
-        udev_event_action(cache, action, now)
+        # sometimes, while modifying partitions, there appears an event concerning the partition
+        # that not yet contains a PARTNAME
+        if "PARTNAME" in env:
+          cache = find_or_create_cache(Partition, name=env["PARTNAME"])
+          udev_event_action(cache, action, now)
     
     # TODO: figure out what this event actually is.
     elif action == "change" and "DM_ACTIVATION" in env and env["DM_ACTIVATION"] == "1":

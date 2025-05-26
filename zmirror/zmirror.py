@@ -133,7 +133,7 @@ def main(args=None):
 
   subcmd("status-all")
   subcmd("clear-cache")
-  subcmd("reload")
+  subcmd("reload-config")
   subcmd("scrub-all", cancel=True)
   subcmd("scrub-overdue")
   subcmd("trim-all", cancel=True)
@@ -152,6 +152,8 @@ def main(args=None):
   offline_subs = offline_parser.add_subparsers(required=True)
   status_subs = status_parser.add_subparsers(required=True)
 
+  scrub_parser = subs.add_parser("scrub", parents=[socket_parser, cancel_parser])
+  scrub_subs = scrub_parser.add_subparsers(required=True)
 
 
   def make_onlineable_commands(typ):
@@ -170,6 +172,11 @@ def main(args=None):
     status = status_subs.add_parser(command_name, parents=[common_parser])
     status.set_defaults(func=make_send_entity_daemon_command("status", typ))
 
+    if typ in [ZDev, ZPool]:
+
+      scrub = scrub_subs.add_parser(command_name, parents=[common_parser])
+      scrub.set_defaults(func=make_send_request_daemon_command(Request.SCRUB, typ))
+
 
 
 
@@ -177,14 +184,6 @@ def main(args=None):
     make_onlineable_commands(typ)
 
 
-  def make_scrub_request_command():
-    parser = subs.add_parser("scrub", parents=[socket_parser, cancel_parser])
-    for fld in ZDev.id_fields():
-      parser.add_argument(f"--{fld}", type=str)
-
-    parser.set_defaults(func=make_send_request_daemon_command(Request.SCRUB, ZFSVolume))
-
-  make_scrub_request_command()
 
 
 

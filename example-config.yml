@@ -166,8 +166,7 @@ content:
   - !Disk
 
     # the uuid of the gpt partition table
-    uuid: 00000000-0000-0000-0000-000000000001
-
+    uuid: 00000000-0000-0000-0000-000000000002
 
     # *WARNING*: ONLY set this to true if you absolutely know that your device supports
     # trim.
@@ -189,30 +188,35 @@ content:
     #   Optimal unmap granularity: 0 blocks [not reported]
     #
     # means that trim is not supported, so stop there. 
-
+    #
     # A report like:
-
+    #
     # >>  
     #   Maximum unmap LBA count: 0x1400000
     #   Maximum unmap block descriptor count: 0x1
     #   Optimal unmap granularity: 0x1
     # 
     # means that trim is supported.
+    # 
+    # note that you also need to manually `--allow-discards` for all dm-crypts on this disk
+    # (please inform youself on the security implications of doing so)
+    #
+    # This following command will persistently `--allow-discards` for an already open dm-crypt
+    #
+    # :: cryptsetup --allow-discards --persistent refresh zmirror-sysfs-a --key-file ./test/zmirror-key
+    #
+    # you can verify `--allow-discards` status with:
+    #
+    # :: dmsetup table zmirror-sysfs-a
     #
     # *WARNING*: ONLY set this to true if you absolutely know that your device supports
     # trim.
-    #
-    # TODO: implement me
     force_enable_trim: yes
     # 
     # what zmirror does to enable trim is catch every udev add or change event for 
     # the disk and do
     # 
     # :: echo "unmap" > /sys/block/sdX/device/scsi_disk/0:0:0:0/provisioning_mode
-    # 
-    # as well as compute the maximum number of discard bytes and tell the kernel:
-    # 
-    # :: echo 10737418240 > /sys/block/sdX/queue/discard_max_bytes
 
 
 
@@ -274,7 +278,7 @@ content:
   - !Disk
 
     # the uuid of the gpt partition table. zmirror currently only supports GPT formatted disks.
-    uuid: 00000000-0000-0000-0000-000000000002
+    uuid: 00000000-0000-0000-0000-000000000003
 
     # only enable this if you are absolutely certain that your NVMe enclosure
     # supports TRIM. See above for more.
@@ -321,7 +325,8 @@ content:
 
 
 
-
+  # zmirror-sysfs-s
+  #
   # The sysfs zpool contains (in addition to the OS and config files) my most 
   # important projects files. Hence I have a 2TB nvme drive named zmirror-sysfs-s
   # (s stands for "s"afe) which I carry around with myself and which I connect 
@@ -338,7 +343,7 @@ content:
   - !Disk
 
     # the uuid of the gpt partition table
-    uuid: 00000000-0000-0000-0000-000000000003
+    uuid: 00000000-0000-0000-0000-000000000004
 
     # only enable this if you are absolutely certain that your NVMe enclosure
     # supports TRIM. See above for more.

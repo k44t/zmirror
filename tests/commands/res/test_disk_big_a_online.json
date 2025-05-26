@@ -1,6 +1,6 @@
 {
   "DEVTYPE": "disk",
   "ACTION": "add",
-  "ID_PART_TABLE_UUID": "zmirror-big-a",
+  "ID_PART_TABLE_UUID": "00000000-0000-0000-0000-000000000005",
   "DEVNAME": "/dev/sdh"
 }

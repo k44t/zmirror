@@ -196,7 +196,7 @@ class Tests():
 
     trigger_event()
 
-    assert pool.requested == set()
+    assert Request.ONLINE in pool.requested
 
 
     assert_commands([
@@ -390,7 +390,20 @@ class Tests():
 
   # when bak-a-big the blockdev becomes active in the sysfs pool
   def test_zpool_sysfs_backing_blockdev_bak_a_sysfs_online(self):
+
+    bak_a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+
+    req = uncached(bak_a).requested
+    assert req == {Request.SCRUB, Request.ONLINE}
+
     trigger_event()
+
+
+    req2 = uncached(bak_a).requested
+    
+    assert req is req2
+
+    assert req == {Request.SCRUB}
 
     blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
 
@@ -454,14 +467,17 @@ class Tests():
 
   # scrub start
   def test_scrub_finished_sysfs(self):
-    
-    trigger_event()
 
     a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
     b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
     bak_a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     bak_b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
+
+    assert uncached(bak_a).requested == {Request.SCRUB}
+
+    trigger_event()
+
 
 
     assert a.operation.what != ZFSOperationState.SCRUBBING

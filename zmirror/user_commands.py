@@ -49,7 +49,7 @@ def daemon_request(rqst, cancel, typ, ids):
   if entity is None:
     log.error(f"{make_id_string(make_id(typ, **filtered_args))}: entity not configured")
     return
-  if entity.request(rqst, unschedule=cancel):
+  if entity.request(rqst, unrequest=cancel):
     config.last_request_at = datetime.now()
   else:
     log.error(f"{make_id_string(make_id(typ, **filtered_args))}: request {rqst} failed. See previous error messages.")
@@ -128,11 +128,11 @@ def handle_clear_cache_command():
 
   log.info("cache cleared")
 
-  handle_reload_command()
+  handle_reload_config_command()
 
 
 
-def handle_reload_command():
+def handle_reload_config_command():
 
   log.info("reloading configuration")
 
@@ -213,8 +213,8 @@ def handle_command(command, con):
       handle_status_command(command, stream)
     elif name == "clear-cache":
       handle_clear_cache_command()
-    elif name == "reload":
-      handle_reload_command()
+    elif name == "reload-config":
+      handle_reload_config_command()
     elif name == "scrub-all":
       handle_scrub_all_command()
     elif name == "scrub-overdue":
@@ -293,7 +293,7 @@ def make_send_daemon_wrapper(fn):
           return
         decoder = codecs.getincrementaldecoder('utf-8')()
 
-        # Send data        
+        # Send data
         message = json.dumps({"ZMIRROR_COMMAND": command}).encode('utf-8')
         con.sendall(f"{len(message)}:".encode('utf-8') + message)
 
@@ -323,11 +323,11 @@ def make_send_simple_daemon_command(command):
   return make_send_daemon_wrapper(do)
 
 
-def make_send_request_daemon_command(request, typ):
+def make_send_request_daemon_command(rqst, typ):
   def do(args):
 
     r = {
-      "command": name_for_request[request]
+      "command": name_for_request[rqst]
     }
 
     if args.cancel:

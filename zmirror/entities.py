@@ -25,8 +25,9 @@ from . import util
 
 
 log_level_for_name = {
-  "info": logging.INFO,
+  "trace": 5,
   "debug": logging.DEBUG,
+  "info": logging.INFO,
   "warning": logging.WARNING,
   "error": logging.ERROR,
   "critical": logging.CRITICAL,
@@ -210,12 +211,15 @@ def is_zpool_backing_device_online(zpool, dev):
   if status is None:
     return False
   for match in POOL_DEVICES_REGEX.finditer(status):
-    if match.group(1) == dev:
-      return match.group(2) == "ONLINE"
+    if match.group("dev") == dev:
+      return match.group("state") == "ONLINE"
   return False
 
 
-POOL_DEVICES_REGEX = re.compile(r'^\t {4}([^\s]+) +([^\s]+) +[^\s]+ +[^\s]+ +[^\s]+\s*(?:\s* \(([^\)]+)\))?$', re.MULTILINE)
+POOL_DEVICES_REGEX = re.compile(r'^\t {4}(?P<dev>[^\s]+)\s+(?P<state>[^\s]+)\s+(?P<read>[^\s]+)\s+(?P<write>[^\s]+)\s+(?P<cksum>[^\s]+)\s*(?:\s* \((?P<operations>.+)\))?\s*$', 
+  # multiline must be set for this expression to work
+  # my guess is, that this makes `^` and `$` work as desired.
+  re.MULTILINE)
 
 
 

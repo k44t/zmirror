@@ -1,5 +1,5 @@
 {
   "DEVTYPE": "disk",
   "ACTION": "remove",
-  "ID_PART_TABLE_UUID": "zmirror-bak-b-alpha"
+  "ID_PART_TABLE_UUID": "00000000-0000-0000-0000-000000000008"
 }
