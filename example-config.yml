@@ -4,11 +4,13 @@
 # enable logging of the environment variables for all udev and zed events
 log_events: yes
 
-# When disable_commands is enabled, then zmirror never executes any commands 
+# If set to `no`, then zmirror never executes any commands 
 # but only logs the commands that it would execute. This is helpful when you
 # want to test things and/or manually interact with the devices without zmirror 
 # interfering
-disable_commands: yes
+#
+# you can temporarily override this at runtime by running `zmirror enable-commands` or `zmirror disable-commands`
+enable_commands: no
 
 # the timeout for user requests after which the request will be considered failed 
 # and removed.
@@ -25,15 +27,29 @@ timeout: 60
 
 
 
-# zmirror itself does not support scheduling, since there are great tools
+
+
+
+# zmirror itself does not support scheduling when the maintenance task should be 
+# run (`zmirror maintenance`), since there are great tools
 # that do just that. Basically you create a systemd service that runs at whatever
 # interval you prefer and that calls: `zmirror scrub-all` or `zmirror trim-all` (depending on whether you configured all your disks
 # to always be trimmed after a scrub or no)
 # 
 # You can of course always do `zpool scrub-all` or `zpool trim-all` directly. 
 #
-# Please note that zmirror should always be running/restarted with `disable_commands: yes` when
-# you do anything manual, so that it can ubdate its disk state information accordingly.
+# Please note that zmirror should always be running/restarted with 
+# `disable_commands: yes` when you do anything manual, so that it can ubdate its disk state information 
+# accordingly.
+
+# sets the default trim interval. May be overridden by setting `trim_interval` 
+# directly on a device
+trim_interval: 1 week
+
+# sets the default trim interval. May be overridden by setting `scrub_interval` 
+# directly on a device
+# uncomment to enable
+scrub_interval: 4 weeks
 
 
 # under here all top-level entities (such as disks, partitions, lvm volume groups
@@ -154,7 +170,7 @@ content:
               
             
 
-            scrub_interval: 4 weeks
+            scrub_interval: 2 weeks
 
 
 
@@ -168,14 +184,26 @@ content:
     # the uuid of the gpt partition table
     uuid: 00000000-0000-0000-0000-000000000002
 
-    # *WARNING*: ONLY set this to true if you absolutely know that your device supports
-    # trim.
+    # *WARNING*: ONLY set this to true if you absolutely know that your device supports trim
+    #
+    # Force enable trim support on SSD devices/enclosures that actually do support trim.
+    #
+    # The TRIM command is used by solid state devices to clear datablocks and 
+    # mark them unwritten, which can greatly enhance disk performance.
     # 
     # the linux kernel is not aware that my usb-c NVMe enclosure does in fact
     # support the trim command.
     #
+    #To see whether the kernel has recognized trim support on your device you can run (replacing <sdX> with an your disk identifier):
+    #
+    # :: cat /sys/block/<sdX>/device/scsi_disk/0:0:0:0/provisioning_mode
     # 
-    # you can find out using
+    # >> full
+    #
+    # If the output is "full", then the kernel did NOT recognize trim support. If it is "unmap" then it was recognized.
+    #
+    # 
+    # whether your device does support trim, you can find out using
     #
     # :: sg_vpd -a /dev/sdX | grep "map"
     # 

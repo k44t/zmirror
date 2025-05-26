@@ -10,6 +10,16 @@ from .logging import log
 from kpyutils.kiify import TabbedShiftexStream, KdStream
 
 
+
+def read_file(path, encoding="utf-8"):
+  try:
+    with open(path, 'r', encoding=encoding) as file:
+      return file.read()
+  except:
+      return None
+
+
+
 def exec_background(command):
   log.info(f"Starting command in background: `{command}`")
   subprocess.Popen(command, shell=False)

@@ -12,7 +12,7 @@ config_root = None
 config_dict: dict = None
 cache_path = None
 config_path = None
-disable_commands = False
+commands_enabled = False
 last_request_at = datetime.now()
 log_level = logging.INFO
 

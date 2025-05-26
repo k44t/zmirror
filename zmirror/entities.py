@@ -66,13 +66,17 @@ def init_config(cache_path, config_path):
 
   iterate_content_tree3(config.config_root, finalize_init, None, None)
 
-  config.disable_commands = config.config_root.disable_commands
+  config.commands_enabled = config.config_root.enable_commands
 
   commands.execute_commands()
 
 def finalize_init(entity, _parent, _ignored):
-  if hasattr(entity, "finalize_init"):
-    entity.finalize_init()
+  if isinstance(entity, Entity):
+    cache = cached(entity)
+    if cache.state.what in {EntityState.INACTIVE, EntityState.ONLINE}:
+      log.info(f"{entity_id_string(entity)}: {cache.state.what}")
+    if hasattr(entity, "finalize_init"):
+      entity.finalize_init()
 
 config.init = init_config
 

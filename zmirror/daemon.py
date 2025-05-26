@@ -72,6 +72,7 @@ def handle(env):
 
       if zevent == "pool_import":
         zpool_cache = find_or_create_cache(ZPool, name=zpool)
+        
         handle_onlined(zpool_cache)
 
 

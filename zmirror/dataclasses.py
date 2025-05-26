@@ -3,7 +3,7 @@
 
 #pylint: disable=unsubscriptable-object
 #pylint: disable=not-an-iterable
-#pylint: disable=invalid-field-call  
+#pylint: disable=invalid-field-call
 #pylint: disable=no-member
 #pylint: disable=unsupported-membership-test
 
@@ -12,6 +12,7 @@ from datetime import datetime
 from dataclasses import dataclass, field
 import os
 from typing import Any
+from .util import read_file
 
 import dateparser
 
@@ -73,7 +74,7 @@ class EntityState(KiEnum):
 
   # present and online (active)
   ONLINE = 1
-  
+
   # present and offline (inactive)
   INACTIVE = 2
 
@@ -138,12 +139,16 @@ def set_cache_state(o, st, since_unknown=False):
 @yaml_data
 class ZMirror:
   log_events: bool = False
-  disable_commands: bool = False
+  enable_commands: bool = True
   timeout: int = 300
   log_level: str = "info"
 
-  content: list = field(default_factory=list) 
+
+  content: list = field(default_factory=list)
   notes: str = None
+
+  scrub_interval: str = None
+  trim_interval: str = None
 
 
 
@@ -200,18 +205,21 @@ class Entity:
   last_online: datetime = None
   notes: str = None
 
+  scrub_interval = None
+  trim_interval = None
+
 
 
   @classmethod
   def id_fields(cls):
     raise NotImplementedError()
-  
+
 
   def print_status(self, kdstream):
     for prop in type(self).id_fields():
       kdstream.print_property(self, prop)
     kdstream.newline()
-    
+
     cache = cached(self)
     kdstream.print_property(cache, "state")
 
@@ -270,11 +278,11 @@ class Entity:
     if not ((request == Request.ONLINE and online) or (request == Request.OFFLINE and not online)):
       self.requested.add(request)
     return True
-  
+
   def unset_requested(self, rqst):
     if rqst in self.requested:
       self.requested.remove(rqst)
-  
+
 
   def request_locally(self, request, origin=None, all_dependencies=False):
     if request == Request.ONLINE:
@@ -342,7 +350,7 @@ class Entity:
           log.debug(f"{entity_id_string(self)}: currently cannot fulfill request ({self.requested}) because of state ({state})")
 
 
-    
+
 
 
   # must be overridden by child classes
@@ -396,7 +404,7 @@ def request_dependencies(self, origin, request, unrequest, all_dependencies, dep
 
 
 def run_actions(self, event_name, excepted=None):
-  for event in getattr(self, "on_" + event_name): #pylint: disable=not-an-iterable
+  for event in getattr(self, "on_" + event_name):
     if event != excepted:
       run_action(self, event)
 
@@ -463,9 +471,9 @@ def tell_parent_child_online(parent, child, prev_state):
 
 @dataclass
 class Children(Entity):
-  content: list = field(default_factory=list, kw_only=True) #pylint: disable=invalid-field-call
+  content: list = field(default_factory=list, kw_only=True)
 
-  on_children_offline: list = field(default_factory=list, kw_only=True) #pylint: disable=invalid-field-call
+  on_children_offline: list = field(default_factory=list, kw_only=True)
 
 
   def print_status(self, kdstream):
@@ -479,7 +487,7 @@ class Children(Entity):
 
   def handle_onlined(self, prev_state):
     super().handle_onlined(prev_state)
-    for c in self.content: #pylint: disable=not-an-iterable
+    for c in self.content:
       if type(c) in {ZDev, ZFSVolume}:
         c.handle_parent_onlined()
 
@@ -487,7 +495,7 @@ class Children(Entity):
 
   def handle_deactivated(self, prev_state):
     super().handle_deactivated(prev_state)
-    for c in self.content: #pylint: disable=not-an-iterable
+    for c in self.content:
       if isinstance(c, ZDev):
         handle_disconnected(c)
 
@@ -495,7 +503,7 @@ class Children(Entity):
 
   def handle_disconnected(self, prev_state):
     super().handle_deactivated(prev_state)
-    for c in self.content: #pylint: disable=not-an-iterable
+    for c in self.content:
       if isinstance(c, ZDev):
         handle_disconnected(c)
 
@@ -525,7 +533,7 @@ class Children(Entity):
 
 
   def handle_child_offline(self, child, prev_state):
-    
+
     # this change is irrelevant for the parent
     if prev_state == EntityState.INACTIVE:
       return
@@ -565,8 +573,12 @@ def possibly_force_enable_trim(self):
     if path is None:
       log.warning(f"{entity_id_string(self)}: failed to force enable trim, device (or provisioning_mode flag) not found.")
     else:
-      log.warning(f"{entity_id_string(self)}: force enabling trim")
-      commands.add_command(f"echo unmap > {path}")
+      state = read_file(path)
+      if state != "unmap":
+        log.warning(f"{entity_id_string(self)}: force enabling trim")
+        commands.add_command(f"echo unmap > {path}")
+      else:
+        log.info(f"{entity_id_string(self)}: trim already enabled")
 
 
 @yaml_data
@@ -601,9 +613,10 @@ class Disk(Children):
 
   def load_initial_state(self):
     return load_disk_or_partition_initial_state(self)
-  
+
   def finalize_init(self):
-    possibly_force_enable_trim(self)
+    if cached(self).state.what in {EntityState.ONLINE, EntityState.INACTIVE}:
+      possibly_force_enable_trim(self)
 
 
   def id(self):
@@ -631,13 +644,13 @@ class Partition(Children):
     return f"/dev/disk/by-partlabel/{self.name}"
 
   def load_initial_state(self):
-    
+
     return load_disk_or_partition_initial_state(self)
 
   def handle_appeared(self, prev_state):
-    for c in self.content: #pylint: disable=not-an-iterable
+    for c in self.content:
       handle_appeared(cached(c))
-  
+
   def set_requested(self, request, origin):
     if request == Request.ONLINE:
       if isinstance(self.parent, ZMirror):
@@ -676,10 +689,10 @@ class BackingDevice:
 
   def request(self, request, origin=None, unrequest=False, all_dependencies=False):
     return self.device.request(request, origin, unrequest, all_dependencies)
-  
+
   def request_locally(self, request, origin=None, all_dependencies=False):
     return self.device.request_locally(request, origin, all_dependencies)
-  
+
   def get_state(self):
     return self.device.get_state()
 
@@ -714,9 +727,9 @@ class Agregate:
 
 @yaml_data
 class DevicesAgregate:
-  
-  devices: list = field(default_factory=list) #pylint: disable=invalid-field-call
-  
+
+  devices: list = field(default_factory=list)
+
   def get_state(self):
     one_online = False
     one_inactive = False
@@ -724,14 +737,14 @@ class DevicesAgregate:
     one_required_offline = False
     for d in self.devices:
       state = d.get_state()
-     
+
       if state == EntityState.INACTIVE:
         one_inactive = True
         if d.required:
           one_required_inactive = True
       elif state == EntityState.ONLINE:
         one_online = True
-      elif state == EntityState.DISCONNECTED or state == EntityState.UNKNOWN:  
+      elif state == EntityState.DISCONNECTED or state == EntityState.UNKNOWN:
         if d.required:
           one_required_offline = True
     if one_required_offline:
@@ -745,7 +758,7 @@ class DevicesAgregate:
 
 @yaml_data
 class Mirror(DevicesAgregate):
-  
+
   pool = None
 
   def init(self, pool, blockdevs):
@@ -758,7 +771,7 @@ class Mirror(DevicesAgregate):
     one_required_offline = False
     for d in self.devices:
       state = d.get_state()
-     
+
       if state == EntityState.INACTIVE:
         one_inactive = True
         if hasattr(d, "required") and d.required:
@@ -777,7 +790,7 @@ class Mirror(DevicesAgregate):
     if one_inactive:
       return EntityState.INACTIVE
 
-  
+
   def request(self, request, origin=None, unrequest=False, all_dependencies=False):
     one_failed = False
     one_succeeded = False
@@ -809,14 +822,14 @@ class ParityRaid(DevicesAgregate):
 
   def init(self, parent, blockdevs):
     init_backing(self, parent, blockdevs)
-  
+
 
 
 
   def request(self, request, origin=None, unrequest=False, all_dependencies=False):
     one_failed = False
     num_succeeded = 0
-    for d in self.devices: #pylint: disable=not-an-iterable
+    for d in self.devices:
       res = d.request(request, origin, unrequest, all_dependencies)
       if res:
         num_succeeded += 1
@@ -824,11 +837,11 @@ class ParityRaid(DevicesAgregate):
         if d.required:
           one_failed = True
     if one_failed or (num_succeeded < len(self.devices) - self.parity):
-      for d in self.devices:  #pylint: disable=not-an-iterable
+      for d in self.devices:
         d.request(request, origin, True, all_dependencies)
       return False
     return True
-  
+
 
 
 
@@ -837,9 +850,9 @@ class ParityRaid(DevicesAgregate):
 class ZPool(Children):
   name: str = None
 
-  backed_by: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  backed_by: list = field(default_factory=list)
 
-  on_backing_appeared: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  on_backing_appeared: list = field(default_factory=list)
 
   _backed_by: list = None
 
@@ -878,13 +891,13 @@ class ZPool(Children):
         print_status_many(self.content, kdstream)
         kdstream.dedent()
 
-      
-    
-  
+
+
+
 
   def id(self):
     return make_id(self, name=self.name)
-  
+
 
   def handle_backing_device_appeared(self):
     if (not is_online(self)) and self.run_on_backing(is_present_or_online):
@@ -893,7 +906,7 @@ class ZPool(Children):
 
   def handle_children_offline(self):
     return super().handle_children_offline()
-  
+
   def handle_child_offline(self, child, prev_state):
     return super().handle_child_offline(child, prev_state)
 
@@ -917,7 +930,7 @@ class ZPool(Children):
     if status is not None:
       state = EntityState.ONLINE
     return state
-  
+
   def finalize_init(self):
     backed = self.backed_by if self.backed_by is not None else []
     self._backed_by = backed
@@ -925,7 +938,7 @@ class ZPool(Children):
       devs = config.zfs_blockdevs[self.name]
     else:
       devs = dict()
-    
+
     for i, b in enumerate(backed):
       if isinstance(b, str):
         if b in devs:
@@ -958,7 +971,7 @@ class ZPool(Children):
       commands.add_command(f"zpool import {self.name}", unless_redundant = True)
     else:
       log.info(f"insufficient backing devices available to import zpool {self.name}")
-      
+
 
   def run_on_backing(self, fn):
     sufficient = True
@@ -977,7 +990,7 @@ class ZFSVolume(Children):
   name: str = None
 
 
-  on_appeared: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  on_appeared: list = field(default_factory=list)
 
   @classmethod
   def id_fields(cls):
@@ -993,7 +1006,7 @@ class ZFSVolume(Children):
 
   def handle_children_offline(self):
     return super().handle_children_offline()
-  
+
   def handle_parent_onlined(self):
     state = self.load_initial_state()
     if state == EntityState.INACTIVE:
@@ -1003,10 +1016,10 @@ class ZFSVolume(Children):
     else:
       log.error(f"{entity_id_string(self)}: inconsistent initial state ({state}). this is a bug in zmirror.")
 
-  
+
   def get_pool(self):
     if self.parent is not None:
-      return self.parent.name #pylint: disable=no-member
+      return self.parent.name
     else:
       return self.pool
 
@@ -1029,7 +1042,7 @@ class ZFSVolume(Children):
 
   def take_snapshot(self):
     commands.add_command(f"zfs snapshot {self.parent.name}/{self.name}@zmirror-{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}")
-    
+
 
   def get_devpath(self):
     if self.parent is not None:
@@ -1047,27 +1060,27 @@ class DMCrypt(Children):
   def id_fields(cls):
     return ["name"]
 
-  on_appeared: list = field(default_factory=list) #pylint: disable=invalid-field-call
+  on_appeared: list = field(default_factory=list)
 
   def id(self):
     return make_id(self, name=self.name)
 
   def get_devpath(self):
     return f"/dev/mapper/{self.name}"
-  
+
 
   def handle_appeared(self, prev_state):
     onlining = handle_online_request(self)
     run_actions(self, "appeared", "online" if onlining else None)
 
-  
+
   def handle_child_online(self, child, prev_state):
     pass
 
   def load_initial_state(self):
     if config.dev_exists(self.get_devpath()):
       return EntityState.ONLINE
-        
+
   def update_initial_state(self):
     if cached(self).state.what != EntityState.ONLINE:
       state = EntityState.DISCONNECTED
@@ -1080,7 +1093,7 @@ class DMCrypt(Children):
 
   def handle_children_offline(self):
     return super().handle_children_offline()
-  
+
   def handle_child_offline(self, child, prev_state):
     return super().handle_child_offline(child, prev_state)
 
@@ -1095,7 +1108,7 @@ def uncached(cache, fn=None):
   if cache.cache is not None:
     entity = cache
   else:
-    entity = config.load_config_for_cache(cache) #pylint: disable=no-member
+    entity = config.load_config_for_cache(cache)
     if entity is None:
       log.warning(f"entity not configured: {entity_id_string(cache)}")
       return
@@ -1223,7 +1236,7 @@ class UnavailableDependency:
 
   def request(self, request, origin=None, unrequest=False, all_dependencies=False):
     return False
-  
+
 
 def print_status(entity, kdstream):
   kdstream.print_class_name(entity)
@@ -1236,7 +1249,20 @@ def print_status_many(lst, kdstream):
 
     kdstream.newlines(2)
     print_status(c, kdstream)
-    
+
+
+def get_attr_or_ancestor(self, attr):
+  if hasattr(self, attr):
+    value = getattr(self, attr)
+    if value is not None:
+      return value
+  if hasattr(self, "parent"):
+    parent = getattr(self, "parent")
+    if parent is not None:
+      get_attr_or_ancestor(parent, attr)
+
+
+
 
 @yaml_data
 class ZDev(Entity):
@@ -1255,7 +1281,7 @@ class ZDev(Entity):
   last_trimmed: datetime = None
 
 
-  on_trimmed: list = field(default_factory=list) 
+  on_trimmed: list = field(default_factory=list)
   on_scrubbed: list = field(default_factory=list)
   on_scrub_canceled: list = field(default_factory=list)
   on_trim_canceled: list = field(default_factory=list)
@@ -1268,12 +1294,23 @@ class ZDev(Entity):
     return ["pool", "name"]
 
   def is_scrub_overdue(self):
-    if self.scrub_interval is not None:
+    interval = get_attr_or_ancestor(self, "scrub_interval")
+    if interval is not None:
       cache = cached(self)
       # parsing the schedule delta will result in a timestamp calculated from now
-      allowed_delta = dateparser.parse(self.scrub_interval)
+      allowed_delta = dateparser.parse(interval)
           # this means that allowed_delta is a timestamp in the past
       return cache.last_scrubbed is None or allowed_delta > cache.last_scrubbed
+    return False
+
+  def is_trim_overdue(self):
+    interval = get_attr_or_ancestor(self, "trim_interval")
+    if interval is not None:
+      cache = cached(self)
+      # parsing the schedule delta will result in a timestamp calculated from now
+      allowed_delta = dateparser.parse(interval)
+          # this means that allowed_delta is a timestamp in the past
+      return cache.last_trimmed is None or allowed_delta > cache.last_trimmed
     return False
 
   def print_status(self, kdstream):
@@ -1289,6 +1326,8 @@ class ZDev(Entity):
       kdstream.print_raw(" # OVERDUE")
     if self.scrub_interval:
       kdstream.print_property(self, "scrub_interval")
+    if self.scrub_interval:
+      kdstream.print_property(self, "trim_interval")
     kdstream.newline()
     kdstream.print_property(cache, "last_trimmed")
 
@@ -1301,7 +1340,7 @@ class ZDev(Entity):
     elif since_in(ZFSOperationState.SCRUBBING, cache.operations) and Request.SCRUB not in self.requested:
       self.stop_scrub()
     return super().enact_request()
-    
+
 
   def id(self):
     return make_id(self, pool=self.pool, name=self.dev_name())
@@ -1367,8 +1406,8 @@ class ZDev(Entity):
 
   def handle_appeared(self, prev_state):
     pool_id = f"ZPool|name:{self.pool}"
-    if pool_id in config.config_dict: #pylint: disable=unsupported-membership-test
-      config.config_dict[pool_id].handle_backing_device_appeared() #pylint: disable=unsubscriptable-object
+    if pool_id in config.config_dict:
+      config.config_dict[pool_id].handle_backing_device_appeared()
     onlining = handle_online_request(self)
     run_actions(self, "appeared", "online" if onlining else None)
 
@@ -1394,7 +1433,7 @@ class ZDev(Entity):
     run_actions(self, "scrub_canceled")
 
   def handle_scrub_finished(self):
-    
+
     self.unset_requested(Request.SCRUB)
     run_actions(self, "scrubbed")
 

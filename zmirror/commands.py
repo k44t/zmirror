@@ -20,10 +20,10 @@ def execute_commands():
   # cmds = [x for x in commands if not (x in seen or seen.add(x))]
 
 
-  if config.config_root.disable_commands and len(commands) > 0:
+  if not config.commands_enabled and len(commands) > 0:
     log.warning("command execution currently disabled via config file. will not execute any of the following commands:")
   for cmd in commands:
-    if config.config_root.disable_commands:
+    if not config.commands_enabled:
       log.warning(f"skipping command: {cmd}")
     else:
       log.info(f"executing command: {cmd}")

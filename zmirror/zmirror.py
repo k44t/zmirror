@@ -105,10 +105,10 @@ def main(args=None):
 
   shared_parser.add_argument("--config-path", type=str, help="the path to the config file", default=env_var_or("ZMIRROR_CONFIG_PATH", ZMIRROR_CONFIG_PATH_DEFAULT))
 
-  shared_parser.add_argument("--cache-path", type=str, help="the path to the cache file", default=env_var_or("ZMIRROR_CACHE_PATH", ZMIRROR_CACHE_PATH_DEFAULT))
+  shared_parser.add_argument("--cache-path", type=str, help="the path to the cache file in which zmirror stores device state", default=env_var_or("ZMIRROR_CACHE_PATH", ZMIRROR_CACHE_PATH_DEFAULT))
 
   socket_parser = argparse.ArgumentParser(add_help=False)
-  socket_parser.add_argument("--socket-path", type=str, help="the path to the unix socket (used by zmirror.trigger)", default=env_var_or("ZMIRROR_SOCKET_PATH", ZMIRROR_SOCKET_PATH_DEFAULT))
+  socket_parser.add_argument("--socket-path", type=str, help="the path to the unix socket on which `zmirror daemon` listens, to which zmirror-trigger sends UDEV and ZED events, and to which commands are sent when you invoke `zmirror <command>`.", default=env_var_or("ZMIRROR_SOCKET_PATH", ZMIRROR_SOCKET_PATH_DEFAULT))
 
   # shared_parser.add_argument("runtime-dir", type=str, help="the path to the runtime directory", default= "/var/run/zmirror")
 
@@ -131,28 +131,36 @@ def main(args=None):
     subpsr.set_defaults(func=make_send_simple_daemon_command(command))
 
 
-  subcmd("status-all")
-  subcmd("clear-cache")
-  subcmd("reload-config")
-  subcmd("scrub-all", cancel=True)
-  subcmd("scrub-overdue")
-  subcmd("trim-all", cancel=True)
-  subcmd("online-all", cancel=True)
-  subcmd("maintenance")
+  subcmd("clear-cache", help="clears the cache and removes the cache file. Triggers a configuration reload.")
+  subcmd("reload-config", help="reloads the configuration")
+
+  subcmd("scrub-all", cancel=True, help="requests all configured zdevs to be scrubbed")
+  subcmd("scrub-overdue", help="requests all configured zdevs to be scrubbed if they are behind their configured scrub_interval.")
+  
+  subcmd("trim-all", cancel=True, help="requests all configured zdevs to be trimmed")
+  subcmd("online-all", cancel=True, help="requests all configured devices to be onlined.")
+
+  subcmd("status-all", help="shows the status of all configured devices")
+  subcmd("daemon-version", help="shows the version of the zmirror daemon")
+
+  subcmd("disable-commands", help="disables command execution. This will be reset when the config is reloaded")
+  subcmd("enable-commands", help="enables command execution. This will be reset when the config is reloaded")
+
+  subcmd("maintenance", help="triggers all maintenance tasks (scrub and trim as scheduled). Usually called by a cronjob or a systemd timer. This should be done at night on a day where there is not much load on your machine. This will online all devices that are present and need maintenance. Whether they will be offlined again depends on the zmirror configuration.")
 
 
   # scrub_parser = subs.add_parser('scrub-overdue', parents=[], help='scrub devices that have not been scrubbed for too long')
   # scrub_parser.set_defaults(func=scrub)
 
-  online_parser = subs.add_parser('online', parents=[socket_parser], help='online devices')
-  offline_parser = subs.add_parser('offline', parents=[socket_parser], help='offline devices')
-  status_parser = subs.add_parser('status', parents=[socket_parser], help='device status')
+  online_parser = subs.add_parser('online', parents=[socket_parser], help='request device to go online')
+  offline_parser = subs.add_parser('offline', parents=[socket_parser], help='request device to go offline')
+  status_parser = subs.add_parser('status', parents=[socket_parser], help='show device status')
 
   online_subs = online_parser.add_subparsers(required=True)
   offline_subs = offline_parser.add_subparsers(required=True)
   status_subs = status_parser.add_subparsers(required=True)
 
-  scrub_parser = subs.add_parser("scrub", parents=[socket_parser, cancel_parser])
+  scrub_parser = subs.add_parser("scrub", parents=[socket_parser, cancel_parser], help="request device to be scrubbed")
   scrub_subs = scrub_parser.add_subparsers(required=True)
 
 
@@ -160,7 +168,7 @@ def main(args=None):
     command_name = command_name_for_type[typ]
 
     common_parser = argparse.ArgumentParser(add_help=False)
-    for fld in typ.id_fields(): 
+    for fld in typ.id_fields():
       common_parser.add_argument(f"--{fld}", type=str, required=True)
     
     online = online_subs.add_parser(command_name, parents=[common_parser, cancel_parser])

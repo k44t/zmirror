@@ -32,18 +32,27 @@ def log_func_end():
 
 def __init__():
 
+  handlers=[
+        # logging.FileHandler(logfile_path + datetime.now().strftime("%d-%m-%Y_%H:%M:%S.%f") ),  # File handler
+        logging.StreamHandler(sys.stdout)   # Stream handler for stdout
+    ]
+  
+  # Add systemd journal handler if available
+  if USE_JOURNAL:
+    journal_handler = JournalHandler()
+    handlers.append(journal_handler)
 
   # Configure the root logger
   logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s %(name)s.%(levelname)s: %(message)s',
-    handlers=[
-        # logging.FileHandler(logfile_path + datetime.now().strftime("%d-%m-%Y_%H:%M:%S.%f") ),  # File handler
-        logging.StreamHandler(sys.stdout)   # Stream handler for stdout
-    ]
+    format='%(asctime)s %(name)s.%(levelname)-7s: %(message)s',
+    handlers=handlers
   )
 
   logger = logging.getLogger("zmirror")
+  
+  if not USE_JOURNAL:
+    logger.warning("systemd log not available")
 
   logger.original_error = logger.error
   logger.original_info = logger.info
@@ -111,15 +120,6 @@ def __init__():
   logger.warning = customized_warning
   logger.critical = customized_critical
 
-  # Add systemd journal handler if available
-  if USE_JOURNAL:
-    journal_handler = JournalHandler()
-    journal_handler.setLevel(logging.INFO)
-    logging.getLogger().addHandler(journal_handler)
-  else:
-    # os.makedirs(os.path.dirname(LOGFILE_PATH), exist_ok = True)
-    # logging.getLogger().addHandler(logging.handlers.RotatingFileHandler(LOGFILE_PATH, maxBytes=65535))
-    logger.warning("systemd log not available")
   return logger
 
 

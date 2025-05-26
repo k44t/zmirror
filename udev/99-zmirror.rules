@@ -1,1 +1,3 @@
 SUBSYSTEM=="block", RUN+="/usr/local/bin/zmirror-trigger"
+
+ENV{DEVTYPE}=="disk", ENV{ID_PART_TABLE_UUID}=="?*", SYMLINK+="disk/by-uuid/$env{ID_PART_TABLE_UUID}

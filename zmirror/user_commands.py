@@ -2,6 +2,7 @@
 import socket
 import dateparser
 
+from zmirror.defaults import VERSION
 from zmirror.entities import *
 
 from .logging import log
@@ -159,9 +160,13 @@ def handle_trim_all_command():
 
 def clear_requests():
   def do(entity):
+    cache = cached(entity)
     for rqst in entity.requested.copy():
-      if rqst in [Request.TRIM, Request.SCRUB]:
-        if entity.operation.what in [ZFSOperationState.NONE, ZFSOperationState.UNKNOWN]:
+      if rqst == Request.TRIM:
+        if not since_in(ZFSOperationState.TRIMMING, cache.operations):
+          entity.requested.remove(rqst)
+      elif rqst == Request.SCRUB:
+        if not since_in(ZFSOperationState.SCRUBBING, cache.operations):
           entity.requested.remove(rqst)
       else:
         entity.requested.remove(rqst)
@@ -170,21 +175,19 @@ def clear_requests():
   iterate_content_tree(config.config_root, do)
 
 
-def handle_scrub_overdue_command():
+def handle_do_overdue_command(rqst):
+  lower = rqst.name.lower()
   def do(entity):
     if isinstance(entity, ZDev):
       cache = cached(entity)
-      if entity.scrub_interval is not None:
-        if cache.is_scrub_overdue():
-          if Request.SCRUB not in entity.requested:
-            log.info(f"{entity_id_string(entity)}: requesting scrub")
-            entity.request(Request.SCRUB)
-          else:
-            log.debug(f"{entity_id_string(entity)}: scrub already requested")
+      if getattr(cache, f"is_{lower}_overdue")():
+        if rqst not in entity.requested:
+          log.info(f"{entity_id_string(entity)}: requesting {lower}")
+          entity.request(rqst)
         else:
-          log.info(f"{entity_id_string(entity)}: scrub not yet overdue, skipping")
+          log.debug(f"{entity_id_string(entity)}: {lower} already requested")
       else:
-        log.info(f"{entity_id_string(entity)}: no scrub interval configured, skipping")
+        log.info(f"{entity_id_string(entity)}: {lower} not yet overdue, skipping")
   iterate_content_tree(config.config_root, do)
 
 
@@ -197,9 +200,22 @@ def handle_online_all_command(command):
 
 
 def handle_maintenance_command():
-  handle_scrub_overdue_command()
+  handle_do_overdue_command(Request.TRIM)
+  handle_do_overdue_command(Request.SCRUB)
 
 
+def handle_enable_commands_command(enable):
+  config.commands_enabled = enable
+  if enable:
+    log.info("command execution enabled")
+  else:
+    log.info("command execution disabled")
+
+
+
+def handle_daemon_version_command(out):
+  out.write(VERSION)
+  out.write("\n")
 
 def handle_command(command, con):
   try:
@@ -218,13 +234,21 @@ def handle_command(command, con):
     elif name == "scrub-all":
       handle_scrub_all_command()
     elif name == "scrub-overdue":
-      handle_scrub_overdue_command()
+      handle_do_overdue_command(Request.SCRUB)
+    elif name == "trim-overdue":
+      handle_do_overdue_command(Request.TRIM)
     elif name == "trim-all":
       handle_trim_all_command()
     elif name == "online-all":
       handle_online_all_command(command)
     elif name == "maintenance":
       handle_maintenance_command()
+    elif name == "enable-commands":
+      handle_enable_commands_command(True)
+    elif name == "disable-commands":
+      handle_enable_commands_command(False)
+    elif name == "daemon-version":
+      handle_daemon_version_command(stream)
     else:
       handle_request_command(command)
   except Exception as ex:
