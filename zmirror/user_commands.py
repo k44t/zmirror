@@ -180,6 +180,7 @@ def handle_do_overdue_command(rqst):
   def do(entity):
     if isinstance(entity, ZDev):
       cache = cached(entity)
+      
       if getattr(cache, f"is_{lower}_overdue")():
         if rqst not in entity.requested:
           log.info(f"{entity_id_string(entity)}: requesting {lower}")
@@ -187,7 +188,9 @@ def handle_do_overdue_command(rqst):
         else:
           log.debug(f"{entity_id_string(entity)}: {lower} already requested")
       else:
-        log.info(f"{entity_id_string(entity)}: {lower} not yet overdue, skipping")
+        # TODO: fix the bug that results in zmirror believing that the scrub is not yet overdue
+        # while believing that the trim is overdue.
+        log.info(f"{entity_id_string(entity)}: {lower} not yet overdue, skipping.")
   iterate_content_tree(config.config_root, do)
 
 

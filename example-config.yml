@@ -79,7 +79,7 @@ content:
             
             # zmirror should not automatically open the DMCrypt
             # to online the device (only when zmirror-sysfs-s needs 
-            # scrubbing will zmirror try ot online all of its dependencies)
+            # scrubbing will zmirror try to online all of its dependencies)
             online_dependencies: no
 
           - name: zvol/zmirror-bak-a/sysfs
@@ -156,7 +156,8 @@ content:
           # are to be used within a zmirror configuration) .
           #
           # This means, when you connect unknown devices, you should disable zmirror-daemon
-          # while playing around with them.
+          # while playing around with them for it might mess with zmirror's 
+          # status cache or even trigger zmirror executing unwanted commands.
           - !ZDev
             # name for the zfs pool
             pool: zmirror-sysfs

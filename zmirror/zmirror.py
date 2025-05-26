@@ -138,6 +138,8 @@ def main(args=None):
   subcmd("scrub-overdue", help="requests all configured zdevs to be scrubbed if they are behind their configured scrub_interval.")
   
   subcmd("trim-all", cancel=True, help="requests all configured zdevs to be trimmed")
+  subcmd("trim-overdue", help="requests all configured zdevs to be trimmed if they are behind their configured trim_interval.")
+
   subcmd("online-all", cancel=True, help="requests all configured devices to be onlined.")
 
   subcmd("status-all", help="shows the status of all configured devices")
