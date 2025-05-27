@@ -23,8 +23,14 @@ from kpyutils.kiify import yaml_data, yaml_enum, KiEnum, KdStream, yes_no_absent
 from .logging import log
 from . import commands as commands
 from . import config as config
+from .config import iterate_content_tree3_depth_first
 
 
+
+
+def do_enact_request(entity, *args, **kwargs):
+  if isinstance(entity, Entity):
+    entity.enact_request()
 
 class When:
   what: object
@@ -324,44 +330,44 @@ class Entity:
 
     for request in self.requested.copy():
       if state_corresponds_to_request(state, self.request):
-        log.warning(f"{entity_id_string(self)}: request ({self.requested}) already fulfilled by state ({state}).")
+        log.warning(f"{entity_id_string(self)}: request ({request.name} already fulfilled by state ({state}).")
         self.unset_requested(request)
       elif request == Request.ONLINE and state == EntityState.INACTIVE:
         self.unset_requested(Request.ONLINE)
         if hasattr(self, "take_online"):
-          log.info(f"{entity_id_string(self)}: fullfilling request ({self.requested})")
+          log.info(f"{entity_id_string(self)}: fullfilling request ({request.name})")
           self.take_online()
         else:
-          log.error(f"{entity_id_string(self)}: requested {self.requested}, but no take_online method. This is a bug in zmirror")
+          log.error(f"{entity_id_string(self)}: requested {request.name}, but no take_online method. This is a bug in zmirror")
       elif request == Request.OFFLINE and state == EntityState.ONLINE:
         self.unset_requested(Request.OFFLINE)
         if hasattr(self, "take_offline"):
-          log.info(f"{entity_id_string(self)}: fullfilling request ({self.requested})")
+          log.info(f"{entity_id_string(self)}: fullfilling request ({request.name})")
           self.take_offline()
         else:
-          log.error(f"{entity_id_string(self)}: requested {self.requested}, but no take_offline method. This is a bug in zmirror")
+          log.error(f"{entity_id_string(self)}: requested {request.name}, but no take_offline method. This is a bug in zmirror")
       elif request == Request.SCRUB:
         if hasattr(self, "start_scrub"):
           if state == EntityState.ONLINE and not since_in(ZFSOperationState.RESILVER, cache.operations):
-            log.info(f"{entity_id_string(self)}: fullfilling request ({self.requested})")
+            log.info(f"{entity_id_string(self)}: fullfilling request ({request.name})")
             self.start_scrub()
           else:
-            log.debug(f"{entity_id_string(self)}: currently cannot fulfill request ({self.requested}) because of state ({state})")
+            log.debug(f"{entity_id_string(self)}: currently cannot fulfill request {request.name} because of state ({state}.")
         else:
-          log.error(f"{entity_id_string(self)}: requested {self.requested}, entity cannot be scrubbed.")
+          log.error(f"{entity_id_string(self)}: requested {request.name}, entity cannot be scrubbed.")
           self.unset_requested(Request.SCRUB)
       elif request == Request.TRIM:
         if hasattr(self, "start_trim"):
           if state == EntityState.ONLINE:
-            log.info(f"{entity_id_string(self)}: fullfilling request ({self.requested})")
+            log.info(f"{entity_id_string(self)}: fullfilling request ({request.name})")
             self.start_trim()
           else:
-            log.debug(f"{entity_id_string(self)}: currently cannot fulfill request ({self.requested}) because of state ({state})")
+            log.debug(f"{entity_id_string(self)}: currently cannot fulfill request ({request.name}) because of state ({state})")
         else:
-          log.error(f"{entity_id_string(self)}: requested {self.requested}, entity cannot be trimmed.")
+          log.error(f"{entity_id_string(self)}: requested {request.name}, entity cannot be trimmed.")
           self.unset_requested(Request.TRIM)
       else:
-          log.debug(f"{entity_id_string(self)}: currently cannot fulfill request ({self.requested}) because of state ({state})")
+          log.debug(f"{entity_id_string(self)}: currently cannot fulfill request ({request.name}) because of state ({state})")
 
 
 
@@ -380,8 +386,8 @@ class Entity:
       # yes origin is intended to not be == self here
       if request in self.requested:
         self.unset_requested(request)
-        log.info(f"request {request} unrequested only for {entity_id_string(self)}")
-        request_dependencies(self, origin, request, True, all_dependencies, self.get_dependencies(request))
+        log.info(f"{entity_id_string(self)}: request {request} unrequested")
+        # request_dependencies(self, origin, request, True, all_dependencies, self.get_dependencies(request))
         return True
       else:
         log.info(f"request {request} has not been requested and cannot be canceled")
@@ -397,9 +403,6 @@ class Entity:
             self.unset_requested(Request.TRIM)
           return True
         else:
-          # yes origin is intended to not be == self here
-          request_dependencies(self, origin, request, True, all_dependencies, deps)
-          log.error(f"failed to request {request} for {entity_id_string(self)}")
           return False
       else:
         return False
@@ -407,13 +410,14 @@ class Entity:
 
 
 def request_dependencies(self, origin, request, unrequest, all_dependencies, deps):
-  success = True
-  for dep in deps:
+  for i, dep in enumerate(deps):
     if not dep == origin:
       if hasattr(dep, "request"):
         if not dep.request(request, self, unrequest, all_dependencies):
-          success = False
-  return success
+          for udep in deps[:i]:
+            udep.request(request, self, True, all_dependencies)
+          return False
+  return True
 
 
 
@@ -510,16 +514,16 @@ class Children(Entity):
   def handle_deactivated(self, prev_state):
     super().handle_deactivated(prev_state)
     for c in self.content:
-      if isinstance(c, ZDev):
-        c.handle_parent_offlined()
+      if hasattr(c, "handle_parent_offline"):
+        c.handle_parent_offline()
 
 
 
   def handle_disconnected(self, prev_state):
-    super().handle_deactivated(prev_state)
+    super().handle_disconnected(prev_state)
     for c in self.content:
-      if isinstance(c, ZDev):
-        handle_disconnected(c)
+      if hasattr(c, "handle_parent_offline"):
+        c.handle_parent_offline()
 
 
 
@@ -588,7 +592,7 @@ def possibly_force_enable_trim(self):
       log.warning(f"{entity_id_string(self)}: failed to force enable trim, device (or provisioning_mode flag) not found.")
     else:
       state = read_file(path)
-      if state != "unmap":
+      if state.strip() != "unmap":
         log.warning(f"{entity_id_string(self)}: force enabling trim")
         commands.add_command(f"echo unmap > {path}")
       else:
@@ -618,7 +622,7 @@ class Disk(Children):
     if (request == Request.ONLINE and online) or (request == Request.OFFLINE and not online):
       return True
     else:
-      log.error(f"request {request} failed changing state ({request.opposite()}) of {entity_id_string(self)} is impossible. You need to manually bring the disk online.")
+      log.error(f"{entity_id_string(self)}: request {request} cannot be fulfilled. You need to do this manually.")
       return False
 
   # this requires a udev rule to be installed which ensures that the disk appears under its GPT partition table UUID under /dev/disk/by-uuid
@@ -669,7 +673,7 @@ class Partition(Children):
     if request == Request.ONLINE:
       if isinstance(self.parent, ZMirror):
         if not is_present_or_online(self):
-          log.error(f"request ONLINE failed because {entity_id_string(self)} is not present and has no parent configured (which could be onlined).")
+          log.error(f"{entity_id_string(self)}: request ONLINE cannot be fulfilled. You need to do this manually.")
           return False
       return True
     else:
@@ -1065,8 +1069,21 @@ class ZFSVolume(Children):
       return f"/dev/zvol/{self.pool}/{self.name}"
 
 
+# an entity that is embedded inside another and thus must be notified by its parent (zdevs and dmcrypts)
+class Embedded: 
+
+  def handle_parent_offline(self):
+    state = cached(self).state.what
+    if state == EntityState.ONLINE:
+      log.info(f"{entity_id_string(self)}: parent OFFLINE, requesting OFFLINE.")
+      self.request(Request.OFFLINE)
+      iterate_content_tree3_depth_first(self, do_enact_request, parent=None, strt=None)
+    elif state == EntityState.INACTIVE:
+      handle_disconnected(self)
+
+
 @yaml_data
-class DMCrypt(Children):
+class DMCrypt(Children, Embedded):
   name: str = None
   key_file: str = None
 
@@ -1075,6 +1092,8 @@ class DMCrypt(Children):
     return ["name"]
 
   on_appeared: list = field(default_factory=list)
+
+
 
   def id(self):
     return make_id(self, name=self.name)
@@ -1102,7 +1121,6 @@ class DMCrypt(Children):
         if self.parent.state.what in [EntityState.INACTIVE, EntityState.ONLINE]:
           state = EntityState.INACTIVE
       return state
-
 
 
   def handle_children_offline(self):
@@ -1279,7 +1297,7 @@ def get_attr_or_ancestor(self, attr):
 
 
 @yaml_data
-class ZDev(Entity):
+class ZDev(Entity, Embedded):
   pool: str = None
   name: str = None
 
@@ -1310,8 +1328,15 @@ class ZDev(Entity):
   def id_fields(cls):
     return ["pool", "name"]
   
+  def configured_interval(self, op: ZFSOperationState):
+    return getattr(self, f"{op.name.lower()}_interval")
+  
+  def last(self, op: ZFSOperationState):
+    cache = cached(self)
+    return getattr(cache, f"last_{op.name.lower()}")
+
   def effective_interval(self, op: ZFSOperationState):
-    return getattr(self, f"{op.name.lower()}_interval") or getattr(config.config_root, f"{op.name.lower()}_interval")
+    return self.configured_interval(op) or getattr(config.config_root, f"{op.name.lower()}_interval")
   
   def is_overdue(self, op: ZFSOperationState):
     interval = self.effective_interval(op)
@@ -1438,9 +1463,6 @@ class ZDev(Entity):
       scrubbing = True
     run_actions(self, "resilvered", "scrub" if scrubbing else None)
 
-  def handle_parent_offlined(self):
-    log.info(f"{entity_id_string(self)}: parent OFFLINE, taking OFFLINE.")
-    self.take_offline()
 
   def handle_scrub_canceled(self):
     run_actions(self, "scrub_canceled")

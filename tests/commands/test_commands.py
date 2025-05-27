@@ -260,6 +260,58 @@ class Tests():
     ])
 
 
+  # the user unplugs the disk
+  def test_disk_sysfs_s_offline(self):
+
+    disk = config.cache_dict["Disk|uuid:00000000-0000-0000-0000-000000000004"]
+    partition = config.cache_dict["Partition|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-s"]
+    zdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+    assert disk.state.what == EntityState.ONLINE
+    assert partition.state.what == EntityState.ONLINE
+    assert crypt.state.what == EntityState.ONLINE
+    assert zdev.state.what == EntityState.ONLINE
+
+    trigger_event()
+
+
+    assert disk.state.what == EntityState.DISCONNECTED
+
+    # we rely on udev to to tell us that the partition disappears, so no internal state change has happened yet
+    assert partition.state.what == EntityState.ONLINE
+    assert crypt.state.what == EntityState.ONLINE
+    assert zdev.state.what == EntityState.ONLINE
+
+    assert_commands([
+
+    ])
+
+
+  # udev tells us that the partition disappeared
+  def test_partition_sysfs_s_offline(self):
+
+    disk = config.cache_dict["Disk|uuid:00000000-0000-0000-0000-000000000004"]
+    partition = config.cache_dict["Partition|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-s"]
+    zdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+    trigger_event()
+
+
+    assert disk.state.what == EntityState.DISCONNECTED
+    assert partition.state.what == EntityState.DISCONNECTED
+    assert crypt.state.what == EntityState.ONLINE
+    assert zdev.state.what == EntityState.ONLINE
+
+    assert_commands([
+      # zmirror needs to take the zdev offline
+      'zpool offline zmirror-sysfs zmirror-sysfs-s',
+      # and close the dmcrypt
+      'cryptsetup close zmirror-sysfs-s'
+      # IN THIS ORDER!
+    ])
+
 
 
   # ###################
@@ -578,7 +630,8 @@ class Tests():
     assert volume.state.what == EntityState.INACTIVE
 
     assert_commands([
-      'zpool offline zmirror-sysfs zvol/zmirror-bak-a/sysfs'
+      # we don't need to take the zvol offline as it is already offline
+      ## 'zpool offline zmirror-sysfs zvol/zmirror-bak-a/sysfs'
     ])
 
 
@@ -616,13 +669,17 @@ class Tests():
     big_volume = config.cache_dict["ZFSVolume|pool:zmirror-bak-a|name:big"]
 
     trigger_event()
-    
 
-    assert big_blockdev.state.what == EntityState.DISCONNECTED
+
     assert big_volume.state.what == EntityState.INACTIVE
+    assert big_blockdev.state.what == EntityState.DISCONNECTED
     # assert zz.state.what == EntityState.DISCONNECTED
 
     assert_commands([
+      # we don't need to take the zvol offline as it is already offline
+      ## 'zpool offline zmirror-big zvol/zmirror-bak-a/big'
+
+
       # now both sysfs and big are offline, therefore we can offline the whole bak pool
       "zpool export zmirror-bak-a"
     ])

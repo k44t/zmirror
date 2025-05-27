@@ -21,10 +21,6 @@ import traceback
 
 
 
-def do_enact_request(entity):
-  if isinstance(entity, Entity):
-    entity.enact_request()
-
 
 def request(rqst, typ, all_dependencies=False, **identifiers):
   tid = make_id_string(make_id(typ, **identifiers))
@@ -175,21 +171,26 @@ def clear_requests():
   iterate_content_tree(config.config_root, do)
 
 
-def handle_do_overdue_command(rqst):
+def handle_do_overdue_command(op: ZFSOperationState):
   
+  rqst: Request = request_for_zfs_operation[op]
   def do(entity):
     if isinstance(entity, ZDev):
-      op = zfs_operation_for_request(rqst)
+      msg = f"{entity_id_string(entity)}: last {rqst.name} was {entity.last(op) or "NEVER"} (interval: {entity.effective_interval(op)})."
       if entity.is_overdue(op):
+        msg += " OVERDUE."
         if rqst not in entity.requested:
-          log.info(f"{entity_id_string(entity)}: requesting {rqst.name}")
-          entity.request(rqst)
+          msg += f" Requesting {rqst.name}"
+          log.info(msg)
+          if not entity.request(rqst):
+            log.error(f"{entity_id_string(entity)}: request {rqst.name} failed.")
         else:
-          log.debug(f"{entity_id_string(entity)}: {rqst.name} already requested")
+          msg += f" {rqst.name} already requested."
+          log.info(msg)
       else:
         # TODO: fix the bug that results in zmirror believing that the scrub is not yet overdue
         # while believing that the trim is overdue.
-        log.info(f"{entity_id_string(entity)}: {rqst.name} not yet overdue, skipping.")
+        log.info(f"{msg} Not overdue.")
   iterate_content_tree(config.config_root, do)
 
 
@@ -202,9 +203,9 @@ def handle_online_all_command(command):
 
 
 def handle_maintenance_command():
-  handle_do_overdue_command(Request.ONLINE)
-  handle_do_overdue_command(Request.TRIM)
-  handle_do_overdue_command(Request.SCRUB)
+  handle_do_overdue_command(ZFSOperationState.RESILVER)
+  handle_do_overdue_command(ZFSOperationState.TRIM)
+  handle_do_overdue_command(ZFSOperationState.SCRUB)
 
 
 def handle_enable_commands_command(enable):
@@ -241,9 +242,11 @@ def handle_command(command, con):
     elif name == "scrub-all":
       handle_scrub_all_command()
     elif name == "scrub-overdue":
-      handle_do_overdue_command(Request.SCRUB)
+      handle_do_overdue_command(ZFSOperationState.SCRUB)
     elif name == "trim-overdue":
-      handle_do_overdue_command(Request.TRIM)
+      handle_do_overdue_command(ZFSOperationState.TRIM)
+    elif name == "resilver-overdue":
+      handle_do_overdue_command(ZFSOperationState.RESILVER)
     elif name == "trim-all":
       handle_trim_all_command()
     elif name == "online-all":

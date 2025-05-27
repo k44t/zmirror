@@ -7,8 +7,11 @@ import os
 import threading
 import json
 import traceback
+import stat
 from enum import Enum
 from threading import Timer
+import signal
+import sys
 
 from zmirror.user_commands import clear_requests, handle_command
 
@@ -344,7 +347,20 @@ def handle_events(event_queue):
     # print("event loop has run")
     
   
-
+def is_socket_active(socket_path):
+  if not os.path.exists(socket_path):
+      return False
+  client_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+  try:
+    client_sock.connect(socket_path)
+    return True
+  except socket.error:
+    return False
+  finally:
+    try:
+      client_sock.close()
+    except:
+      pass
 
 # starts a daemon, or rather a service, or maybe it should be called simply a server,
 # a listening loop that listens to whatever is being sent on a
@@ -364,26 +380,47 @@ def handle_events(event_queue):
 # so this is just a description for the next milestone
 def daemon(args):# pylint: disable=unused-argument
 
+  log.info("zmirror daemon starting")
+
   config.is_daemon = True
 
 
   socket_path = args.socket_path
   # Define the path for the Unix socket
 
-  # Make sure the socket does not already exist
-  try:
-    os.unlink(socket_path)
-  except OSError:
-    if os.path.exists(socket_path):
-      raise
-
   # Create a UDS (Unix Domain Socket)
   server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
-  os.makedirs(os.path.dirname(socket_path), exist_ok=True)
+  socket_dir = os.path.dirname(socket_path)
 
   # Bind the socket to the path
-  server.bind(socket_path)
+  try:
+    os.makedirs(socket_dir, exist_ok=True)
+  except Exception as ex:
+    log.error(f"could not create parent directory for socket path: {socket_path}: {ex}")
+    return
+  try:
+    log.debug(f"setting permissions 700 on {socket_dir}")
+    os.chmod(socket_dir, stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+  except Exception as ex:
+    log.error(f"could not set permissions on {socket_dir}: {ex}")
+    return
+  if is_socket_active(socket_path):
+    log.error(f"socket already in use: {socket_path}")
+    return
+  else:
+    os.unlink(socket_path)
+  try:
+    server.bind(socket_path)
+  except Exception as ex:
+    log.error(f"could not bind unix socket: {socket_path}: {ex}")
+    return
+  try:
+    log.debug(f"setting permissions 400 on {socket_path}")
+    os.chmod(socket_path, stat.S_IRUSR | stat.S_IWUSR)
+  except Exception as ex:
+    log.debug(f"failed to set permissions on {socket_path}")
+
 
   # Listen for incoming connections
   server.listen()
@@ -404,26 +441,31 @@ def daemon(args):# pylint: disable=unused-argument
   # we load the config after we have started the server, so that we cannot miss any events that might change the config while it is being loaded
   init_config(cache_path=args.cache_path, config_path=args.config_path)
 
+  running = True
+
+  def shutdown(*args):
+    nonlocal running
+    running = False
+    log.info("shutting down...")
+    event_queue.put(None)
+    handle_event_thread.join()
+    server.close()
+    log.info("zmirror daemon shut down gracefully")
+    sys.exit(0)
+
+
+  signal.signal(signal.SIGTERM, shutdown)
+  signal.signal(signal.SIGINT, shutdown)
+
   try:
-    while True:
+    while running:
       # Wait for a connection
       connection, client_address = server.accept()
       # Start a new thread for the connection
       client_thread = threading.Thread(target=handle_client, args=(connection, client_address, event_queue))
       client_thread.start()
-  except KeyboardInterrupt:
-    log.info("shutting down...")
   except Exception as exception:
     log.error(str(exception))
   finally:
-    try:
-      event_queue.put(None)
-      handle_event_thread.join()
-    except Exception:
-      log.debug("failed to exit handle thread")
-    try:
-      server.close()
-      log.info("Server shut down gracefully")
-    except Exception:
-      log.info("Server shut down")
-    os.unlink(socket_path)
+    if running:
+      shutdown()

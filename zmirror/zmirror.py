@@ -136,9 +136,12 @@ def main(args=None):
 
   subcmd("scrub-all", cancel=True, help="requests all configured zdevs to be scrubbed")
   subcmd("scrub-overdue", help="requests all configured zdevs to be scrubbed if they are behind their configured scrub_interval.")
-  
+
+  subcmd("resilver-overdue", help="requests all configured zdevs to be resilvered if they are behind their configured resilver_interval. Since a resilver happens whenever a mirrored device is brought online, this really does nothing but (try to) online the devices.")
+
   subcmd("trim-all", cancel=True, help="requests all configured zdevs to be trimmed")
   subcmd("trim-overdue", help="requests all configured zdevs to be trimmed if they are behind their configured trim_interval.")
+
 
   subcmd("online-all", cancel=True, help="requests all configured devices to be onlined.")
 

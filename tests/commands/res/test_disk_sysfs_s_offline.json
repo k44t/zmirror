@@ -1,0 +1,6 @@
+{
+  "DEVTYPE": "disk",
+  "ACTION": "remove",
+  "ID_PART_TABLE_UUID": "00000000-0000-0000-0000-000000000004",
+  "DEVNAME": "/dev/sdc"
+}

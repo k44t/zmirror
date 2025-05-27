@@ -16,6 +16,7 @@ commands_enabled = False
 last_request_at = datetime.now()
 log_level = logging.INFO
 
+
 is_daemon = False
 
 
@@ -47,5 +48,52 @@ def get_zpool_status(pool):
 def load_config_for_id(arg):
   raise NotImplementedError()
 
+
 def find_config(typ, **args):
   raise NotImplementedError()
+
+
+
+
+
+def iterate_content_tree3(o, fn, parent, strt):
+  result = fn(o, parent, strt)
+  if hasattr(o, "content"):
+    lst = getattr(o, "content")
+    if isinstance(lst, list):
+      for e in lst:
+        result = iterate_content_tree3(e, fn, o, result)
+  return result
+
+def iterate_content_tree3_depth_first(o, fn, parent, strt):
+  result = strt
+  if hasattr(o, "content"):
+    lst = getattr(o, "content")
+    if isinstance(lst, list):
+      for e in lst:
+        result = iterate_content_tree3_depth_first(e, fn, o, result)
+  result = fn(o, parent, result)
+  return result
+
+
+def iterate_content_tree2(o, fn, strt):
+  result = fn(o, strt)
+  if hasattr(o, "content"):
+    lst = getattr(o, "content")
+    if isinstance(lst, list):
+      for e in lst:
+        result = iterate_content_tree2(e, fn, result)
+  return result
+
+def iterate_content_tree(o, fn):
+  result = []
+  fresult = fn(o)
+  if fresult is not None:
+    result.append(o)
+  if hasattr(o, "content"):
+    lst = getattr(o, "content")
+    if isinstance(lst, list):
+      for e in lst:
+        rlst = iterate_content_tree(e, fn)
+        result = result + rlst
+  return result

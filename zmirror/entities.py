@@ -12,6 +12,7 @@ from kpyutils.kiify import is_yes
 
 
 from . import config
+from .config import iterate_content_tree, iterate_content_tree2, iterate_content_tree3, iterate_content_tree3_depth_first
 from . import util
 
 
@@ -132,49 +133,6 @@ def find_config(typ, **identifier):
   return load_config_for_id(make_id_string(make_id(typ, **identifier)))
 
 
-
-
-def iterate_content_tree3(o, fn, parent, strt):
-  result = fn(o, parent, strt)
-  if hasattr(o, "content"):
-    lst = getattr(o, "content")
-    if isinstance(lst, list):
-      for e in lst:
-        result = iterate_content_tree3(e, fn, o, result)
-  return result
-
-def iterate_content_tree3_depth_first(o, fn, parent, strt):
-  result = strt
-  if hasattr(o, "content"):
-    lst = getattr(o, "content")
-    if isinstance(lst, list):
-      for e in lst:
-        result = iterate_content_tree3_depth_first(e, fn, o, result)
-  result = fn(o, parent, result)
-  return result
-
-
-def iterate_content_tree2(o, fn, strt):
-  result = fn(o, strt)
-  if hasattr(o, "content"):
-    lst = getattr(o, "content")
-    if isinstance(lst, list):
-      for e in lst:
-        result = iterate_content_tree2(e, fn, result)
-  return result
-
-def iterate_content_tree(o, fn):
-  result = []
-  fresult = fn(o)
-  if fresult is not None:
-    result.append(o)
-  if hasattr(o, "content"):
-    lst = getattr(o, "content")
-    if isinstance(lst, list):
-      for e in lst:
-        rlst = iterate_content_tree(e, fn)
-        result = result + rlst
-  return result
 
 def find_or_create_cache(typ, create_args=None, identifier_prefix=None, **kwargs):
   return util.find_or_create_cache(config.cache_dict, typ, create_args, identifier_prefix, **kwargs)
