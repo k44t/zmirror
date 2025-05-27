@@ -602,6 +602,8 @@ def possibly_force_enable_trim(self):
 @yaml_data
 class Disk(Children):
 
+  # TODO: give disk a human readable name
+
   uuid: str = None
 
   # TODO: implement me

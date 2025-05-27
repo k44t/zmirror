@@ -69,7 +69,7 @@ in with lib; with types; {
       services = {
         "zmirror" = {
           script = "zmirror daemon ${optionalString (cfg.config-path != null) "--config-path '${cfg.config-path}'"} >> /dev/null";
-          path = with pkgs; [zfs zmirror];
+          path = with pkgs; [zfs zmirror cryptsetup];
           wantedBy = ["local-fs.target"];
           reloadTriggers = [
 

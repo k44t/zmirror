@@ -27,8 +27,9 @@ def execute_commands():
       log.warning(f"skipping command: {cmd}")
     else:
       log.info(f"executing command: {cmd}")
-      returncode, _, _, _ = exec(cmd) #pylint: disable=exec-used
+      returncode, _, _, errors = exec(cmd) #pylint: disable=exec-used
       if returncode != 0:
-        log.warning(f"command failed: {cmd}")
+        log.warning(f"command failed: {cmd}\n\t" + "\n\t".join(errors))
+
 
   commands = []
