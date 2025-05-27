@@ -578,7 +578,7 @@ class Tests():
     assert volume.state.what == EntityState.INACTIVE
 
     assert_commands([
-      # we do nothing
+      'zpool offline zmirror-sysfs zvol/zmirror-bak-a/sysfs'
     ])
 
 
@@ -837,12 +837,12 @@ class Tests():
 
     blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
     assert blockdev.state.what == EntityState.ONLINE
-    assert since_in(ZFSOperationState.RESILVERING, blockdev.operations)
+    assert since_in(ZFSOperationState.RESILVER, blockdev.operations)
 
     trigger_event()
 
     assert blockdev.state.what == EntityState.ONLINE
-    assert not since_in(ZFSOperationState.RESILVERING, blockdev.operations)
+    assert not since_in(ZFSOperationState.RESILVER, blockdev.operations)
 
     assert_commands([
       

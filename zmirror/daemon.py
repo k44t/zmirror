@@ -161,7 +161,7 @@ def handle(env):
               handle_resilver_started(cache)
           else:
             if "resilvering" not in (match.group("operations") or ""):
-              if since_in(ZFSOperationState.RESILVERING, cache.operations):
+              if since_in(ZFSOperationState.RESILVER, cache.operations):
                 handle_resilver_finished(cache)
           
       event_handled = True

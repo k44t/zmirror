@@ -163,10 +163,10 @@ def clear_requests():
     cache = cached(entity)
     for rqst in entity.requested.copy():
       if rqst == Request.TRIM:
-        if not since_in(ZFSOperationState.TRIMMING, cache.operations):
+        if not since_in(ZFSOperationState.TRIM, cache.operations):
           entity.requested.remove(rqst)
       elif rqst == Request.SCRUB:
-        if not since_in(ZFSOperationState.SCRUBBING, cache.operations):
+        if not since_in(ZFSOperationState.SCRUB, cache.operations):
           entity.requested.remove(rqst)
       else:
         entity.requested.remove(rqst)
@@ -176,21 +176,20 @@ def clear_requests():
 
 
 def handle_do_overdue_command(rqst):
-  lower = rqst.name.lower()
+  
   def do(entity):
     if isinstance(entity, ZDev):
-      cache = cached(entity)
-      
-      if getattr(cache, f"is_{lower}_overdue")():
+      op = zfs_operation_for_request(rqst)
+      if entity.is_overdue(op):
         if rqst not in entity.requested:
-          log.info(f"{entity_id_string(entity)}: requesting {lower}")
+          log.info(f"{entity_id_string(entity)}: requesting {rqst.name}")
           entity.request(rqst)
         else:
-          log.debug(f"{entity_id_string(entity)}: {lower} already requested")
+          log.debug(f"{entity_id_string(entity)}: {rqst.name} already requested")
       else:
         # TODO: fix the bug that results in zmirror believing that the scrub is not yet overdue
         # while believing that the trim is overdue.
-        log.info(f"{entity_id_string(entity)}: {lower} not yet overdue, skipping.")
+        log.info(f"{entity_id_string(entity)}: {rqst.name} not yet overdue, skipping.")
   iterate_content_tree(config.config_root, do)
 
 
@@ -203,6 +202,7 @@ def handle_online_all_command(command):
 
 
 def handle_maintenance_command():
+  handle_do_overdue_command(Request.ONLINE)
   handle_do_overdue_command(Request.TRIM)
   handle_do_overdue_command(Request.SCRUB)
 

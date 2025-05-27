@@ -51,6 +51,7 @@ def init_config(cache_path, config_path):
     log.error(f"misconfiguration, unknown log level: {config.config_root.log_level}")
 
   os.makedirs(os.path.dirname(cache_path), exist_ok = True)
+  log.info(f"loading cache from: f{cache_path}")
   config.cache_dict = load_yaml_cache(cache_path)
   if config.cache_dict is None:
     config.cache_dict = dict()

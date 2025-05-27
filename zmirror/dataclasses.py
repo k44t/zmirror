@@ -98,10 +98,13 @@ class Request(KiEnum):
 
 @yaml_enum
 class ZFSOperationState(KiEnum):
-  RESILVERING = 1
-  SCRUBBING = 2
-  TRIMMING = 3
+  RESILVER = 1
+  SCRUB = 2
+  TRIM = 3
 
+
+def enum_command_name(enum):
+  return enum.name.lower()
 
 
 def is_online(entity):
@@ -133,7 +136,13 @@ def set_cache_state(o, st, since_unknown=False):
 
 
 
+request_for_zfs_operation = {
+  ZFSOperationState.RESILVER: Request.ONLINE,
+  ZFSOperationState.SCRUB: Request.SCRUB,
+  ZFSOperationState.TRIM: Request.TRIM
+}
 
+zfs_operation_for_request = {value: key for key, value in request_for_zfs_operation.items()}
 
 
 @yaml_data
@@ -147,6 +156,8 @@ class ZMirror:
   content: list = field(default_factory=list)
   notes: str = None
 
+
+  resilver_interval: str = None
   scrub_interval: str = None
   trim_interval: str = None
 
@@ -221,10 +232,12 @@ class Entity:
     kdstream.print_property(cache, "state")
 
     if self.requested:
+      kdstream.newline()
       kdstream.print_property(self, "requested")
 
 
     if cache.state.what is not EntityState.ONLINE:
+      kdstream.newline()
       kdstream.print_property(cache, "last_online")
 
   def handle_onlined(self, prev_state):
@@ -247,6 +260,10 @@ class Entity:
   def handle_deactivated(self, prev_state):
     self.unset_requested(Request.OFFLINE)
     tell_parent_child_offline(self.parent, self, prev_state)
+    if isinstance(self.parent, Entity):
+      if cached(self.parent).state.what == EntityState.DISCONNECTED:
+        handle_deactivated(cached(self))
+
 
 
 
@@ -325,7 +342,7 @@ class Entity:
           log.error(f"{entity_id_string(self)}: requested {self.requested}, but no take_offline method. This is a bug in zmirror")
       elif request == Request.SCRUB:
         if hasattr(self, "start_scrub"):
-          if state == EntityState.ONLINE and not since_in(ZFSOperationState.RESILVERING, cache.operations):
+          if state == EntityState.ONLINE and not since_in(ZFSOperationState.RESILVER, cache.operations):
             log.info(f"{entity_id_string(self)}: fullfilling request ({self.requested})")
             self.start_scrub()
           else:
@@ -494,7 +511,7 @@ class Children(Entity):
     super().handle_deactivated(prev_state)
     for c in self.content:
       if isinstance(c, ZDev):
-        handle_disconnected(c)
+        c.handle_parent_offlined()
 
 
 
@@ -1136,27 +1153,27 @@ def uncached_userevent_by_name(cache, name):
 
 
 def handle_resilver_started(cache):
-  if not since_in(ZFSOperationState.RESILVERING, cache.operations):
+  if not since_in(ZFSOperationState.RESILVER, cache.operations):
     log.info(f"{entity_id_string(cache)}: resilver started")
-    cache.operations.append(Since(ZFSOperationState.RESILVERING, datetime.now()))
+    cache.operations.append(Since(ZFSOperationState.RESILVER, datetime.now()))
 
 
 def handle_resilver_finished(cache):
   log.info(f"{entity_id_string(cache)}: resilvered")
-  since_remove(ZFSOperationState.RESILVERING, cache.operations)
+  since_remove(ZFSOperationState.RESILVER, cache.operations)
   uncached_operation_handle_by_name(cache, "resilver_finished")
 
 
 def handle_scrub_started(cache):
   log.info(f"{entity_id_string(cache)}: scrub started")
-  since_insert_if_not_in(Since(ZFSOperationState.SCRUBBING, datetime.now()), cache.operations)
+  since_insert_if_not_in(Since(ZFSOperationState.SCRUB, datetime.now()), cache.operations)
 
 
 def handle_scrub_finished(cache):
   log.info(f"{entity_id_string(cache)}: scrubbed")
   now = datetime.now()
-  since_remove(ZFSOperationState.SCRUBBING, cache.operations)
-  cache.last_scrubbed = now
+  since_remove(ZFSOperationState.SCRUB, cache.operations)
+  cache.last_scrub = now
   def do(entity):
     entity.handle_scrub_finished()
   uncached(cache, do)
@@ -1165,14 +1182,14 @@ def handle_scrub_finished(cache):
 
 def handle_trim_started(cache):
   log.info(f"{entity_id_string(cache)}: trim started")
-  since_insert_if_not_in(Since(ZFSOperationState.TRIMMING, datetime.now()), cache.operations)
+  since_insert_if_not_in(Since(ZFSOperationState.TRIM, datetime.now()), cache.operations)
 
 
 def handle_trim_finished(cache):
   log.info(f"{entity_id_string(cache)}: trimmed")
   now = datetime.now()
-  since_remove(ZFSOperationState.TRIMMING, cache.operations)
-  cache.last_trimmed = now
+  since_remove(ZFSOperationState.TRIM, cache.operations)
+  cache.last_trim = now
   def do(entity):
     entity.handle_trim_finished()
   uncached(cache, do)
@@ -1180,13 +1197,13 @@ def handle_trim_finished(cache):
 
 def handle_scrub_canceled(cache):
   log.info(f"{entity_id_string(cache)}: scrub canceled")
-  since_remove(ZFSOperationState.SCRUBBING, cache.operations)
+  since_remove(ZFSOperationState.SCRUB, cache.operations)
   uncached_userevent_by_name(cache, "scrub_canceled")
 
 
 def handle_trim_canceled(cache):
   log.info(f"{entity_id_string(cache)}: trim canceled")
-  since_remove(ZFSOperationState.TRIMMING, cache.operations)
+  since_remove(ZFSOperationState.TRIM, cache.operations)
   uncached_userevent_by_name(cache, "trim_canceled")
 
 
@@ -1197,21 +1214,21 @@ def handle_trim_canceled(cache):
 def handle_disconnected(cache):
   log.info(f"{entity_id_string(cache)}: disconnected")
   prev_state = set_cache_state(cache, EntityState.DISCONNECTED)
-  if prev_state:
+  if prev_state is not None:
     uncached_handle_by_name(cache, "disconnected", prev_state)
 
 # the device is still passively available
 def handle_deactivated(cache):
   log.info(f"{entity_id_string(cache)}: deactivated")
   prev_state = set_cache_state(cache, EntityState.INACTIVE)
-  if prev_state:
+  if prev_state is not None:
     uncached_handle_by_name(cache, "deactivated", prev_state)
 
 # the device became passively available
 def handle_appeared(cache):
   log.info(f"{entity_id_string(cache)}: appeared")
   prev_state = set_cache_state(cache, EntityState.INACTIVE)
-  if prev_state:
+  if prev_state is not None:
     uncached_handle_by_name(cache, "appeared", prev_state)
 
 
@@ -1219,7 +1236,7 @@ def handle_appeared(cache):
 def handle_onlined(cache):
   log.info(f"{entity_id_string(cache)}: onlined")
   prev_state = set_cache_state(cache, EntityState.ONLINE)
-  if prev_state:
+  if prev_state is not None:
     uncached_handle_by_name(cache, "onlined", prev_state)
 
 
@@ -1274,8 +1291,9 @@ class ZDev(Entity):
   operations: list = field(default_factory=list)
 
   last_online: datetime = None
-  last_scrubbed: datetime = None
-  last_trimmed: datetime = None
+  last_resilver: datetime = None
+  last_scrub: datetime = None
+  last_trim: datetime = None
 
 
   on_trimmed: list = field(default_factory=list)
@@ -1286,56 +1304,49 @@ class ZDev(Entity):
 
   scrub_interval: str = None
   trim_interval: str = None
+  resilver_interval: str = None
 
   @classmethod
   def id_fields(cls):
     return ["pool", "name"]
-
-  def is_scrub_overdue(self):
-    interval = self.scrub_interval or config.config_root.scrub_interval
+  
+  def effective_interval(self, op: ZFSOperationState):
+    return getattr(self, f"{op.name.lower()}_interval") or getattr(config.config_root, f"{op.name.lower()}_interval")
+  
+  def is_overdue(self, op: ZFSOperationState):
+    interval = self.effective_interval(op)
     if interval is not None:
       cache = cached(self)
       # parsing the schedule delta will result in a timestamp calculated from now
       allowed_delta = dateparser.parse(interval)
           # this means that allowed_delta is a timestamp in the past
-      return cache.last_scrubbed is None or allowed_delta > cache.last_scrubbed
+      last = getattr(cache, f"last_{op.name.lower()}")
+      return last is None or allowed_delta > last
     return False
 
-  def is_trim_overdue(self):
-    interval = self.trim_interval or config.config_root.trim_interval
-    if interval is not None:
-      cache = cached(self)
-      # parsing the schedule delta will result in a timestamp calculated from now
-      allowed_delta = dateparser.parse(interval)
-          # this means that allowed_delta is a timestamp in the past
-      return cache.last_trimmed is None or allowed_delta > cache.last_trimmed
-    return False
 
   def print_status(self, kdstream):
     Entity.print_status(self, kdstream)
     cache = cached(self)
+    for op in ZFSOperationState:
+      name = enum_command_name(op)
+      kdstream.print_property(self, f"last_{name}")
+      if self.is_overdue(op):
+        kdstream.print_raw(" # OVERDUE")
+      kdstream.print_property(self, f"{name}_interval", hide_if_empty=True)
+
     if cache.operations:
       kdstream.newline()
       kdstream.print_property(cache, "operations")
-    kdstream.newline()
-    kdstream.print_property_prefix("last_scrubbed")
-    kdstream.print_obj(cache.last_scrubbed)
-    if self.is_scrub_overdue():
-      kdstream.print_raw(" # OVERDUE")
-    if self.scrub_interval:
-      kdstream.print_property(self, "scrub_interval")
-    if self.scrub_interval:
-      kdstream.print_property(self, "trim_interval")
-    kdstream.newline()
-    kdstream.print_property(cache, "last_trimmed")
+
 
 
 
   def enact_request(self):
     cache = cached(self)
-    if since_in(ZFSOperationState.TRIMMING, cache.operations) and Request.TRIM not in self.requested:
+    if since_in(ZFSOperationState.TRIM, cache.operations) and Request.TRIM not in self.requested:
       self.stop_trim()
-    elif since_in(ZFSOperationState.SCRUBBING, cache.operations) and Request.SCRUB not in self.requested:
+    elif since_in(ZFSOperationState.SCRUB, cache.operations) and Request.SCRUB not in self.requested:
       self.stop_scrub()
     return super().enact_request()
 
@@ -1426,6 +1437,10 @@ class ZDev(Entity):
       self.start_scrub()
       scrubbing = True
     run_actions(self, "resilvered", "scrub" if scrubbing else None)
+
+  def handle_parent_offlined(self):
+    log.info(f"{entity_id_string(self)}: parent OFFLINE, taking OFFLINE.")
+    self.take_offline()
 
   def handle_scrub_canceled(self):
     run_actions(self, "scrub_canceled")
