@@ -185,6 +185,9 @@ content:
     # the uuid of the gpt partition table
     uuid: 00000000-0000-0000-0000-000000000002
 
+    # since disks have no names, the info field will be printed in zmirror logs for better usability
+    info: zmirror-sysfs-b
+
     # *WARNING*: ONLY set this to true if you absolutely know that your device supports trim
     #
     # Force enable trim support on SSD devices/enclosures that actually do support trim.
@@ -309,6 +312,9 @@ content:
     # the uuid of the gpt partition table. zmirror currently only supports GPT formatted disks.
     uuid: 00000000-0000-0000-0000-000000000003
 
+    # since disks have no names, the info field will be printed in zmirror logs for better usability
+    info: zmirror-sysfs-c
+
     # only enable this if you are absolutely certain that your NVMe enclosure
     # supports TRIM. See above for more.
     force_enable_trim: yes
@@ -373,6 +379,9 @@ content:
 
     # the uuid of the gpt partition table
     uuid: 00000000-0000-0000-0000-000000000004
+
+    # since disks have no names, the info field will be printed in zmirror logs for better usability
+    info: zmirror-sysfs-s
 
     # only enable this if you are absolutely certain that your NVMe enclosure
     # supports TRIM. See above for more.

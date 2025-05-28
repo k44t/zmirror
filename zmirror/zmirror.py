@@ -30,6 +30,7 @@ from .defaults import *
 # systemctl zfs-auto-scrub-daily.interval
 
 
+
 # objects from config
 # objects from cache
 # for o in config
@@ -99,8 +100,6 @@ def main(args=None):
   # prune_parser = subs.add_parser('prune-cache', parents=[], help='remove cache entries that are not also present in config')
   # prune_parser.set_defaults(func=prune_cache)
 
-
-
   shared_parser = argparse.ArgumentParser(add_help=False)
 
   shared_parser.add_argument("--config-path", type=str, help="the path to the config file", default=env_var_or("ZMIRROR_CONFIG_PATH", ZMIRROR_CONFIG_PATH_DEFAULT))
@@ -148,9 +147,6 @@ def main(args=None):
   subcmd("status-all", help="shows the status of all configured devices")
   subcmd("daemon-version", help="shows the version of the zmirror daemon")
 
-  subcmd("disable-commands", help="disables command execution. This will be reset when the config is reloaded")
-  subcmd("enable-commands", help="enables command execution. This will be reset when the config is reloaded")
-
   subcmd("maintenance", help="triggers all maintenance tasks (scrub and trim as scheduled). Usually called by a cronjob or a systemd timer. This should be done at night on a day where there is not much load on your machine. This will online all devices that are present and need maintenance. Whether they will be offlined afterwards depends on your zmirror configuration.")
 
 
@@ -168,6 +164,28 @@ def main(args=None):
   scrub_parser = subs.add_parser("scrub", parents=[socket_parser, cancel_parser], help="request device to be scrubbed")
   scrub_subs = scrub_parser.add_subparsers(required=True)
 
+
+
+  enable_subs = subs.add_parser('enable', parents=[socket_parser], help='enable zmirror daemon property').add_subparsers(required=True)
+  disable_subs = subs.add_parser('disable', parents=[socket_parser], help='disable zmirror daemon property').add_subparsers(required=True)
+  set_subs = subs.add_parser('set', parents=[socket_parser], help='set zmirror daemon property to value').add_subparsers(required=True)
+
+  def add_enable_disable_parsers(name, help=None):
+    enable_parser = enable_subs.add_parser(name, help=f"enable {help}")
+    disable_parser = disable_subs.add_parser(name, help=f"disable {help}")
+
+    enable_parser.set_defaults(func=make_send_set_property_daemon_command(name, "yes"))
+    disable_parser.set_defaults(func=make_send_set_property_daemon_command(name, "no"))
+
+  add_enable_disable_parsers("commands", help="command execution")
+  add_enable_disable_parsers("log-events", help="logging of all UDEV and ZED events received by zmirror")
+
+  def add_set_property_parser(name, help=None):
+    set_parser = set_subs.add_parser(name, help=help)
+    set_parser.add_argument("value", type=str)
+    set_parser.set_defaults(func=make_send_set_property_daemon_command(name))
+
+  add_set_property_parser("log-level", "set log level to one of: debug | info | warning | error | critical")
 
   def make_onlineable_commands(typ):
     command_name = command_name_for_type[typ]

@@ -26,7 +26,14 @@ from . import config as config
 from .config import iterate_content_tree3_depth_first
 
 
-
+def human_readable_id(entity):
+  r = entity_id_string(entity)
+  if hasattr(entity, "info"):
+    entity = uncached(cached(entity))
+    v = entity.info
+    if v is not None:
+      return f"{r} ({v})"
+  return r
 
 def do_enact_request(entity, *args, **kwargs):
   if isinstance(entity, Entity):
@@ -277,11 +284,11 @@ class Entity:
     cache = cached(self)
     err_state = None
     if cache.state.what != EntityState.DISCONNECTED:
-      err_state = cache.state
+      err_state = cache.state.what
       if cache.state.what == EntityState.ONLINE:
         new_state = EntityState.ONLINE
     if err_state:
-      log.error(f"{entity_id_string(self)} was already {err_state}, when parent became ONLINE. This is either some inconsistency in the cache (due to events being missed when zmirror wasn't running), or a bug in zmirror. Setting new state to: {new_state}. Please note, that this might not fix all inconsistencies, as now we will not run the event handlers for entity.on_appeared as it would be unsafe without knowledge of the previous state.")
+      log.error(f"{human_readable_id(self)} was already {err_state.name}, when parent became ONLINE. This is either some inconsistency in the cache (due to events being missed when zmirror wasn't running), or a bug in zmirror. Setting new state to: {new_state.name}. Please note, that this might not fix all inconsistencies, as now we will not run the event handlers for entity.on_appeared as it would be unsafe without knowledge of the previous state.")
     prev_state = set_cache_state(cache, new_state)
     if not err_state:
       self.handle_appeared(prev_state)
@@ -330,44 +337,44 @@ class Entity:
 
     for request in self.requested.copy():
       if state_corresponds_to_request(state, self.request):
-        log.warning(f"{entity_id_string(self)}: request ({request.name} already fulfilled by state ({state}).")
+        log.warning(f"{human_readable_id(self)}: request ({request.name} already fulfilled by state ({state}).")
         self.unset_requested(request)
       elif request == Request.ONLINE and state == EntityState.INACTIVE:
         self.unset_requested(Request.ONLINE)
         if hasattr(self, "take_online"):
-          log.info(f"{entity_id_string(self)}: fullfilling request ({request.name})")
+          log.info(f"{human_readable_id(self)}: fullfilling request ({request.name})")
           self.take_online()
         else:
-          log.error(f"{entity_id_string(self)}: requested {request.name}, but no take_online method. This is a bug in zmirror")
+          log.error(f"{human_readable_id(self)}: requested {request.name}, but no take_online method. This is a bug in zmirror")
       elif request == Request.OFFLINE and state == EntityState.ONLINE:
         self.unset_requested(Request.OFFLINE)
         if hasattr(self, "take_offline"):
-          log.info(f"{entity_id_string(self)}: fullfilling request ({request.name})")
+          log.info(f"{human_readable_id(self)}: fullfilling request ({request.name})")
           self.take_offline()
         else:
-          log.error(f"{entity_id_string(self)}: requested {request.name}, but no take_offline method. This is a bug in zmirror")
+          log.error(f"{human_readable_id(self)}: requested {request.name}, but no take_offline method. This is a bug in zmirror")
       elif request == Request.SCRUB:
         if hasattr(self, "start_scrub"):
           if state == EntityState.ONLINE and not since_in(ZFSOperationState.RESILVER, cache.operations):
-            log.info(f"{entity_id_string(self)}: fullfilling request ({request.name})")
+            log.info(f"{human_readable_id(self)}: fullfilling request ({request.name})")
             self.start_scrub()
           else:
-            log.debug(f"{entity_id_string(self)}: currently cannot fulfill request {request.name} because of state ({state}.")
+            log.debug(f"{human_readable_id(self)}: currently cannot fulfill request {request.name} because of state ({state}.")
         else:
-          log.error(f"{entity_id_string(self)}: requested {request.name}, entity cannot be scrubbed.")
+          log.error(f"{human_readable_id(self)}: requested {request.name}, entity cannot be scrubbed.")
           self.unset_requested(Request.SCRUB)
       elif request == Request.TRIM:
         if hasattr(self, "start_trim"):
           if state == EntityState.ONLINE:
-            log.info(f"{entity_id_string(self)}: fullfilling request ({request.name})")
+            log.info(f"{human_readable_id(self)}: fullfilling request ({request.name})")
             self.start_trim()
           else:
-            log.debug(f"{entity_id_string(self)}: currently cannot fulfill request ({request.name}) because of state ({state})")
+            log.debug(f"{human_readable_id(self)}: currently cannot fulfill request ({request.name}) because of state ({state})")
         else:
-          log.error(f"{entity_id_string(self)}: requested {request.name}, entity cannot be trimmed.")
+          log.error(f"{human_readable_id(self)}: requested {request.name}, entity cannot be trimmed.")
           self.unset_requested(Request.TRIM)
       else:
-          log.debug(f"{entity_id_string(self)}: currently cannot fulfill request ({request.name}) because of state ({state})")
+          log.debug(f"{human_readable_id(self)}: currently cannot fulfill request ({request.name}) because of state ({state})")
 
 
 
@@ -386,7 +393,7 @@ class Entity:
       # yes origin is intended to not be == self here
       if request in self.requested:
         self.unset_requested(request)
-        log.info(f"{entity_id_string(self)}: request {request} unrequested")
+        log.info(f"{human_readable_id(self)}: request {request} unrequested")
         # request_dependencies(self, origin, request, True, all_dependencies, self.get_dependencies(request))
         return True
       else:
@@ -432,31 +439,31 @@ def run_action(self, event):
   if event == "offline":
     if hasattr(self, "take_offline"):
       if any(e in [Request.TRIM, Request.SCRUB] for e in self.requested):
-        log.info(f"{entity_id_string(self)}: not taking offline since other operations are pending")
+        log.info(f"{human_readable_id(self)}: not taking offline since other operations are pending")
       else:
         self.take_offline()
     else:
-      log.error(f"{entity_id_string(self)}: entity does not support being taken offline manually")
+      log.error(f"{human_readable_id(self)}: entity does not support being taken offline manually")
   elif event == "online":
     if hasattr(self, "take_online"):
       self.take_online()
     else:
-      log.error(f"{entity_id_string(self)}: entity does not support being taken online manually")
+      log.error(f"{human_readable_id(self)}: entity does not support being taken online manually")
   elif event == "snapshot":
     if hasattr(self, "take_snapshot"):
       self.take_snapshot()
     else:
-      log.error(f"{entity_id_string(self)}: entity does not have the ability to create snapshots")
+      log.error(f"{human_readable_id(self)}: entity does not have the ability to create snapshots")
   elif event == "scrub":
     if hasattr(self, "start_scrub"):
       self.start_scrub()
     else:
-      log.error(f"{entity_id_string(self)}: entity cannot be scrubbed")
+      log.error(f"{human_readable_id(self)}: entity cannot be scrubbed")
   elif event == "trim":
     if hasattr(self, "start_trim"):
       self.start_trim()
     else:
-      log.error(f"{entity_id_string(self)}: entity cannot be trimmed")
+      log.error(f"{human_readable_id(self)}: entity cannot be trimmed")
 
   elif event == "snapshot-parent":
     if hasattr(self.parent, "take_snapshot"):
@@ -584,27 +591,32 @@ def handle_online_request(self):
   return False
 
 
+# TODO: remove "nothing to do for disk event" info log. this should be debug?
+
+
 
 def possibly_force_enable_trim(self):
   if self.force_enable_trim:
     path = config.find_provisioning_mode(self.dev_path())
     if path is None:
-      log.warning(f"{entity_id_string(self)}: failed to force enable trim, device (or provisioning_mode flag) not found.")
+      log.warning(f"{human_readable_id(self)}: failed to force enable trim, device (or provisioning_mode flag) not found.")
     else:
       state = read_file(path)
       if state.strip() != "unmap":
-        log.warning(f"{entity_id_string(self)}: force enabling trim")
+        log.warning(f"{human_readable_id(self)}: force enabling trim")
         commands.add_command(f"echo unmap > {path}")
       else:
-        log.info(f"{entity_id_string(self)}: trim already enabled")
+        log.info(f"{human_readable_id(self)}: trim already enabled")
 
 
 @yaml_data
 class Disk(Children):
 
   # TODO: give disk a human readable name
+  # TODO: fix that it says EntityState.ONLINE for ZDEV DMCRYPT, I guess for all
 
   uuid: str = None
+  info: str = None
 
   # TODO: implement me
   force_enable_trim: bool = False
@@ -624,7 +636,7 @@ class Disk(Children):
     if (request == Request.ONLINE and online) or (request == Request.OFFLINE and not online):
       return True
     else:
-      log.error(f"{entity_id_string(self)}: request {request} cannot be fulfilled. You need to do this manually.")
+      log.error(f"{human_readable_id(self)}: request {request} cannot be fulfilled. You need to do this manually.")
       return False
 
   # this requires a udev rule to be installed which ensures that the disk appears under its GPT partition table UUID under /dev/disk/by-uuid
@@ -675,7 +687,7 @@ class Partition(Children):
     if request == Request.ONLINE:
       if isinstance(self.parent, ZMirror):
         if not is_present_or_online(self):
-          log.error(f"{entity_id_string(self)}: request ONLINE cannot be fulfilled. You need to do this manually.")
+          log.error(f"{human_readable_id(self)}: request ONLINE cannot be fulfilled. You need to do this manually.")
           return False
       return True
     else:
@@ -1034,7 +1046,7 @@ class ZFSVolume(Children):
     elif state == EntityState.ONLINE:
       handle_onlined(cached(self))
     else:
-      log.error(f"{entity_id_string(self)}: inconsistent initial state ({state}). this is a bug in zmirror.")
+      log.error(f"{human_readable_id(self)}: inconsistent initial state ({state}). This is likely due to a misconfiguration.")
 
 
   def get_pool(self):
@@ -1077,7 +1089,7 @@ class Embedded:
   def handle_parent_offline(self):
     state = cached(self).state.what
     if state == EntityState.ONLINE:
-      log.info(f"{entity_id_string(self)}: parent OFFLINE, requesting OFFLINE.")
+      log.info(f"{human_readable_id(self)}: parent OFFLINE, requesting OFFLINE.")
       self.request(Request.OFFLINE)
       iterate_content_tree3_depth_first(self, do_enact_request, parent=None, strt=None)
     elif state == EntityState.INACTIVE:
@@ -1401,7 +1413,7 @@ class ZDev(Entity, Embedded):
     if request == Request.ONLINE:
       pool = config.find_config(ZPool, name=self.pool)
       if pool is None:
-        log.error(f"{entity_id_string(self)}: pool {self.pool} not configured.")
+        log.error(f"{human_readable_id(self)}: pool {self.pool} not configured.")
         pool = UnavailableDependency(entity_id_string(self))
       return [self.parent, pool]
     else:
@@ -1414,7 +1426,7 @@ class ZDev(Entity, Embedded):
   def set_requested(self, request, origin):
     success = True
     if request == Request.OFFLINE and Request.SCRUB in self.requested:
-      log.warning(f"{entity_id_string(self)}: OFFLINE requested while SCRUB was requested. Unrequesting SCRUB.")
+      log.warning(f"{human_readable_id(self)}: OFFLINE requested while SCRUB was requested. Unrequesting SCRUB.")
       if not self.request(Request.SCRUB, origin, True):
         success = False
 

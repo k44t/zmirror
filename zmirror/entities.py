@@ -8,11 +8,11 @@ from .util import myexec as exec#pylint: disable=redefined-builtin
 from .dataclasses import *
 
 from .logging import log
-from kpyutils.kiify import is_yes
+from kpyutils.kiify import *
 
 
 from . import config
-from .config import iterate_content_tree, iterate_content_tree2, iterate_content_tree3, iterate_content_tree3_depth_first
+from .config import iterate_content_tree, iterate_content_tree2, iterate_content_tree3, iterate_content_tree3_depth_first, log_level_for_name
 from . import util
 
 
@@ -25,15 +25,6 @@ from . import util
 
 
 
-log_level_for_name = {
-  "trace": 5,
-  "debug": logging.DEBUG,
-  "info": logging.INFO,
-  "warning": logging.WARNING,
-  "error": logging.ERROR,
-  "critical": logging.CRITICAL,
-}
-
 
 
 
@@ -45,11 +36,9 @@ def init_config(cache_path, config_path):
   require_path(config.config_path, "config file does not exist")
   config.config_root = load_yaml_config(config.config_path)
 
-  if config.config_root.log_level in log_level_for_name:
-    config.log_level = log_level_for_name[config.config_root.log_level]
-    logging.getLogger().setLevel(config.log_level)
-  else:
-    log.error(f"misconfiguration, unknown log level: {config.config_root.log_level}")
+  config.set_log_level(config.config_root.log_level)
+
+  config.log_events = config.config_root.log_events
 
   os.makedirs(os.path.dirname(cache_path), exist_ok = True)
   log.info(f"loading cache from: f{cache_path}")
@@ -69,6 +58,7 @@ def init_config(cache_path, config_path):
   iterate_content_tree3(config.config_root, finalize_init, None, None)
 
   config.commands_enabled = config.config_root.enable_commands
+  log.info(f"command execution enabled: {to_yes(config.commands_enabled)}")
 
   commands.execute_commands()
 
@@ -76,7 +66,7 @@ def finalize_init(entity, _parent, _ignored):
   if isinstance(entity, Entity):
     cache = cached(entity)
     if cache.state.what in {EntityState.INACTIVE, EntityState.ONLINE}:
-      log.info(f"{entity_id_string(entity)}: {cache.state.what}")
+      log.info(f"{entity_id_string(entity)}: {cache.state.what.name}")
     if hasattr(entity, "finalize_init"):
       entity.finalize_init()
 
@@ -179,11 +169,12 @@ def is_zpool_backing_device_online(zpool, dev):
   return False
 
 
-POOL_DEVICES_REGEX = re.compile(r'^\t {4}(?P<dev>[^\s]+)\s+(?P<state>[^\s]+)\s+(?P<read>[^\s]+)\s+(?P<write>[^\s]+)\s+(?P<cksum>[^\s]+)\s*(?:\s* \((?P<operations>.+)\))?\s*$', 
+POOL_DEVICES_REGEX = re.compile(r'^\t  (?:  )?(?P<dev>[^\s]+)\s+(?P<state>[^\s]+)\s+(?P<read>[^\s]+)\s+(?P<write>[^\s]+)\s+(?P<cksum>[^\s]+)\s*(?:\s* \((?P<operations>.+)\))?\s*$', 
   # multiline must be set for this expression to work
   # my guess is, that this makes `^` and `$` work as desired.
   re.MULTILINE)
 
+MIRROR_OR_RAIDZ_REGEX = re.compile(r"^(raidz[0-9]+|mirror-[0-9])+$")
 
 
 config.load_config_for_cache = load_config_for_cache

@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 from threading import Timer
 import logging
+from .logging import log
 
 lvm_physical_volumes = dict()
 zfs_blockdevs = dict()
@@ -36,6 +37,13 @@ def find_provisioning_mode(dev_link):
         return os.path.join(root, 'provisioning_mode')
   return None
 
+def set_log_level(level):  
+  global log_level
+  if not level in log_level_for_name:
+    raise ValueError(f"unknown loglevel: {level}")
+  log_level = log_level_for_name[level]
+  logging.getLogger().setLevel(log_level)
+
 def get_zfs_volume_mode(zfs_path):
   raise NotImplementedError()
 
@@ -52,6 +60,15 @@ def load_config_for_id(arg):
 def find_config(typ, **args):
   raise NotImplementedError()
 
+
+log_level_for_name = {
+  "trace": 5,
+  "debug": logging.DEBUG,
+  "info": logging.INFO,
+  "warning": logging.WARNING,
+  "error": logging.ERROR,
+  "critical": logging.CRITICAL,
+}
 
 
 

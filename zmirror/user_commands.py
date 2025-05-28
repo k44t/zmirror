@@ -4,12 +4,14 @@ import dateparser
 
 from zmirror.defaults import VERSION
 from zmirror.entities import *
+from . import config
+from .config import *
 
 from .logging import log
 from .dataclasses import *
 from .util import myexec, outs, copy_attrs, require_path
 from . import commands as commands
-from kpyutils.kiify import KdStream
+from kpyutils.kiify import KdStream, is_yes_or_true, to_yes
 
 import argparse
 import sys
@@ -25,7 +27,7 @@ import traceback
 def request(rqst, typ, all_dependencies=False, **identifiers):
   tid = make_id_string(make_id(typ, **identifiers))
   entity = load_config_for_id(tid)
-  if config is None:
+  if entity is None:
     raise ValueError(f"{tid} not configured")
   result = entity.request(rqst, all_dependencies = all_dependencies)
   if result:
@@ -208,12 +210,31 @@ def handle_maintenance_command():
   handle_do_overdue_command(ZFSOperationState.SCRUB)
 
 
-def handle_enable_commands_command(enable):
-  config.commands_enabled = enable
-  if enable:
-    log.info("command execution enabled")
+def handle_set_command(command):
+  if "property" not in command:
+    raise ValueError(f"no property given")
+  prop = command["property"]
+
+  if "value" not in command:
+    raise ValueError(f"no value given")
+  value = command["value"]
+
+  if prop == "commands":
+    config.commands_enabled = is_yes_or_true(value)
+    value = to_yes(value)
+  elif prop == "log-level":
+    config.set_log_level(value)
+  elif prop == "log-events":
+    config.log_events = is_yes_or_true(value)
+    value = to_yes(value)
   else:
-    log.info("command execution disabled")
+    raise ValueError(f"unknown property: {prop}")
+
+  log.info(f"set property {prop} to: {value}")
+
+
+
+
 
 
 
@@ -253,10 +274,8 @@ def handle_command(command, con):
       handle_online_all_command(command)
     elif name == "maintenance":
       handle_maintenance_command()
-    elif name == "enable-commands":
-      handle_enable_commands_command(True)
-    elif name == "disable-commands":
-      handle_enable_commands_command(False)
+    elif name == "set":
+      handle_set_command(command)
     elif name == "daemon-version":
       handle_daemon_version_command(stream)
     else:
@@ -313,8 +332,7 @@ def make_send_daemon_wrapper(fn):
     command = fn(args)
     log.debug("sending command:")
     log.debug(command)
-  
-    require_path(path, "no zmirror socket at")
+
 
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as con:
 
@@ -346,6 +364,17 @@ def make_send_daemon_wrapper(fn):
       except Exception as ex:
         log.error(f"communication error: {ex}")
   return do
+
+
+def make_send_set_property_daemon_command(property, value=None):
+  def do(args):
+    r = {"command": "set", "property": property}
+    if value is not None:
+      r["value"] = value
+    else:
+      r["value"] = args.value
+    return r
+  return make_send_daemon_wrapper(do)
 
 
 def make_send_simple_daemon_command(command):

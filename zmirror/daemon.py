@@ -1,4 +1,5 @@
 
+from collections import OrderedDict
 import queue
 from datetime import datetime
 import re
@@ -22,7 +23,7 @@ from .logging import log
 from .entities import *
 # from .actions import handle_entity_online, handle_entity_offline, handle_entity_present
 from .dataclasses import * # , LVMLogicalVolume, VirtualDisk, 
-from kpyutils.kiify import to_kd
+from kpyutils.kiify import *
 
 from . import config as globals
 
@@ -43,8 +44,9 @@ def handle(env):
 
   cache = None
 
-  if config.config_root.log_events:
-    log.info(json.dumps(env, indent=2))
+  if config.log_events:
+    sorted_dict = OrderedDict(sorted(env.items(), key=lambda item: item[0]))
+    log.info(object_to_kdstring(sorted_dict))
 
   event_handled = False
 
@@ -54,8 +56,7 @@ def handle(env):
     log.debug(f"handling zfs event: {zevent}")
     zpool = env["ZEVENT_POOL"]
 
-    if zevent == "pool_export":
-      log.info(f"zpool {zpool} exported")
+    if zevent == "pool_export" or zevent == "pool_destroy":
 
       zpool_cache = find_or_create_cache(ZPool, name=zpool)
       handle_disconnected(zpool_cache)
@@ -64,16 +65,17 @@ def handle(env):
         for dev in globals.zfs_blockdevs[zpool].values():
           dev_cache = find_or_create_cache(ZDev, pool=zpool, name=dev.name)
           handle_deactivated(dev_cache)
+        log.warning(f"{human_readable_id(zpool_cache)}: zpool destroyed. (You might need to update your zmirror configuration or recreate the pool.)")
 
 
       event_handled = True
     # zpool event
-    elif zevent in ["scrub_finish", "scrub_start", "scrub_abort", "pool_import"]:
+    elif zevent in ["scrub_finish", "scrub_start", "scrub_abort", "pool_import", "pool_create"]:
       log.info(f"zpool {zpool}: {zevent}")
       zpool_status = config.get_zpool_status(zpool)
 
 
-      if zevent == "pool_import":
+      if zevent == "pool_import" or zevent == "pool_create":
         zpool_cache = find_or_create_cache(ZPool, name=zpool)
         
         handle_onlined(zpool_cache)
@@ -85,6 +87,8 @@ def handle(env):
       else:
         for match in POOL_DEVICES_REGEX.finditer(zpool_status):
           dev = match.group("dev")
+          if MIRROR_OR_RAIDZ_REGEX.match(dev):
+            continue
 
           cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
           if match.group("state") == "ONLINE":
@@ -409,7 +413,9 @@ def daemon(args):# pylint: disable=unused-argument
     log.error(f"socket already in use: {socket_path}")
     return
   else:
-    os.unlink(socket_path)
+    if os.path.exists(socket_path):
+      log.warning(f"file {socket_path} exists but no zmirror daemon listening, deleting.")
+      os.unlink(socket_path)
   try:
     server.bind(socket_path)
   except Exception as ex:
@@ -445,13 +451,17 @@ def daemon(args):# pylint: disable=unused-argument
 
   def shutdown(*args):
     nonlocal running
-    running = False
-    log.info("shutting down...")
-    event_queue.put(None)
-    handle_event_thread.join()
-    server.close()
-    log.info("zmirror daemon shut down gracefully")
-    sys.exit(0)
+    if running:
+      running = False
+      log.info("shutting down...")
+      try:
+        server.close()
+      except Exception:
+        pass
+      event_queue.put(None)
+      handle_event_thread.join()
+      log.info("zmirror daemon shut down gracefully")
+      sys.exit(0)
 
 
   signal.signal(signal.SIGTERM, shutdown)
