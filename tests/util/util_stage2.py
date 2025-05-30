@@ -3,6 +3,7 @@
 import json
 import inspect
 from zmirror.daemon import handle
+from zmirror.user_commands import enact_requests
 from .util_stage1 import open_local, get_frame_data
 import zmirror.entities as entities
 
@@ -15,6 +16,7 @@ def trigger_event():
     src = f.read()
   event = json.loads(src)
   handle(event)
+  enact_requests()
 
 
 def do_nothing(*args): #pylint: disable=unused-argument

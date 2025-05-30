@@ -16,6 +16,8 @@ config_path = None
 commands_enabled = False
 last_request_at = datetime.now()
 log_level = logging.INFO
+event_queue = None
+timeout = None
 
 
 is_daemon = False
@@ -47,7 +49,7 @@ def set_log_level(level):
 def get_zfs_volume_mode(zfs_path):
   raise NotImplementedError()
 
-def is_zpool_backing_device_online(pool, dev):
+def get_zpool_backing_device_state(pool, dev):
   raise NotImplementedError()
 
 def get_zpool_status(pool):

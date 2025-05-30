@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 import os
 from typing import Any
 from .util import read_file
+from enum import Enum
 
 import dateparser
 
@@ -280,7 +281,7 @@ class Entity:
 
 
 
-  def handle_parent_onlined(self, new_state=EntityState.INACTIVE):
+  def handle_parent_online(self, new_state=EntityState.INACTIVE):
     cache = cached(self)
     err_state = None
     if cache.state.what != EntityState.DISCONNECTED:
@@ -355,9 +356,15 @@ class Entity:
           log.error(f"{human_readable_id(self)}: requested {request.name}, but no take_offline method. This is a bug in zmirror")
       elif request == Request.SCRUB:
         if hasattr(self, "start_scrub"):
-          if state == EntityState.ONLINE and not since_in(ZFSOperationState.RESILVER, cache.operations):
-            log.info(f"{human_readable_id(self)}: fullfilling request ({request.name})")
-            self.start_scrub()
+
+          if since_in(ZFSOperationState.SCRUB, cache.operations):
+            log.info(f"{human_readable_id(self)}: already scrubbing")
+          elif state == EntityState.ONLINE :
+            if since_in(ZFSOperationState.RESILVER, cache.operations):
+              log.debug(f"{human_readable_id(self)}: currently cannot fulfill request {request.name} because device is resilvering.")
+            else:
+              log.info(f"{human_readable_id(self)}: fullfilling request ({request.name})")
+              self.start_scrub()
           else:
             log.debug(f"{human_readable_id(self)}: currently cannot fulfill request {request.name} because of state ({state}.")
         else:
@@ -365,7 +372,9 @@ class Entity:
           self.unset_requested(Request.SCRUB)
       elif request == Request.TRIM:
         if hasattr(self, "start_trim"):
-          if state == EntityState.ONLINE:
+          if since_in(ZFSOperationState.TRIM, cache.operations):
+            log.info(f"{human_readable_id(self)}: already trimming")
+          elif state == EntityState.ONLINE:
             log.info(f"{human_readable_id(self)}: fullfilling request ({request.name})")
             self.start_trim()
           else:
@@ -456,12 +465,24 @@ def run_action(self, event):
       log.error(f"{human_readable_id(self)}: entity does not have the ability to create snapshots")
   elif event == "scrub":
     if hasattr(self, "start_scrub"):
-      self.start_scrub()
+      cache = cached(self)
+      if since_in(ZFSOperationState.SCRUB, cache.operations):
+        log.info(f"{human_readable_id(self)}: already scrubbing")
+      elif cache.state.what is not EntityState.ONLINE:
+        log.debug(f"{human_readable_id(self)}: cannot start scrub, device not ONLINE")
+      else:
+        self.start_scrub()
     else:
       log.error(f"{human_readable_id(self)}: entity cannot be scrubbed")
   elif event == "trim":
     if hasattr(self, "start_trim"):
-      self.start_trim()
+      cache = cached(self)
+      if since_in(ZFSOperationState.TRIM, cache.operations):
+        log.info(f"{human_readable_id(self)}: already trimming")
+      elif cache.state.what is not EntityState.ONLINE:
+        log.debug(f"{human_readable_id(self)}: cannot start trim, device not ONLINE")
+      else:
+        self.start_trim()
     else:
       log.error(f"{human_readable_id(self)}: entity cannot be trimmed")
 
@@ -513,24 +534,21 @@ class Children(Entity):
   def handle_onlined(self, prev_state):
     super().handle_onlined(prev_state)
     for c in self.content:
-      if type(c) in {ZDev, ZFSVolume}:
-        c.handle_parent_onlined()
+      handle_parent_online(c)
 
 
 
   def handle_deactivated(self, prev_state):
     super().handle_deactivated(prev_state)
     for c in self.content:
-      if hasattr(c, "handle_parent_offline"):
-        c.handle_parent_offline()
+      handle_parent_offline(c)
 
 
 
   def handle_disconnected(self, prev_state):
     super().handle_disconnected(prev_state)
     for c in self.content:
-      if hasattr(c, "handle_parent_offline"):
-        c.handle_parent_offline()
+      handle_parent_offline(c)
 
 
 
@@ -583,6 +601,16 @@ def handle_offline_request(self):
   return False
 
 
+def handle_parent_online(self):
+
+  if hasattr(self, "handle_parent_online"):
+    self.handle_parent_online()
+
+def handle_parent_offline(self):
+
+  if hasattr(self, "handle_parent_offline"):
+    self.handle_parent_offline()
+
 
 def handle_online_request(self):
   if Request.ONLINE in self.requested:
@@ -612,6 +640,11 @@ def possibly_force_enable_trim(self):
           log.info(f"{human_readable_id(self)}: trim already enabled")
 
 
+
+class TimerEvent(Enum):
+  RESTART = 0
+  TIMEOUT = 1
+
 @yaml_data
 class Disk(Children):
 
@@ -639,7 +672,7 @@ class Disk(Children):
     if (request == Request.ONLINE and online) or (request == Request.OFFLINE and not online):
       return True
     else:
-      log.error(f"{human_readable_id(self)}: request {request} cannot be fulfilled. You need to do this manually.")
+      log.error(f"{human_readable_id(self)}: request {request.name} cannot be fulfilled. You need to do this manually.")
       return False
 
   # this requires a udev rule to be installed which ensures that the disk appears under its GPT partition table UUID under /dev/disk/by-uuid
@@ -985,10 +1018,12 @@ class ZPool(Children):
 
 
 
-
   def start_scrub(self):
-    commands.add_command(f"zpool scrub -s {self.name}", unless_redundant = True)
+    self.stop_scrub()
     commands.add_command(f"zpool scrub {self.name}", unless_redundant = True)
+
+  def stop_scrub(self):
+    commands.add_command(f"zpool scrub -s {self.name}", unless_redundant = True)
 
 
 
@@ -1042,7 +1077,7 @@ class ZFSVolume(Children):
   def handle_children_offline(self):
     return super().handle_children_offline()
 
-  def handle_parent_onlined(self):
+  def handle_parent_online(self):
     state = self.load_initial_state()
     if state == EntityState.INACTIVE:
       handle_appeared(cached(self))
@@ -1136,7 +1171,8 @@ class DMCrypt(Children, Embedded):
     if cached(self).state.what != EntityState.ONLINE:
       state = EntityState.DISCONNECTED
       if hasattr(self.parent, "state"):
-        if self.parent.state.what in [EntityState.INACTIVE, EntityState.ONLINE]:
+        cp = cached(self.parent)
+        if cp.state.what in [EntityState.INACTIVE, EntityState.ONLINE]:
           state = EntityState.INACTIVE
       return state
 
@@ -1367,6 +1403,9 @@ class ZDev(Entity, Embedded):
       return last is None or allowed_delta > last
     return False
 
+  def handle_resilver_finished(self):
+    run_actions(self, "resilvered")
+
 
   def print_status(self, kdstream):
     Entity.print_status(self, kdstream)
@@ -1444,42 +1483,32 @@ class ZDev(Entity, Embedded):
 
 
 
-  def load_initial_state(self):
-    state = EntityState.DISCONNECTED
 
-    if config.is_zpool_backing_device_online(self.pool, self.dev_name()):
-      state = EntityState.ONLINE
+  def load_initial_state(self):
+    state = config.get_zpool_backing_device_state(self.pool, self.dev_name())
+    if state is None:
+      state = EntityState.DISCONNECTED
+      opers = set()
     else:
+      state, opers = state
+    if state != EntityState.ONLINE:
       dev = self.dev_name()
       if config.dev_exists(dev):
         state = EntityState.INACTIVE
+    cache = cached(self)
+    for org_oper in cache.operations.copy():
+      if org_oper.what not in opers:
+        since_remove(org_oper.what, cache.operations)
+    for oper in opers:
+      if not since_in(oper, cache.operations):
+        cache.operations.append(Since(oper, None))
     return state
-
 
   def handle_appeared(self, prev_state):
     pool_id = f"ZPool|name:{self.pool}"
     if pool_id in config.config_dict:
       config.config_dict[pool_id].handle_backing_device_appeared()
-    onlining = handle_online_request(self)
-    run_actions(self, "appeared", "online" if onlining else None)
-
-
-
-  def handle_onlined(self, prev_state):
-    super().handle_onlined(prev_state)
-    if Request.SCRUB in self.requested:
-      self.start_scrub()
-    if Request.TRIM in self.requested:
-      self.start_trim()
-
-
-
-  def handle_resilver_finished(self):
-    scrubbing = False
-    if Request.SCRUB in self.requested:
-      self.start_scrub()
-      scrubbing = True
-    run_actions(self, "resilvered", "scrub" if scrubbing else None)
+    run_actions(self, "appeared")
 
 
   def handle_scrub_canceled(self):

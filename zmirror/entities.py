@@ -38,6 +38,9 @@ def init_config(cache_path, config_path):
 
   config.set_log_level(config.config_root.log_level)
 
+
+  config.timeout = int(config.config_root.timeout)
+
   config.log_events = config.config_root.log_events
 
   os.makedirs(os.path.dirname(cache_path), exist_ok = True)
@@ -66,7 +69,17 @@ def finalize_init(entity, _parent, _ignored):
   if isinstance(entity, Entity):
     cache = cached(entity)
     if cache.state.what in {EntityState.INACTIVE, EntityState.ONLINE}:
-      log.info(f"{entity_id_string(entity)}: {cache.state.what.name}")
+      statstr = f"{human_readable_id(entity)}: {cache.state.what.name}"
+      if hasattr(cache, "operations"):
+        for i, op in enumerate(cache.operations):
+          if i == 0:
+            statstr += " (active operations: "
+          else:
+            stastr += ", "
+          statstr += op.what.name.lower()
+          if i == 0:
+            statstr += ")"
+      log.info(statstr)
     if hasattr(entity, "finalize_init"):
       entity.finalize_init()
 
@@ -159,15 +172,32 @@ def save_cache():
 
 
 
-def is_zpool_backing_device_online(zpool, dev):
+def get_zpool_backing_device_state(zpool, dev):
   status = config.get_zpool_status(zpool)
   if status is None:
-    return False
+    return None
+  opers = set()
+  scrubbing = "scrub in progress" in status
+  state = EntityState.DISCONNECTED
   for match in POOL_DEVICES_REGEX.finditer(status):
     if match.group("dev") == dev:
-      return match.group("state") == "ONLINE"
-  return False
+      state = match.group("state")
+      if state == "ONLINE":
+        state = EntityState.ONLINE
+        if scrubbing:
+          opers.add(ZFSOperationState.SCRUB)
+      else:
+        state = EntityState.INACTIVE
+      opernames = match.group("operations")
+      if opernames is not None:
+        if "resilver" in opernames:
+          opers.add(ZFSOperationState.RESILVER)
+        if "trim" in opers:
+          opers.add(ZFSOperationState.TRIM)
+      return (state, opers)
+  return None
 
+POOL_SCRUBBING_REGEX = re.compile(r'scrub in progress', re.MULTILINE)
 
 POOL_DEVICES_REGEX = re.compile(r'^\t  (?:  )?(?P<dev>[^\s]+)\s+(?P<state>[^\s]+)\s+(?P<read>[^\s]+)\s+(?P<write>[^\s]+)\s+(?P<cksum>[^\s]+)\s*(?:\s* \((?P<operations>.+)\))?\s*$', 
   # multiline must be set for this expression to work
@@ -180,6 +210,6 @@ MIRROR_OR_RAIDZ_REGEX = re.compile(r"^(raidz[0-9]+|mirror-[0-9])+$")
 config.load_config_for_cache = load_config_for_cache
 config.load_config_for_id = load_config_for_id
 config.find_or_create_cache = find_or_create_cache
-config.is_zpool_backing_device_online = is_zpool_backing_device_online
+config.get_zpool_backing_device_state = get_zpool_backing_device_state
 config.get_zpool_status = get_zpool_status
 config.get_zfs_volume_mode = get_zfs_volume_mode

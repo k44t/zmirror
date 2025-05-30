@@ -192,6 +192,7 @@ def main(args=None):
     get_subs.add_parser(name, help=get_help).set_defaults(func=make_send_get_property_daemon_command(name))
 
   add_set_property_parser("log-level", "set log level to one of: debug | info | warning | error | critical")
+  add_set_property_parser("timeout", "set request timeout in seconds")
 
   def make_onlineable_commands(typ):
     command_name = command_name_for_type[typ]

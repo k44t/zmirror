@@ -1,5 +1,6 @@
-pool: ignored
+  pool: ignored
  state: ignored
+  scan: scrub in progress
 config:
 
 	NAME                         STATE     READ WRITE CKSUM
@@ -7,6 +8,6 @@ config:
 	  mirror-0                   ONLINE       0     0     0
 	    zmirror-sysfs-a          ONLINE       0     0     0
 	    zmirror-sysfs-b          ONLINE       0     0     0
-	    zmirror-sysfs-s          ONLINE       0     0     0
+	    zmirror-sysfs-s          ONLINE       0     0     0 (resilvering)
 
 errors: No known data errors

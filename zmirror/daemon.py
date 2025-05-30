@@ -14,7 +14,7 @@ from threading import Timer
 import signal
 import sys
 
-from zmirror.user_commands import clear_requests, handle_command
+from zmirror.user_commands import clear_requests, enact_requests, handle_command, restart_request_timer
 
 
 
@@ -33,9 +33,6 @@ class UserEvent:
   event: dict
   con: socket.socket
 
-class TimerEvent(Enum):
-  RESTART = 0
-  TIMEOUT = 1
 
 
 
@@ -253,12 +250,12 @@ def handle(env):
           event_handled = True
 
           break
-    if event_handled:
-      log.info("event handled by zmirror")
-      return True
-    else:
-      log.debug("event not handled by zmirror")
-      return False
+  if event_handled:
+    log.info("event handled by zmirror")
+    return True
+  else:
+    log.debug("event not handled by zmirror")
+    return False
 
 
 
@@ -319,8 +316,10 @@ def handle_client(con: socket.socket, client_address, event_queue: queue.Queue):
 def handle_events(event_queue):
   timer: Timer = None
   def timeout():
+    log.info("timeout")
     event_queue.put(TimerEvent.TIMEOUT)
   while True:
+    handled = False
     try:
       event = event_queue.get()
       if event is None:
@@ -328,20 +327,25 @@ def handle_events(event_queue):
         break
       elif isinstance(event, UserEvent):
         handle_command(event.event, event.con)
-        save_cache()
+        handled = True
       elif isinstance(event, TimerEvent):
+        log.info(f"timer event: {event} ({config.timeout})")
         if event == TimerEvent.RESTART:
           if timer is not None:
             timer.cancel()
+          log.info(f"timer event: {event} ({config.timeout})")
           timer = Timer(config.config_root.timeout, timeout)
           timer.start()
         elif event == TimerEvent.TIMEOUT:
           clear_requests()
+          timer = None
       else:
         handled = handle(event)
-        if handled:
-          save_cache()
+      if handled:
+        save_cache()
+        enact_requests()
         commands.execute_commands()
+        restart_request_timer()
     except Exception as ex:
       try:
         log.error(f"failed to handle event: {json.dumps(event, indent=2)}")
@@ -436,6 +440,7 @@ def daemon(args):# pylint: disable=unused-argument
 
 
   event_queue = queue.Queue()
+  config.event_queue = event_queue
 
 
   # Create a thread-safe list

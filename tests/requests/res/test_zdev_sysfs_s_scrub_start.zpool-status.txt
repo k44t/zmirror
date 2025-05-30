@@ -1,5 +1,6 @@
-pool: ignored
+  pool: ignored
  state: ignored
+  scan: scrub in progress
 config:
 
 	NAME                         STATE     READ WRITE CKSUM

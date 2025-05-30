@@ -60,9 +60,9 @@ def daemon_request(rqst, cancel, typ, ids):
 
 
   else:
-    log.error(f"{make_id_string(make_id(typ, **filtered_args))}: request {rqst} failed. See previous error messages.")
+    log.error(f"{make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} failed. See previous error messages.")
     return
-  log.info(f"{make_id_string(make_id(typ, **filtered_args))}: requested {rqst} scheduled successfully")
+  log.info(f"{make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} scheduled successfully")
 
 
 
@@ -173,11 +173,14 @@ def clear_requests():
     for rqst in entity.requested.copy():
       if rqst == Request.TRIM:
         if not since_in(ZFSOperationState.TRIM, cache.operations):
+          log.warning(f"{human_readable_id(entity)}: timeout for request: {rqst.name}")
           entity.requested.remove(rqst)
       elif rqst == Request.SCRUB:
         if not since_in(ZFSOperationState.SCRUB, cache.operations):
+          log.warning(f"{human_readable_id(entity)}: timeout for request: {rqst.name}")
           entity.requested.remove(rqst)
       else:
+        log.warning(f"{human_readable_id(entity)}: timeout for request: {rqst.name}")
         entity.requested.remove(rqst)
 
 
@@ -235,6 +238,8 @@ def handle_set_command(command):
     value = to_yes(value)
   elif prop == "log-level":
     config.set_log_level(value)
+  elif prop == "timeout":
+    config.timeout = int(value)
   elif prop == "log-events":
     config.log_events = is_yes_or_true(value)
     value = to_yes(value)
@@ -254,12 +259,19 @@ def handle_get_command(command, stream):
     value = to_yes(value)
   elif prop == "log-level":
     stream.write(config.log_level)
+  elif prop == "timeout":
+    stream.write(str(config.timeout))
   elif prop == "log-events":
     stream.write(to_yes(config.log_events))
   else:
     raise ValueError(f"unknown property: {prop}")
 
 
+
+
+def restart_request_timer():
+  log.info("restarting timeout")
+  config.event_queue.put(TimerEvent.RESTART)
 
 
 
@@ -308,8 +320,6 @@ def handle_command(command, con):
     else:
       handle_request_command(command)
 
-    enact_requests()
-    commands.execute_commands()
   except Exception as ex:
     log.error("failed to handle command")
     log.error(f"exception : {traceback.format_exc()} --- {str(ex)}")

@@ -308,12 +308,33 @@ class Tests():
     ])
 
 
+  def test_zdev_sysfs_a_scrub_start(self):
 
+
+    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+    
+    assert blockdev.operations == []
+
+    trigger_event()
+
+    assert since_in(ZFSOperationState.SCRUB, blockdev.operations)
+
+    assert_commands([
+      
+    ])
 
   # dmcrypt of sysfs-s appears (a little late though... because the command was first issued right at the beginning of the test)
   def test_dmcrypt_sysfs_s_online(self):
     
+
+
+    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+    assert blockdev.state.what == EntityState.DISCONNECTED
+    
     trigger_event()
+
+    assert blockdev.state.what == EntityState.INACTIVE
     
     assert_commands([
       "zpool online zmirror-sysfs zmirror-sysfs-s"
@@ -324,12 +345,47 @@ class Tests():
   def test_backing_blockdev_sysfs_s_online(self):
     
     trigger_event()
+
+    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+    assert since_in(ZFSOperationState.RESILVER, blockdev.operations)
+
+    
+    assert_commands([
+      # resilver should start and nothing else happen
+    ])
+
+
+  # the event when the blockdev actually goes online inside the zpool
+  def test_zdev_sysfs_s_resilver_finish(self):
+    
+    trigger_event()
+
+    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+    assert not since_in(ZFSOperationState.RESILVER, blockdev.operations)
+
     
     assert_commands([
       'zpool scrub -s zmirror-sysfs', 
       'zpool scrub zmirror-sysfs', 
     ])
 
+
+  def test_zdev_sysfs_s_scrub_start(self):
+
+
+    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    
+    assert blockdev.operations == []
+
+    trigger_event()
+
+    assert since_in(ZFSOperationState.SCRUB, blockdev.operations)
+
+    assert_commands([
+      
+    ])
 
 
   # when dmcrypt of bak-a appears
