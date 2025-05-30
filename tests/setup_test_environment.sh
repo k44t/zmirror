@@ -16,7 +16,6 @@ mkdir -p /tmp/zmirror
 
 
 blockdev=$1
-mkdir -p /tmp/zmirror
 zpool create zmirror -R /tmp/zmirror/zmirror $blockdev -o autotrim=on -O acltype=posix -O atime=off -O canmount=off -O dnodesize=auto -O utf8only=on -O xattr=sa -O mountpoint=none -f
 
 

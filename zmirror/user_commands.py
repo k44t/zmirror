@@ -37,6 +37,12 @@ def request(rqst, typ, all_dependencies=False, **identifiers):
 
 
 
+def enact_requests(entity=None):
+  if entity is None:
+    entity = config.config_root
+  
+  iterate_content_tree3_depth_first(entity, do_enact_request, parent=None, strt=None)
+
 
 def daemon_request(rqst, cancel, typ, ids):
 
@@ -50,10 +56,15 @@ def daemon_request(rqst, cancel, typ, ids):
     return
   if entity.request(rqst, unrequest=cancel):
     config.last_request_at = datetime.now()
+    
+
+
   else:
     log.error(f"{make_id_string(make_id(typ, **filtered_args))}: request {rqst} failed. See previous error messages.")
     return
   log.info(f"{make_id_string(make_id(typ, **filtered_args))}: requested {rqst} scheduled successfully")
+
+
 
 
 
@@ -233,6 +244,20 @@ def handle_set_command(command):
   log.info(f"set property {prop} to: {value}")
 
 
+def handle_get_command(command, stream):
+  if "property" not in command:
+    raise ValueError(f"no property given")
+  prop = command["property"]
+
+  if prop == "commands":
+    stream.write(to_yes(config.commands_enabled))
+    value = to_yes(value)
+  elif prop == "log-level":
+    stream.write(config.log_level)
+  elif prop == "log-events":
+    stream.write(to_yes(config.log_events))
+  else:
+    raise ValueError(f"unknown property: {prop}")
 
 
 
@@ -276,10 +301,15 @@ def handle_command(command, con):
       handle_maintenance_command()
     elif name == "set":
       handle_set_command(command)
+    elif name == "get":
+      handle_get_command(command, stream)
     elif name == "daemon-version":
       handle_daemon_version_command(stream)
     else:
       handle_request_command(command)
+
+    enact_requests()
+    commands.execute_commands()
   except Exception as ex:
     log.error("failed to handle command")
     log.error(f"exception : {traceback.format_exc()} --- {str(ex)}")
@@ -374,6 +404,11 @@ def make_send_set_property_daemon_command(property, value=None):
     else:
       r["value"] = args.value
     return r
+  return make_send_daemon_wrapper(do)
+
+def make_send_get_property_daemon_command(property, value=None):
+  def do(args):
+    return {"command": "get", "property": property}
   return make_send_daemon_wrapper(do)
 
 

@@ -169,6 +169,7 @@ def main(args=None):
   enable_subs = subs.add_parser('enable', parents=[socket_parser], help='enable zmirror daemon property').add_subparsers(required=True)
   disable_subs = subs.add_parser('disable', parents=[socket_parser], help='disable zmirror daemon property').add_subparsers(required=True)
   set_subs = subs.add_parser('set', parents=[socket_parser], help='set zmirror daemon property to value').add_subparsers(required=True)
+  get_subs = subs.add_parser('get', parents=[socket_parser], help='get zmirror daemon property').add_subparsers(required=True)
 
   def add_enable_disable_parsers(name, help=None):
     enable_parser = enable_subs.add_parser(name, help=f"enable {help}")
@@ -177,13 +178,18 @@ def main(args=None):
     enable_parser.set_defaults(func=make_send_set_property_daemon_command(name, "yes"))
     disable_parser.set_defaults(func=make_send_set_property_daemon_command(name, "no"))
 
+
+    get_subs.add_parser(name, help=f"get {help}").set_defaults(func=make_send_get_property_daemon_command(name))
+
   add_enable_disable_parsers("commands", help="command execution")
   add_enable_disable_parsers("log-events", help="logging of all UDEV and ZED events received by zmirror")
 
-  def add_set_property_parser(name, help=None):
-    set_parser = set_subs.add_parser(name, help=help)
+
+  def add_set_property_parser(name, set_help=None, get_help=None):
+    set_parser = set_subs.add_parser(name, help=set_help)
     set_parser.add_argument("value", type=str)
     set_parser.set_defaults(func=make_send_set_property_daemon_command(name))
+    get_subs.add_parser(name, help=get_help).set_defaults(func=make_send_get_property_daemon_command(name))
 
   add_set_property_parser("log-level", "set log level to one of: debug | info | warning | error | critical")
 

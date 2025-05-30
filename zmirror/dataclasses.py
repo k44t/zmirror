@@ -602,11 +602,14 @@ def possibly_force_enable_trim(self):
       log.warning(f"{human_readable_id(self)}: failed to force enable trim, device (or provisioning_mode flag) not found.")
     else:
       state = read_file(path)
-      if state.strip() != "unmap":
-        log.warning(f"{human_readable_id(self)}: force enabling trim")
-        commands.add_command(f"echo unmap > {path}")
+      if state is None:
+        log.error(f"{human_readable_id(self)}: could not read provisioning_mode from: {path}")
       else:
-        log.info(f"{human_readable_id(self)}: trim already enabled")
+        if state.strip() != "unmap":
+          log.warning(f"{human_readable_id(self)}: force enabling trim")
+          commands.add_command(f"echo unmap > {path}")
+        else:
+          log.info(f"{human_readable_id(self)}: trim already enabled")
 
 
 @yaml_data
@@ -1127,6 +1130,7 @@ class DMCrypt(Children, Embedded):
   def load_initial_state(self):
     if config.dev_exists(self.get_devpath()):
       return EntityState.ONLINE
+    return EntityState.UNKNOWN
 
   def update_initial_state(self):
     if cached(self).state.what != EntityState.ONLINE:

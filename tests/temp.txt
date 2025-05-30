@@ -1,0 +1,7 @@
+what exactly was the thing that was not working?
+
+I think I connected bak-a.
+
+And then it would not realize what?
+
+I think that wasn't really an issue with zmirror, it was just that zfs created partitions inside /dev/zvol/bak-a

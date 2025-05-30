@@ -56,10 +56,8 @@ class Tests():
   # event_queue = None
   @classmethod
   def setup_class(cls):
-    entities.init_config(config_path="./example-config.yml", cache_path="./tests/commands/test_cache.yml")
+    entities.init_config(config_path="./example-config.yml", cache_path="./tests/commands/res/test_cache.yml")
 
-    for entity in config.cache_dict.values():
-      assert entity.state.what == EntityState.DISCONNECTED
 
 
   def setup_method(self, method): #pylint: disable=unused-argument
@@ -78,6 +76,12 @@ class Tests():
     # silent_remove(core.cache_file_path)
     # pass
     commands.commands = []
+
+  def test_initial_state(self):
+
+    for key, entity in config.cache_dict.items():
+      assert entity_id_string(entity) == key
+      assert entity.state.what == EntityState.DISCONNECTED
 
 
   # #####################
@@ -103,7 +107,7 @@ class Tests():
 
     assert_commands([
       # zmirror needs to do nothing (issue no commands)
-      ## 'echo unmap > /sys/block/sdX/device/scsi_device/provisioning_mode'
+      ## re.compile(r'echo unmap > .+')
     ])
 
 
@@ -159,7 +163,7 @@ class Tests():
 
     assert_commands([
       # we set force_enable_trim for this device
-      'echo unmap > /sys/block/sdX/device/scsi_device/provisioning_mode'
+      re.compile(r'echo unmap > .+')
     ])
 
   # partition of sysfs-b appears (udev: add)
@@ -216,7 +220,7 @@ class Tests():
 
     assert_commands([
       # we set force_enable_trim for this device
-      'echo unmap > /sys/block/sdX/device/scsi_device/provisioning_mode'
+      re.compile(r'echo unmap > .+')
     ])
 
   # partition of sysfs-s appears (udev: add)

@@ -666,6 +666,44 @@ content:
         
         content:
 
+
+          # to be able to create such a disk layout as this, we have to trick zfs
+          # into not partitioning the blockdev /dev/zvol/zmirror-bak-a/sysfs.
+          #
+          # Not partitioning the volume is important because otherwise we 
+          # would have to make zmirror's configuration more complicated and
+          # add the partitions to it.
+          #
+          # To trick zfs we use an unused loop device (in my case loop0 is unused):
+          #
+          # :: losetup /dev/loop0 /dev/zvol/zmirror-bak-a/sysfs
+          #
+          # and then we attach the disk to the pool
+          # 
+          # :: zpool attach zmirror-sysfs zmirror-sysfs-a /dev/loop0
+          #
+          # after resilvering we must export the pool.
+          #
+          # offlining won't be enough as zfs will keep insisting that loop0
+          # is the device in the pool and will only realize on reimporting 
+          # the pool that another device contain's the pools data.
+          # 
+          # since this is the pool from which I boot, I have to restart to
+          # reimport it, so this is a bit more complicated. But let's assume
+          # I booted from a rescue disk, in which case I can export the pool:
+          #
+          # :: zpool export zmirror-sysfs
+          #
+          # and then I reimport it giving it the parent direct directory 
+          # (or directories) under which to look for devices:
+          #
+          # :: zpool import zmirror-sysfs -d /dev/zvol/zmirror-bak-a/sysfs -d /dev/mapper
+          #
+          # As a result the zpool will know the zdev as `zvol/zmirror-bak-a/sysfs`
+          # This is the ONLY name that zmirror can work with. And it also 
+          # makes sense because human readable names make such a complex
+          # disk layout manageable.
+          #
           - !ZDev
             pool: zmirror-sysfs
 
@@ -716,6 +754,7 @@ content:
 
             scrub_interval: 4 weeks
       
+      # the note from zmirror-bak-a/sysfs applies
       - !ZFSVolume
         name: big
         
@@ -846,6 +885,7 @@ content:
           - online
         content:
 
+          # the note from zmirror-bak-a/sysfs applies
           - !ZDev
             pool: zmirror-sysfs
             
@@ -868,6 +908,8 @@ content:
         on_appeared:
           - online
         content:
+
+          # the note from zmirror-bak-a/sysfs applies
           - !ZDev
             pool: zmirror-big
 

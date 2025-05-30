@@ -458,6 +458,10 @@ def daemon(args):# pylint: disable=unused-argument
         server.close()
       except Exception:
         pass
+      try:
+        os.unlink(socket_path)
+      except Exception:
+        pass
       event_queue.put(None)
       handle_event_thread.join()
       log.info("zmirror daemon shut down gracefully")
