@@ -138,7 +138,7 @@ class Tests():
 
   def test_request_zpool_sysfs_s_online(self):
 
-    result = user_commands.request(Request.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
+    result = user_commands.request(RequestType.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
 
     assert not result
 
@@ -160,7 +160,7 @@ class Tests():
 
   def test_request_zpool_sysfs_b_online(self):
 
-    result = user_commands.request(Request.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-b")
+    result = user_commands.request(RequestType.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-b")
 
     assert result
 
@@ -174,7 +174,7 @@ class Tests():
 
   def test_request_zpool_sysfs_b_online_with_all_dependencies(self):
 
-    result = user_commands.request(Request.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-b", all_dependencies=True)
+    result = user_commands.request(RequestType.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-b", all_dependencies=True)
 
     assert result
 
@@ -192,11 +192,11 @@ class Tests():
 
     pool = config.config_dict["ZPool|name:zmirror-sysfs"]
 
-    assert Request.ONLINE in pool.requested
+    assert RequestType.ONLINE in pool.requested
 
     trigger_event()
 
-    assert Request.ONLINE in pool.requested
+    assert RequestType.ONLINE in pool.requested
 
 
     assert_commands([
@@ -296,7 +296,7 @@ class Tests():
 
     def possibly_scrub(entity):
       if isinstance(entity, ZDev) and entity.pool == "zmirror-sysfs":
-        entity.request(Request.SCRUB)
+        entity.request(RequestType.SCRUB)
     entities.iterate_content_tree(config.config_root, possibly_scrub)
     entities.iterate_content_tree(config.config_root, user_commands.do_enact_request)
 
@@ -450,7 +450,7 @@ class Tests():
     bak_a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
 
     req = uncached(bak_a).requested
-    assert req == {Request.SCRUB, Request.ONLINE}
+    assert req == {RequestType.SCRUB, RequestType.ONLINE}
 
     trigger_event()
 
@@ -459,7 +459,7 @@ class Tests():
     
     assert req is req2
 
-    assert req == {Request.SCRUB}
+    assert req == {RequestType.SCRUB}
 
     blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
 
@@ -530,7 +530,7 @@ class Tests():
     bak_a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     bak_b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
 
-    assert uncached(bak_a).requested == {Request.SCRUB}
+    assert uncached(bak_a).requested == {RequestType.SCRUB}
 
     trigger_event()
 
@@ -580,7 +580,7 @@ class Tests():
 
 
     assert not since_in(ZFSOperationState.TRIM, s.operations)
-    assert Request.TRIM not in s.requested
+    assert RequestType.TRIM not in s.requested
 
     assert_commands([
       # zmirror should do nothing
@@ -590,7 +590,7 @@ class Tests():
   # the user tells zmirror to request trim again
   def test_zpool_sysfs_backing_blockdev_sysfs_s_trim_request(self):
     
-    user_commands.request(Request.TRIM, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
+    user_commands.request(RequestType.TRIM, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
 
 
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]

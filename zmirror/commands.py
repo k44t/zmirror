@@ -1,17 +1,44 @@
 from .util import myexec as exec#pylint: disable=redefined-builtin
 from .logging import log
 from . import config as config
+from dataclasses import field, dataclass
+
+@dataclass
+class Command:
+  command: str
+
+  on_execute: list = field(default_factory=list)
+
+  def execute(self):
+    log.info(f"executing command: {self.command}")
+    returncode, results, _, errors = exec(self.command) #pylint: disable=exec-used
+    for h in self.on_execute:
+      h(self, returncode, results, errors)
+
+  def skip(self):
+    log.warning(f"skipping command: {self.command}")
+    for h in self.on_execute:
+      h(self, 0, [], [])
+
+
 
 
 
 commands = []
 
-def add_command(command, unless_redundant = False):
+def add_command(command, handler=None, unless_redundant=False):
   if unless_redundant:
-    if command not in commands:
-      commands.append(command)
-  else:
-    commands.append(command)
+    for cmd in commands:
+      if cmd.command == command:
+        if handler is not None:
+          cmd.on_execute.append(handler)
+        return cmd
+  cmd = Command(command)
+  if handler is not None:
+    cmd.on_execute.append(handler)
+  commands.append(cmd)
+  return handler
+
 
 
 def execute_commands():
@@ -23,13 +50,9 @@ def execute_commands():
   if not config.commands_enabled and len(commands) > 0:
     log.warning("command execution currently disabled.")
   for cmd in commands:
-    if not config.commands_enabled:
-      log.warning(f"skipping command: {cmd}")
+    if config.commands_enabled:
+      cmd.execute()
     else:
-      log.info(f"executing command: {cmd}")
-      returncode, _, _, errors = exec(cmd) #pylint: disable=exec-used
-      if returncode != 0:
-        log.warning(f"command failed: {cmd}\n\t" + "\n\t".join(errors))
-
+      cmd.skip()
 
   commands = []

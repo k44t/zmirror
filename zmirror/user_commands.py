@@ -155,15 +155,15 @@ def handle_reload_config_command():
 def handle_scrub_all_command():
   def do(entity):
     if isinstance(entity, ZDev):
-      if Request.SCRUB not in entity.requested:
-        entity.request(Request.SCRUB)
+      if RequestType.SCRUB not in entity.requested:
+        entity.request(RequestType.SCRUB)
   iterate_content_tree(config.config_root, do)
 
 def handle_trim_all_command():
   def do(entity):
     if isinstance(entity, ZDev):
-      if Request.TRIM not in entity.requested:
-        entity.request(Request.TRIM)
+      if RequestType.TRIM not in entity.requested:
+        entity.request(RequestType.TRIM)
   iterate_content_tree(config.config_root, do)
 
 
@@ -171,11 +171,11 @@ def clear_requests():
   def do(entity):
     cache = cached(entity)
     for rqst in entity.requested.copy():
-      if rqst == Request.TRIM:
+      if rqst == RequestType.TRIM:
         if not since_in(ZFSOperationState.TRIM, cache.operations):
           log.warning(f"{human_readable_id(entity)}: timeout for request: {rqst.name}")
           entity.requested.remove(rqst)
-      elif rqst == Request.SCRUB:
+      elif rqst == RequestType.SCRUB:
         if not since_in(ZFSOperationState.SCRUB, cache.operations):
           log.warning(f"{human_readable_id(entity)}: timeout for request: {rqst.name}")
           entity.requested.remove(rqst)
@@ -189,7 +189,7 @@ def clear_requests():
 
 def handle_do_overdue_command(op: ZFSOperationState):
   
-  rqst: Request = request_for_zfs_operation[op]
+  rqst: RequestType = request_for_zfs_operation[op]
   def do(entity):
     if isinstance(entity, ZDev):
       msg = f"{entity_id_string(entity)}: last {rqst.name} was {entity.last(op) or "NEVER"} (interval: {entity.effective_interval(op)})."
@@ -213,8 +213,8 @@ def handle_do_overdue_command(op: ZFSOperationState):
 
 def handle_online_all_command(command):
   def do(entity):
-    if Request.ONLINE not in entity.requested:
-      entity.request(Request.ONLINE, unrequest=yes_no_absent_or_dict(command, "cancel", False, "error"))
+    if RequestType.ONLINE not in entity.requested:
+      entity.request(RequestType.ONLINE, unrequest=yes_no_absent_or_dict(command, "cancel", False, "error"))
   iterate_content_tree(config.config_root, do)
 
 
@@ -355,10 +355,10 @@ command_name_for_type = {
 type_for_command_name = {value: key for key, value in command_name_for_type.items()}
 
 request_for_name = {
-  "online": Request.ONLINE,
-  "offline": Request.OFFLINE,
-  "scrub": Request.SCRUB,
-  "trim": Request.SCRUB
+  "online": RequestType.ONLINE,
+  "offline": RequestType.OFFLINE,
+  "scrub": RequestType.SCRUB,
+  "trim": RequestType.SCRUB
 }
 
 name_for_request = {value: key for key, value in request_for_name.items()}

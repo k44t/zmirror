@@ -1,0 +1,71 @@
+
+
+so...
+
+
+how should I make requests. A request is stored with an entity.
+I can cancel it.
+
+A request may depend on some dependencies or all dependencies, depending on user choice.
+Or I could implement that differently, and make a method that simply tries to online all. which I already have.
+I could also make a method that onlines all dependencies for pools.
+well not onlines, makes requests. But that method would then either be e Request.ONLINE_ALL_DEPENDENCIES
+or it would be many small requests for each dependency.
+
+now when I make a normal request. Should that be a request tree? with requests referencing all entities and all dependencies?
+Then I can cancel that request, simply by putting a timer inside the loop that cancels that specific request. That makes timers simpler because it makes them localized.
+
+
+Should that timer then notify the parent? I mean where should that timer sit? I think the timer should only ever sit at the root of a request. But it could be, that there are many requests, and those requests must be found when I reference the device? I could of course make a dictionary from device id to requests. Or I could hide this all from the user. Then his only option is to cancel all requests and remake them. That sounds smarter. 
+Where would the user need to cancel specific requests?
+
+Oh yeah, if I want my scrub request to correspond to be there while the scrub is running then I need to.
+
+But if I make an ABORT_SCRUB request, then I don't have to. Makes things simpler.
+There is then an ABORT_TRIM request as well.
+
+Does an ABORT_X request ever have dependencies?
+No, and not even the other way round?
+
+
+So a TRIM request has an ONLINE request as a dependency. So does a SCRUB request.
+Oh but a SCRUB request can wait for a long time, namely when the RESILVER is running.
+So the punctual request cannot be implemented.
+
+
+Requests can stay active for a while. At least the scrub request can. It is the only request that might have to wait for a long time before being enacted.
+
+
+I think ABORT_SCRUB and ABORT_TRIM should be implemented, and SCRUB request not being present while scrubbing. The reason simply being that then requests still correspond to atomic changes, even though SCRUB has to wait a long time before being enacted. This has the advantage of zmirror not interfering with scrubs that have been started via some external means. Also atomic change should make the logic simpler. But it means I'll have to add logic to cancel SCRUB and TRIM requests in case an ABORT_SCRUB and an ABORT_TRIM request comes in.
+
+Can I have two ONLINE requests?
+no, don't think so. 
+what might happen though, is that the first one was a simple online request. And the second one that comes in is a ONLINE_MAXIMAL request. or an ONLINE_MINIMAL request
+
+
+what happens to the original online request when an ONLINE_ALL request comes in? I think it should get augmented or replaced.
+
+what happens if an ONLINE_MINIMAL request comes in? the original request should not be reduced. the user should first cancel.
+
+but then again there is no need to have a dependent request ever depend on anything but ONLINE_MINIMAL_DEPENDENCIES. That is to say if a normal ONLINE request is issued the dependent request should fail if the pool does not come online. But if the pool comes online indepedent of how, then the dependent request should succeed.
+
+(except if the dependent request was a TRIM_ALL request or something like that, which I do not have)
+
+what of this do I even need?
+
+I think, depending on the request type, I might implement an is_enacted method on each entity type. This can only work though if the request contains its own structure, does it not? For at the point when is_enacted is called (after some event), I have no idea whether the other elements in the structure have been enacted.
+
+I could store `is_required` for every dependent request. But not in the request itself. Only in the referencing request. This would allow me to have an ONLINE request... no I don't need to do this:
+
+let's say there is a zvol that has an ONLINE request. it is dependent on an ONLINE request of the ZPOOL. and the ONLINE request of the zpool is dependent on an ONLINE_ALL_DEPENDENCIES request. But the ONLINE request on the zpool shall be fulfilled once the pool comes online, through outside means or some other request. While the ONLINE_ALL_DEPENDENCIES request fails after its own timeout.
+
+But can I then cancel the whole structure?
+Let's make it so: the ONLINE event can be fulfilled by the apropriate event. Then all dependent events shall be cancelled. That should be good enough for my purposes.
+
+So some requests do not have timers. While others do. A request must know all requests that depend on it. Once a timer runs out on a dependent request, the depending request must be notified, its own timer cancelled and the request must be removed from the list of requests of the entity.
+
+
+
+
+
+

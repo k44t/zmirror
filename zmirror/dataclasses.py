@@ -6,11 +6,13 @@
 #pylint: disable=invalid-field-call
 #pylint: disable=no-member
 #pylint: disable=unsupported-membership-test
+#pylint: disable=useless-parent-delegation.html
+#pylint: disable=no-else-return
+#pylint: disable=abstract-method.html
 
 
 from datetime import datetime
 from dataclasses import dataclass, field
-import os
 from typing import Any
 from .util import read_file
 from enum import Enum
@@ -36,7 +38,7 @@ def human_readable_id(entity):
       return f"{r} ({v})"
   return r
 
-def do_enact_request(entity, *args, **kwargs):
+def do_enact_request(entity, *_args, **_kwargs):
   if isinstance(entity, Entity):
     entity.enact_request()
 
@@ -93,8 +95,16 @@ class EntityState(KiEnum):
   INACTIVE = 2
 
 
+def state_corresponds_to_request(state, request):
+  return id(state) == id(request) or (state == EntityState.INACTIVE and request == RequestType.OFFLINE)
+
+def operation_corresponds_to_request(oper, request):
+  return id(oper) == id(request)
+
+
+
 @yaml_enum
-class Request(KiEnum):
+class RequestType(KiEnum):
 
   OFFLINE = 0
 
@@ -105,9 +115,9 @@ class Request(KiEnum):
   TRIM = 3
 
   def opposite(self):
-    if self == Request.ONLINE:
-      return Request.OFFLINE
-    return Request.ONLINE
+    if self == RequestType.ONLINE:
+      return RequestType.OFFLINE
+    return RequestType.ONLINE
 
 
 @yaml_enum
@@ -151,9 +161,9 @@ def set_cache_state(o, st, since_unknown=False):
 
 
 request_for_zfs_operation = {
-  ZFSOperationState.RESILVER: Request.ONLINE,
-  ZFSOperationState.SCRUB: Request.SCRUB,
-  ZFSOperationState.TRIM: Request.TRIM
+  ZFSOperationState.RESILVER: RequestType.ONLINE,
+  ZFSOperationState.SCRUB: RequestType.SCRUB,
+  ZFSOperationState.TRIM: RequestType.TRIM
 }
 
 zfs_operation_for_request = {value: key for key, value in request_for_zfs_operation.items()}
@@ -203,22 +213,16 @@ def entity_id_string(o):
 
 
 
-def state_corresponds_to_request(state, request):
-  return id(state) == id(request) or (state == EntityState.INACTIVE and request == Request.OFFLINE)
-
 
 
 class DependentNotFound(Exception):
-    """Exception raised when a dependent is not found."""
-    pass
+  """Exception raised when a dependent is not found."""
+
 
 
 
 def state_since_factory():
   return Since(EntityState.UNKNOWN, None)
-
-def operation_since_factory():
-  return Since(ZFSOperationState.UNKNOWN, None)
 
 @yaml_data
 class Entity:
@@ -235,6 +239,41 @@ class Entity:
   @classmethod
   def id_fields(cls):
     raise NotImplementedError()
+
+
+  def state_allows(self, request_type):
+    state = cached(self).state.what
+    if state == EntityState.ONLINE and request_type == RequestType.OFFLINE:
+      return True
+    elif state == EntityState.INACTIVE and request_type == RequestType.ONLINE:
+      return True
+    return False
+  
+  def unsupported_request(self, request_type):
+    return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
+  
+
+  def is_fulfilled(self, request_type: RequestType):
+    if state_corresponds_to_request(cached(self).state.what, request_type):
+      return True
+    return False
+
+  def enact(self, request):
+
+    request_type = request.request_type
+
+    attr = f"enact_{request_type.name.lower()}"
+    if hasattr(self, attr):
+      request.enacted()
+      def tell_request_enacted(cmd, returncode, _results, errors):
+        if returncode == 0:
+          request.succeed()
+        else:
+          request.fail(Reason.COMMAND_FAILED)
+          log.error(f"command `{cmd.command}` failed: \n\t{"\n\t".join(errors)}")
+      getattr(self, attr)().on_execute(tell_request_enacted)
+    else:
+      log.debug(f"{human_readable_id(self)}: request type unsupported {request_type}")
 
 
   def print_status(self, kdstream):
@@ -255,8 +294,40 @@ class Entity:
       kdstream.print_property(cache, "last_online")
 
   def handle_onlined(self, prev_state):
-    self.unset_requested(Request.ONLINE)
+    self.old_unset_requested(RequestType.ONLINE)
     tell_parent_child_online(self.parent, self, prev_state)
+
+
+  def request_dependencies(self, request_type: RequestType):
+    if request_type == RequestType.ONLINE:
+      if hasattr(self.parent, "request"):
+        return [self.parent.request(RequestType.ONLINE)]
+      return []
+    else:
+      raise ValueError(f"bug: request dependencies {request_type} cannot be fulfilled by class `Entity`")
+
+
+  def request(self, request_type: RequestType):
+    if request_type in self.requested:
+      log.warning(f"{human_readable_id(self)}: already requested: {request_type.name}")
+      return self.requested[request_type]
+    else:
+      deps = self.request_dependencies(request_type)
+      rqst = Requested(request_type, self)
+      for dep in deps:
+        rqst.add_dependent_on(dep)
+      self.requested[request_type] = rqst
+      return rqst
+
+
+  def cancel_request(self, request_type: RequestType, reason):
+    if request_type in self.requested:
+      rqst = self.requested[request_type]
+      log.info(f"{human_readable_id(self)} cancelling request {request_type} because: {reason}")
+      rqst.cancel(reason)
+    else:
+      log.error(f"{human_readable_id(self)}: cannot cancel request {request_type.name}: not requested.")
+
 
 
   def id(self):
@@ -266,13 +337,13 @@ class Entity:
     return cached(self).state.what
 
   def handle_disconnected(self, prev_state):
-    self.unset_requested(Request.OFFLINE)
+    self.old_unset_requested(RequestType.OFFLINE)
     tell_parent_child_offline(self.parent, self, prev_state)
 
 
 
   def handle_deactivated(self, prev_state):
-    self.unset_requested(Request.OFFLINE)
+    self.old_unset_requested(RequestType.OFFLINE)
     tell_parent_child_offline(self.parent, self, prev_state)
     if isinstance(self.parent, Entity):
       if cached(self.parent).state.what == EntityState.DISCONNECTED:
@@ -300,35 +371,39 @@ class Entity:
     raise NotImplementedError()
 
 
+  def dependent_requests(self, _request_type):
+    return []
+    
 
-  def set_requested(self, request, origin):
+
+  def old_set_requested(self, request, _origin):
     online = is_online(self)
-    if not ((request == Request.ONLINE and online) or (request == Request.OFFLINE and not online)):
+    if not ((request == RequestType.ONLINE and online) or (request == RequestType.OFFLINE and not online)):
       self.requested.add(request)
     return True
 
-  def unset_requested(self, rqst):
+  def old_unset_requested(self, rqst):
     if rqst in self.requested:
       self.requested.remove(rqst)
 
 
-  def request_locally(self, request, origin=None, all_dependencies=False):
-    if request == Request.ONLINE:
+  def old_request_locally(self, request, origin=None, all_dependencies=False):
+    if request == RequestType.ONLINE:
       deps = self.get_dependencies(request)
       possible = True
       for dep in deps:
         if not is_online(dep):
           possible = False
       if possible:
-        return self.request(request, origin, False, all_dependencies)
-    elif request == Request.OFFLINE:
+        return self.old_request(request, origin, False, all_dependencies)
+    elif request == RequestType.OFFLINE:
       if is_online(self):
-        return self.request(request, origin, False, all_dependencies)
+        return self.old_request(request, origin, False, all_dependencies)
 
 
 
 
-  def enact_request(self):
+  def old_enact_request(self):
 
 
 
@@ -339,23 +414,23 @@ class Entity:
     for request in self.requested.copy():
       if state_corresponds_to_request(state, self.request):
         log.warning(f"{human_readable_id(self)}: request ({request.name} already fulfilled by state ({state}).")
-        self.unset_requested(request)
-      elif request == Request.ONLINE and state == EntityState.INACTIVE:
-        self.unset_requested(Request.ONLINE)
-        if hasattr(self, "take_online"):
+        self.old_unset_requested(request)
+      elif request == RequestType.ONLINE and state == EntityState.INACTIVE:
+        self.old_unset_requested(RequestType.ONLINE)
+        if hasattr(self, "enact_online"):
           log.info(f"{human_readable_id(self)}: fullfilling request ({request.name})")
-          self.take_online()
+          self.enact_online()
         else:
-          log.error(f"{human_readable_id(self)}: requested {request.name}, but no take_online method. This is a bug in zmirror")
-      elif request == Request.OFFLINE and state == EntityState.ONLINE:
-        self.unset_requested(Request.OFFLINE)
-        if hasattr(self, "take_offline"):
+          log.error(f"{human_readable_id(self)}: requested {request.name}, but no enact_online method. This is a bug in zmirror")
+      elif request == RequestType.OFFLINE and state == EntityState.ONLINE:
+        self.old_unset_requested(RequestType.OFFLINE)
+        if hasattr(self, "enact_offline"):
           log.info(f"{human_readable_id(self)}: fullfilling request ({request.name})")
-          self.take_offline()
+          self.enact_offline()
         else:
-          log.error(f"{human_readable_id(self)}: requested {request.name}, but no take_offline method. This is a bug in zmirror")
-      elif request == Request.SCRUB:
-        if hasattr(self, "start_scrub"):
+          log.error(f"{human_readable_id(self)}: requested {request.name}, but no enact_offline method. This is a bug in zmirror")
+      elif request == RequestType.SCRUB:
+        if hasattr(self, "enact_scrub"):
 
           if since_in(ZFSOperationState.SCRUB, cache.operations):
             log.info(f"{human_readable_id(self)}: already scrubbing")
@@ -364,26 +439,26 @@ class Entity:
               log.debug(f"{human_readable_id(self)}: currently cannot fulfill request {request.name} because device is resilvering.")
             else:
               log.info(f"{human_readable_id(self)}: fullfilling request ({request.name})")
-              self.start_scrub()
+              self.enact_scrub()
           else:
             log.debug(f"{human_readable_id(self)}: currently cannot fulfill request {request.name} because of state ({state}.")
         else:
           log.error(f"{human_readable_id(self)}: requested {request.name}, entity cannot be scrubbed.")
-          self.unset_requested(Request.SCRUB)
-      elif request == Request.TRIM:
-        if hasattr(self, "start_trim"):
+          self.old_unset_requested(RequestType.SCRUB)
+      elif request == RequestType.TRIM:
+        if hasattr(self, "enact_trim"):
           if since_in(ZFSOperationState.TRIM, cache.operations):
             log.info(f"{human_readable_id(self)}: already trimming")
           elif state == EntityState.ONLINE:
             log.info(f"{human_readable_id(self)}: fullfilling request ({request.name})")
-            self.start_trim()
+            self.enact_trim()
           else:
             log.debug(f"{human_readable_id(self)}: currently cannot fulfill request ({request.name}) because of state ({state})")
         else:
           log.error(f"{human_readable_id(self)}: requested {request.name}, entity cannot be trimmed.")
-          self.unset_requested(Request.TRIM)
+          self.old_unset_requested(RequestType.TRIM)
       else:
-          log.debug(f"{human_readable_id(self)}: currently cannot fulfill request ({request.name}) because of state ({state})")
+        log.debug(f"{human_readable_id(self)}: currently cannot fulfill request ({request.name}) because of state ({state})")
 
 
 
@@ -391,17 +466,18 @@ class Entity:
 
   # must be overridden by child classes
   def get_dependencies(self, request):
-    if request == Request.ONLINE:
+    if request == RequestType.ONLINE:
       return [self.parent]
     return []
 
 
 
-  def request(self, request, origin=None, unrequest=False, all_dependencies=False):
+
+  def old_request(self, request, origin=None, unrequest=False, all_dependencies=False):
     if unrequest:
       # yes origin is intended to not be == self here
       if request in self.requested:
-        self.unset_requested(request)
+        self.old_unset_requested(request)
         log.info(f"{human_readable_id(self)}: request {request} unrequested")
         # request_dependencies(self, origin, request, True, all_dependencies, self.get_dependencies(request))
         return True
@@ -411,12 +487,12 @@ class Entity:
     else:
       deps = self.get_dependencies(request)
       # yes origin is intended to not be == self here
-      dependent_success = request_dependencies(self, origin, request, unrequest, all_dependencies, deps)
+      dependent_success = old_request_dependencies(self, origin, request, unrequest, all_dependencies, deps)
       if dependent_success:
-        if self.set_requested(request, origin):
-          if request == Request.OFFLINE:
-            self.unset_requested(Request.SCRUB)
-            self.unset_requested(Request.TRIM)
+        if self.old_set_requested(request, origin):
+          if request == RequestType.OFFLINE:
+            self.old_unset_requested(RequestType.SCRUB)
+            self.old_unset_requested(RequestType.TRIM)
           return True
         else:
           return False
@@ -425,7 +501,116 @@ class Entity:
 
 
 
-def request_dependencies(self, origin, request, unrequest, all_dependencies, deps):
+class Reason(KiEnum):
+  DEPENDENCY_CANCELLED = 0
+  DEPENDENCY_FAILED = 1
+  TIMEOUT = 2
+  DEPENDENT_FAILED = 3
+  DEPENDENT_CANCELLED = 4
+  DEPENDENT_SUCCEEDED = 5
+  USER_REQUESTED = 6
+  MUST_BE_DONE_MANUALLY = 7
+  NOT_SUPPORTED_FOR_ENTITY_TYPE = 8
+  STATE_DOES_NOT_ALLOW_REQUEST = 9
+
+
+@yaml_data
+class Requested:
+  request_type: RequestType
+  entity: Entity
+
+  depending_on: list = field(default_factory=list)
+  depended_by: list = field(default_factory=list)
+
+  # enacted, failed or cancelled.
+  handled = False
+
+  enacted = False
+
+  # succeeded
+  succeeded = False
+  dependencies_succeeded = False
+
+  def cancel(self, reason: Reason, origin=None):
+    if not self.handled:
+      do_cancel = False
+      if origin:
+        if origin in self.depended_by and len(self.depended_by) == 1:
+          do_cancel = True
+        self.depended_by.remove(origin)
+      else:
+        do_cancel = True
+      if do_cancel:
+        self.stop("cancelled", reason, Reason.DEPENDENT_CANCELLED, Reason.DEPENDENT_CANCELLED)
+
+
+  def stop(self, stop_mode, reason: Reason, depending_on_reason: Reason, depended_by_reason: Reason):
+    self.handled = True
+    log.info(f"{human_readable_id(self.entity)}: request {self.request_type.name} {stop_mode}{f" because {reason.name}" if reason else ""}")
+    for d in self.depending_on.copy():
+      d.cancel(depending_on_reason)
+    if depended_by_reason:
+      for d in self.depended_by.copy():
+        d.fail(depended_by_reason)
+    self.depending_on = []
+    self.depended_by = []
+    self.entity.requested.remove(self.request_type)
+
+  def fail(self, reason: Reason):
+    if not self.handled:
+      self.stop("failed", reason, Reason.DEPENDENT_CANCELLED, Reason.DEPENDENT_CANCELLED)
+
+  def succeed(self):
+    if not self.handled:
+      self.succeeded = True
+      self.stop("succeeded", None, Reason.DEPENDENT_SUCCEEDED, None)
+      for d in self.depended_by.copy():
+        d.dependency_succeeded()
+  
+  def dependency_succeeded(self):
+    if not self.handled:
+      dependencies_succeeded = True
+      for d in self.depending_on:
+        if not d.handled:
+          dependencies_succeeded = False
+        elif not d.succeeded:
+          self.fail(Reason.DEPENDENCY_FAILED)
+          return
+      if dependencies_succeeded:
+        self.dependencies_succeeded = True
+        self.enact()
+
+  def enact(self):
+    if not self.handled:
+      if self.entity.is_fulfilled(self.request_type):
+        self.succeed()
+      else:
+        if self.depending_on and self.dependencies_succeeded:
+          if self.entity.state_allows(self.request_type):
+
+            # this is checked only here, because at this point something 
+            # must be done at the entity itself to fulfill the request
+            # while up to this point the request might have been fulfilled
+            # by bringing online the parent
+            #
+            # maybe this is not necessary at all though.
+            unsupported = self.entity.supports_request(self.request_type)
+            if unsupported:
+              self.fail(unsupported)
+            elif not self.enacted:
+              self.entity.enact(self)
+    return self.fulfilled
+
+  def add_dependent_on(self, dependency):
+    self.depending_on.append(dependency)
+    dependency.depended_by.append(self)
+
+
+
+
+
+
+def old_request_dependencies(self, origin, request, unrequest, all_dependencies, deps):
   for i, dep in enumerate(deps):
     if not dep == origin:
       if hasattr(dep, "request"):
@@ -444,58 +629,69 @@ def run_actions(self, event_name, excepted=None):
 
 
 
-def run_action(self, event):
-  if event == "offline":
-    if hasattr(self, "take_offline"):
-      if any(e in [Request.TRIM, Request.SCRUB] for e in self.requested):
+def run_action(self, action):
+  if action == "offline":
+    if hasattr(self, "enact_offline"):
+      if any(e in [RequestType.TRIM, RequestType.SCRUB] for e in self.requested):
         log.info(f"{human_readable_id(self)}: not taking offline since other operations are pending")
       else:
-        self.take_offline()
+        return self.enact_offline()
     else:
-      log.error(f"{human_readable_id(self)}: entity does not support being taken offline manually")
-  elif event == "online":
-    if hasattr(self, "take_online"):
-      self.take_online()
+      log.error(f"{human_readable_id(self)}: entity does not support being taken offline")
+      return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
+  elif action == "online":
+    if hasattr(self, "enact_online"):
+      return self.enact_online()
     else:
-      log.error(f"{human_readable_id(self)}: entity does not support being taken online manually")
-  elif event == "snapshot":
+      log.error(f"{human_readable_id(self)}: entity does not support being taken online")
+      return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
+  elif action == "snapshot":
     if hasattr(self, "take_snapshot"):
-      self.take_snapshot()
+      return self.take_snapshot()
     else:
       log.error(f"{human_readable_id(self)}: entity does not have the ability to create snapshots")
-  elif event == "scrub":
-    if hasattr(self, "start_scrub"):
+      return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
+  elif action == "scrub":
+    if hasattr(self, "enact_scrub"):
       cache = cached(self)
       if since_in(ZFSOperationState.SCRUB, cache.operations):
         log.info(f"{human_readable_id(self)}: already scrubbing")
+        return Reason.ALREADY_RUNNING
       elif cache.state.what is not EntityState.ONLINE:
         log.debug(f"{human_readable_id(self)}: cannot start scrub, device not ONLINE")
+        return Reason.STATE_DOES_NOT_ALLOW_REQUEST
       else:
-        self.start_scrub()
+        return self.enact_scrub()
     else:
       log.error(f"{human_readable_id(self)}: entity cannot be scrubbed")
-  elif event == "trim":
-    if hasattr(self, "start_trim"):
+      return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
+  elif action == "trim":
+    if hasattr(self, "enact_trim"):
       cache = cached(self)
       if since_in(ZFSOperationState.TRIM, cache.operations):
         log.info(f"{human_readable_id(self)}: already trimming")
+        return Reason.ALREADY_RUNNING
       elif cache.state.what is not EntityState.ONLINE:
         log.debug(f"{human_readable_id(self)}: cannot start trim, device not ONLINE")
+        return Reason.STATE_DOES_NOT_ALLOW_REQUEST
       else:
-        self.start_trim()
+        return self.enact_trim()
     else:
       log.error(f"{human_readable_id(self)}: entity cannot be trimmed")
+      return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
 
-  elif event == "snapshot-parent":
+  elif action == "snapshot-parent":
     if hasattr(self.parent, "take_snapshot"):
-      self.parent.take_snapshot()
+      return self.parent.take_snapshot()
     else:
       log.error(f"{make_id(self)}: the parent entity does not have the ability to create snapshots")
-  elif event == "pass":
+      return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
+  elif action == "pass":
     # do nothing
     pass
   else:
-    log.error(f"unknown event type for {make_id(self)}: {event}")
+    log.error(f"unknown event type for {make_id(self)}: {action}")
+    return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
 
 
 
@@ -521,6 +717,8 @@ class Children(Entity):
 
   on_children_offline: list = field(default_factory=list, kw_only=True)
 
+  def handle_appeared(self, prev_state):
+    raise NotImplementedError()
 
   def print_status(self, kdstream):
     super().print_status(kdstream)
@@ -529,7 +727,16 @@ class Children(Entity):
       kdstream.newline()
       print_status_many(self.content, kdstream)
 
-
+  def request_dependencies(self, request_type):
+    if request_type == RequestType.OFFLINE:
+      def do(entity):
+        return entity.request(RequestType.OFFLINE)
+      return map(do, self.content)
+    elif request_type == RequestType.ONLINE:
+      return super().request_dependencies(request_type)
+    else:
+      raise ValueError(f"bug: request type {request_type.name} cannot be fulfilled by class `Children`")
+  
 
   def handle_onlined(self, prev_state):
     super().handle_onlined(prev_state)
@@ -553,9 +760,9 @@ class Children(Entity):
 
 
   def get_dependencies(self, request):
-    if request == Request.ONLINE:
+    if request == RequestType.ONLINE:
       return [self.parent]
-    elif request == Request.OFFLINE:
+    elif request == RequestType.OFFLINE:
       return self.content
     else:
       return []
@@ -575,7 +782,7 @@ class Children(Entity):
 
 
 
-  def handle_child_offline(self, child, prev_state):
+  def handle_child_offline(self, _child, prev_state):
 
     # this change is irrelevant for the parent
     if prev_state == EntityState.INACTIVE:
@@ -589,14 +796,14 @@ class Children(Entity):
     if not online:
       self.handle_children_offline()
 
-  def handle_child_online(self, child, prev_state):
+  def handle_child_online(self, _child, _prev_state):
     handle_onlined(cached(self))
 
 
 
 def handle_offline_request(self):
-  if Request.OFFLINE in self.requested:
-    self.take_offline()
+  if RequestType.OFFLINE in self.requested:
+    self.enact_offline()
     return True
   return False
 
@@ -613,13 +820,12 @@ def handle_parent_offline(self):
 
 
 def handle_online_request(self):
-  if Request.ONLINE in self.requested:
-    self.take_online()
+  if RequestType.ONLINE in self.requested:
+    self.enact_online()
     return True
   return False
 
 
-# TODO: remove "nothing to do for disk event" info log. this should be debug?
 
 
 
@@ -635,7 +841,7 @@ def possibly_force_enable_trim(self):
       else:
         if state.strip() != "unmap":
           log.warning(f"{human_readable_id(self)}: force enabling trim")
-          commands.add_command(f"echo unmap > {path}")
+          return commands.add_command(f"echo unmap > {path}")
         else:
           log.info(f"{human_readable_id(self)}: trim already enabled")
 
@@ -645,16 +851,22 @@ class TimerEvent(Enum):
   RESTART = 0
   TIMEOUT = 1
 
-@yaml_data
-class Disk(Children):
 
-  # TODO: give disk a human readable name
-  # TODO: fix that it says EntityState.ONLINE for ZDEV DMCRYPT, I guess for all
+@yaml_data
+class ManualChildren(Children):
+
+  def unsupported_request(self, request_type):
+    if request_type in {RequestType.ONLINE, RequestType.OFFLINE}:
+      return Reason.MUST_BE_DONE_MANUALLY
+    return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
+
+@yaml_data
+class Disk(ManualChildren):
+
 
   uuid: str = None
   info: str = None
 
-  # TODO: implement me
   force_enable_trim: bool = False
 
   @classmethod
@@ -667,13 +879,6 @@ class Disk(Children):
   def handle_appeared(self, prev_state):
     possibly_force_enable_trim(self)
 
-  def set_requested(self, request, origin):
-    online = is_present_or_online(self)
-    if (request == Request.ONLINE and online) or (request == Request.OFFLINE and not online):
-      return True
-    else:
-      log.error(f"{human_readable_id(self)}: request {request.name} cannot be fulfilled. You need to do this manually.")
-      return False
 
   # this requires a udev rule to be installed which ensures that the disk appears under its GPT partition table UUID under /dev/disk/by-uuid
   def dev_path(self):
@@ -694,8 +899,9 @@ class Disk(Children):
       raise ValueError("uuid not set")
 
 
+
 @yaml_data
-class Partition(Children):
+class Partition(ManualChildren):
   name: str = None
 
 
@@ -719,15 +925,6 @@ class Partition(Children):
     for c in self.content:
       handle_appeared(cached(c))
 
-  def set_requested(self, request, origin):
-    if request == Request.ONLINE:
-      if isinstance(self.parent, ZMirror):
-        if not is_present_or_online(self):
-          log.error(f"{human_readable_id(self)}: request ONLINE cannot be fulfilled. You need to do this manually.")
-          return False
-      return True
-    else:
-      return True
 
 
   def id(self):
@@ -735,15 +932,15 @@ class Partition(Children):
 
 
 def load_disk_or_partition_initial_state(self):
-    state = EntityState.DISCONNECTED
-    if config.dev_exists(self.dev_path()):
-      state = EntityState.INACTIVE
-      # only the children being active can turn it into ONLINE
-      for c in self.content:
-        if cached(c).state.what == EntityState.ONLINE:
-          state = EntityState.ONLINE
-          break
-    return state
+  state = EntityState.DISCONNECTED
+  if config.dev_exists(self.dev_path()):
+    state = EntityState.INACTIVE
+    # only the children being active can turn it into ONLINE
+    for c in self.content:
+      if cached(c).state.what == EntityState.ONLINE:
+        state = EntityState.ONLINE
+        break
+  return state
 
 
 
@@ -753,16 +950,23 @@ class BackingDevice:
   required: bool = False
   online_dependencies: bool = True
 
+  def unsupported_request(self):
+    return self.device.unsupported_request()
+  
+  def state_supports(self, request_type):
+    return self.device.state_supports(request_type)
 
-
-  def request(self, request, origin=None, unrequest=False, all_dependencies=False):
-    return self.device.request(request, origin, unrequest, all_dependencies)
-
-  def request_locally(self, request, origin=None, all_dependencies=False):
-    return self.device.request_locally(request, origin, all_dependencies)
+  def request(self, request_type):
+    return self.device.request(request_type)
 
   def get_state(self):
     return self.device.get_state()
+
+
+
+
+
+
 
 
 def unavailable_guard(blockdevs, devname):
@@ -778,23 +982,18 @@ def init_backing(self, pool, blockdevs):
       self.devices[i] = BackingDevice(unavailable_guard(blockdevs, dev))
     else:
       if not "name" in dev:
-        raise ValueError(f"misconfiguration: backing for {entity_id_string(pool)}. `name` missing in Mirror.")
+        raise ValueError(f"misconfiguration: backing for {human_readable_id(pool)}. `name` missing in Mirror.")
       self.devices[i] = BackingDevice(
         unavailable_guard(blockdevs, dev["name"]),
-        yes_no_absent_or_dict(dev, "required", False, f"misconfiguration: backing for {entity_id_string(pool)}"),
-        yes_no_absent_or_dict(dev, "online_dependencies", True, f"misconfiguration: backing for {entity_id_string(pool)}")
+        yes_no_absent_or_dict(dev, "required", False, f"misconfiguration: backing for {human_readable_id(pool)}"),
+        yes_no_absent_or_dict(dev, "online_dependencies", True, f"misconfiguration: backing for {human_readable_id(pool)}")
       )
 
 
-# Agregates are not entities but defer to entities
-
-@yaml_data
-class Agregate:
-  pass
 
 
 @yaml_data
-class DevicesAgregate:
+class DevicesAgregate(Entity):
 
   devices: list = field(default_factory=list)
 
@@ -859,11 +1058,11 @@ class Mirror(DevicesAgregate):
       return EntityState.INACTIVE
 
 
-  def request(self, request, origin=None, unrequest=False, all_dependencies=False):
+  def old_request(self, request, origin=None, unrequest=False, all_dependencies=False):
     one_failed = False
     one_succeeded = False
     for i, d in enumerate(self.devices):
-      if request == Request.ONLINE:
+      if request == RequestType.ONLINE:
         if all_dependencies or d.online_dependencies:
           res = d.request(request, origin, unrequest, all_dependencies)
         else:
@@ -894,11 +1093,11 @@ class ParityRaid(DevicesAgregate):
 
 
 
-  def request(self, request, origin=None, unrequest=False, all_dependencies=False):
+  def request(self, request_type):
     one_failed = False
     num_succeeded = 0
     for d in self.devices:
-      res = d.request(request, origin, unrequest, all_dependencies)
+      res = d.request(request_type)
       if res:
         num_succeeded += 1
       else:
@@ -927,7 +1126,19 @@ class ZPool(Children):
   @classmethod
   def id_fields(cls):
     return ["name"]
+  
 
+  def handle_appeared(self, prev_state):
+    pass
+
+
+  def request_dependencies(self, request_type):
+    if request_type == RequestType.ONLINE:
+      def do(backing):
+        return backing.request(request_type)
+      return map(do, self.backed_by)
+    else:
+      return super().request_dependencies(request_type)
 
 
 
@@ -952,12 +1163,12 @@ class ZPool(Children):
         kdstream.dedent()
 
     if self.content:
-        kdstream.newline()
-        kdstream.print_property_prefix("backing")
-        kdstream.print_raw(" [:")
-        kdstream.indent()
-        print_status_many(self.content, kdstream)
-        kdstream.dedent()
+      kdstream.newline()
+      kdstream.print_property_prefix("backing")
+      kdstream.print_raw(" [:")
+      kdstream.indent()
+      print_status_many(self.content, kdstream)
+      kdstream.dedent()
 
 
 
@@ -983,10 +1194,10 @@ class ZPool(Children):
 
 
   # must be overridden by child classes
-  def get_dependencies(self, request):
-    if request == Request.ONLINE:
+  def old_get_dependencies(self, request):
+    if request == RequestType.ONLINE:
       return self.backed_by
-    elif request == Request.OFFLINE:
+    elif request == RequestType.OFFLINE:
       return self.content
     else:
       return []
@@ -1018,19 +1229,20 @@ class ZPool(Children):
 
 
 
-  def start_scrub(self):
+
+  def enact_scrub(self):
     self.stop_scrub()
-    commands.add_command(f"zpool scrub {self.name}", unless_redundant = True)
+    return commands.add_command(f"zpool scrub {self.name}", unless_redundant = True)
 
   def stop_scrub(self):
-    commands.add_command(f"zpool scrub -s {self.name}", unless_redundant = True)
+    return commands.add_command(f"zpool scrub -s {self.name}", unless_redundant = True)
 
 
 
-  def take_offline(self):
-      commands.add_command(f"zpool export {self.name}", unless_redundant = True)
+  def enact_offline(self):
+    return commands.add_command(f"zpool export {self.name}", unless_redundant = True)
 
-  def take_online(self):
+  def enact_online(self):
     if is_online(self):
       log.debug(f"zpool {self.name} already online")
       return
@@ -1038,7 +1250,7 @@ class ZPool(Children):
     sufficient = self.run_on_backing(is_present_or_online)
     if sufficient:
       log.info(f"sufficient backing devices available to import zpool {self.name}")
-      commands.add_command(f"zpool import {self.name}", unless_redundant = True)
+      return commands.add_command(f"zpool import {self.name}", unless_redundant = True)
     else:
       log.info(f"insufficient backing devices available to import zpool {self.name}")
 
@@ -1077,7 +1289,7 @@ class ZFSVolume(Children):
   def handle_children_offline(self):
     return super().handle_children_offline()
 
-  def handle_parent_online(self):
+  def handle_parent_online(self, new_state=EntityState.INACTIVE):
     state = self.load_initial_state()
     if state == EntityState.INACTIVE:
       handle_appeared(cached(self))
@@ -1102,16 +1314,14 @@ class ZFSVolume(Children):
       state = EntityState.INACTIVE
     return state
 
-  def take_online(self):
-    #if self.cache.state.what == EntityState.INACTIVE:
-      commands.add_command(f"zfs set volmode=full {self.parent.name}/{self.name}")
+  def enact_online(self):
+    return commands.add_command(f"zfs set volmode=full {self.parent.name}/{self.name}")
 
-  def take_offline(self):
-    #if self.cache.state.what == EntityState.ONLINE:
-      commands.add_command(f"zfs set volmode=none {self.parent.name}/{self.name}")
+  def enact_offline(self):
+    return commands.add_command(f"zfs set volmode=none {self.parent.name}/{self.name}")
 
   def take_snapshot(self):
-    commands.add_command(f"zfs snapshot {self.parent.name}/{self.name}@zmirror-{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}")
+    return commands.add_command(f"zfs snapshot {self.parent.name}/{self.name}@zmirror-{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}")
 
 
   def get_devpath(self):
@@ -1124,11 +1334,11 @@ class ZFSVolume(Children):
 # an entity that is embedded inside another and thus must be notified by its parent (zdevs and dmcrypts)
 class Embedded: 
 
-  def handle_parent_offline(self):
+  def handle_parent_offline(self, _new_state=EntityState.INACTIVE):
     state = cached(self).state.what
     if state == EntityState.ONLINE:
       log.info(f"{human_readable_id(self)}: parent OFFLINE, requesting OFFLINE.")
-      self.request(Request.OFFLINE)
+      self.request(RequestType.OFFLINE)
       iterate_content_tree3_depth_first(self, do_enact_request, parent=None, strt=None)
     elif state == EntityState.INACTIVE:
       handle_disconnected(self)
@@ -1183,11 +1393,11 @@ class DMCrypt(Children, Embedded):
   def handle_child_offline(self, child, prev_state):
     return super().handle_child_offline(child, prev_state)
 
-  def take_offline(self):
-    commands.add_command(f"cryptsetup close {self.name}")
+  def enact_offline(self):
+    return commands.add_command(f"cryptsetup close {self.name}")
 
-  def take_online(self):
-    commands.add_command(f"cryptsetup open {self.parent.dev_path()} {self.name} --key-file {self.key_file}")
+  def enact_online(self):
+    return commands.add_command(f"cryptsetup open {self.parent.dev_path()} {self.name} --key-file {self.key_file}")
 
 
 def uncached(cache, fn=None):
@@ -1320,7 +1530,7 @@ class UnavailableDependency:
 
   name: str
 
-  def request(self, request, origin=None, unrequest=False, all_dependencies=False):
+  def old_request(self, request, origin=None, unrequest=False, all_dependencies=False):
     return False
 
 
@@ -1358,8 +1568,6 @@ class ZDev(Entity, Embedded):
 
   on_appeared: list = field(default_factory=list)
 
-  # TODO: apparently scrub is impossible while resilvering, but trim is possible
-  # now we need to check whether trim is possible while scrubbing, probably yes
   operations: list = field(default_factory=list)
 
   last_online: datetime = None
@@ -1382,6 +1590,35 @@ class ZDev(Entity, Embedded):
   def id_fields(cls):
     return ["pool", "name"]
   
+
+  def unsupported_request(self, request_type: RequestType):
+    if request_type in [RequestType.SCRUB, RequestType.TRIM]:
+      return None
+    return super().unsupported_request(self)
+  
+
+  def state_allows(self, request_type: RequestType):
+    cache = cached(self)
+    if cache.state.what == EntityState.ONLINE:
+      if request_type == RequestType.SCRUB:
+        if not since_in(ZFSOperationState.RESILVER, cache.operations):
+          return True
+      if request_type == RequestType.TRIM:
+        return True
+    return super().state_allows(request_type)
+    
+      
+
+  def request_dependencies(self, request_type):
+    if request_type == RequestType.SCRUB:
+      return [self.request(RequestType.ONLINE)]
+    elif request_type == RequestType.TRIM:
+      return [self.request(RequestType.ONLINE)]
+    else:
+      return super().request_dependencies(request_type)
+
+
+
   def configured_interval(self, op: ZFSOperationState):
     return getattr(self, f"{op.name.lower()}_interval")
   
@@ -1422,13 +1659,21 @@ class ZDev(Entity, Embedded):
       kdstream.print_property(cache, "operations")
 
 
+  def is_fulfilled(self, request_type: RequestType):
+    for op in self.operations:
+      if operation_corresponds_to_request(op, request_type):
+        return True
+    return super().is_fulfilled(self)
+  
 
 
-  def enact_request(self):
+
+
+  def old_enact_request(self):
     cache = cached(self)
-    if since_in(ZFSOperationState.TRIM, cache.operations) and Request.TRIM not in self.requested:
+    if since_in(ZFSOperationState.TRIM, cache.operations) and RequestType.TRIM not in self.requested:
       self.stop_trim()
-    elif since_in(ZFSOperationState.SCRUB, cache.operations) and Request.SCRUB not in self.requested:
+    elif since_in(ZFSOperationState.SCRUB, cache.operations) and RequestType.SCRUB not in self.requested:
       self.stop_scrub()
     return super().enact_request()
 
@@ -1453,7 +1698,7 @@ class ZDev(Entity, Embedded):
 
   # must be overridden by child classes
   def get_dependencies(self, request):
-    if request == Request.ONLINE:
+    if request == RequestType.ONLINE:
       pool = config.find_config(ZPool, name=self.pool)
       if pool is None:
         log.error(f"{human_readable_id(self)}: pool {self.pool} not configured.")
@@ -1461,25 +1706,6 @@ class ZDev(Entity, Embedded):
       return [self.parent, pool]
     else:
       return []
-
-
-
-
-
-  def set_requested(self, request, origin):
-    success = True
-    if request == Request.OFFLINE and Request.SCRUB in self.requested:
-      log.warning(f"{human_readable_id(self)}: OFFLINE requested while SCRUB was requested. Unrequesting SCRUB.")
-      if not self.request(Request.SCRUB, origin, True):
-        success = False
-
-    elif request == Request.SCRUB or request == Request.TRIM:
-      if not self.request(Request.ONLINE, self, unrequest=False, all_dependencies=False):
-        success = False
-    if success:
-      return super().set_requested(request, origin)
-    else:
-      return False
 
 
 
@@ -1516,7 +1742,7 @@ class ZDev(Entity, Embedded):
 
   def handle_scrub_finished(self):
 
-    self.unset_requested(Request.SCRUB)
+    self.old_unset_requested(RequestType.SCRUB)
     run_actions(self, "scrubbed")
 
 
@@ -1524,29 +1750,28 @@ class ZDev(Entity, Embedded):
     run_actions(self, "trim_canceled")
 
   def handle_trim_finished(self):
-    self.unset_requested(Request.TRIM)
+    self.old_unset_requested(RequestType.TRIM)
     run_actions(self, "trimmed")
 
 
-  def take_offline(self):
-    commands.add_command(f"zpool offline {self.pool} {self.dev_name()}", unless_redundant = True)
+  def enact_offline(self):
+    return commands.add_command(f"zpool offline {self.pool} {self.dev_name()}", unless_redundant = True)
 
-  def take_online(self):
-    commands.add_command(f"zpool online {self.pool} {self.dev_name()}", unless_redundant = True)
+  def enact_online(self):
+    return commands.add_command(f"zpool online {self.pool} {self.dev_name()}", unless_redundant = True)
 
-  def start_trim(self):
-    commands.add_command(f"zpool trim {self.pool} {self.dev_name()}", unless_redundant = True)
+  def enact_trim(self):
+    return commands.add_command(f"zpool trim {self.pool} {self.dev_name()}", unless_redundant = True)
 
-  def start_scrub(self):
+  def enact_scrub(self):
     self.stop_scrub()
-    commands.add_command(f"zpool scrub {self.pool}", unless_redundant = True)
+    return commands.add_command(f"zpool scrub {self.pool}", unless_redundant = True)
 
   def stop_scrub(self):
-    commands.add_command(f"zpool scrub -s {self.pool}", unless_redundant = True)
+    return commands.add_command(f"zpool scrub -s {self.pool}", unless_redundant = True)
 
   def stop_trim(self):
-    commands.add_command(f"zpool trim -s {self.pool} {self.dev_name()}", unless_redundant = True)
+    return commands.add_command(f"zpool trim -s {self.pool} {self.dev_name()}", unless_redundant = True)
 
   def __kiify__(self, kd_stream: KdStream):
     kd_stream.print_partial_obj(self, ["pool", "dev", "state", "operations", "last_resilvered", "last_scrubbed"])
-

@@ -202,10 +202,10 @@ def main(args=None):
       common_parser.add_argument(f"--{fld}", type=str, required=True)
     
     online = online_subs.add_parser(command_name, parents=[common_parser, cancel_parser])
-    online.set_defaults(func=make_send_request_daemon_command(Request.ONLINE, typ))
+    online.set_defaults(func=make_send_request_daemon_command(RequestType.ONLINE, typ))
 
     offline = offline_subs.add_parser(command_name, parents=[common_parser, cancel_parser])
-    offline.set_defaults(func=make_send_request_daemon_command(Request.OFFLINE, typ))
+    offline.set_defaults(func=make_send_request_daemon_command(RequestType.OFFLINE, typ))
 
     status = status_subs.add_parser(command_name, parents=[common_parser])
     status.set_defaults(func=make_send_entity_daemon_command("status", typ))
@@ -213,7 +213,7 @@ def main(args=None):
     if typ in [ZDev, ZPool]:
 
       scrub = scrub_subs.add_parser(command_name, parents=[common_parser])
-      scrub.set_defaults(func=make_send_request_daemon_command(Request.SCRUB, typ))
+      scrub.set_defaults(func=make_send_request_daemon_command(RequestType.SCRUB, typ))
 
 
 
