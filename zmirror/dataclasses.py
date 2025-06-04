@@ -6,9 +6,10 @@
 #pylint: disable=invalid-field-call
 #pylint: disable=no-member
 #pylint: disable=unsupported-membership-test
-#pylint: disable=useless-parent-delegation.html
+#pylint: disable=useless-parent-delegation
 #pylint: disable=no-else-return
-#pylint: disable=abstract-method.html
+#pylint: disable=abstract-method
+#pylint: disable=wildcard-import
 
 
 from datetime import datetime
@@ -27,6 +28,8 @@ from .logging import log
 from . import commands as commands
 from . import config as config
 from .config import iterate_content_tree3_depth_first
+from .requests import *
+
 
 
 def human_readable_id(entity):
@@ -37,6 +40,8 @@ def human_readable_id(entity):
     if v is not None:
       return f"{r} ({v})"
   return r
+
+config.human_readable_id = human_readable_id
 
 def do_enact_request(entity, *_args, **_kwargs):
   if isinstance(entity, Entity):
@@ -501,113 +506,6 @@ class Entity:
 
 
 
-class Reason(KiEnum):
-  DEPENDENCY_CANCELLED = 0
-  DEPENDENCY_FAILED = 1
-  TIMEOUT = 2
-  DEPENDENT_FAILED = 3
-  DEPENDENT_CANCELLED = 4
-  DEPENDENT_SUCCEEDED = 5
-  USER_REQUESTED = 6
-  MUST_BE_DONE_MANUALLY = 7
-  NOT_SUPPORTED_FOR_ENTITY_TYPE = 8
-  STATE_DOES_NOT_ALLOW_REQUEST = 9
-
-
-@yaml_data
-class Requested:
-  request_type: RequestType
-  entity: Entity
-
-  depending_on: list = field(default_factory=list)
-  depended_by: list = field(default_factory=list)
-
-  # enacted, failed or cancelled.
-  handled = False
-
-  enacted = False
-
-  # succeeded
-  succeeded = False
-  dependencies_succeeded = False
-
-  def cancel(self, reason: Reason, origin=None):
-    if not self.handled:
-      do_cancel = False
-      if origin:
-        if origin in self.depended_by and len(self.depended_by) == 1:
-          do_cancel = True
-        self.depended_by.remove(origin)
-      else:
-        do_cancel = True
-      if do_cancel:
-        self.stop("cancelled", reason, Reason.DEPENDENT_CANCELLED, Reason.DEPENDENT_CANCELLED)
-
-
-  def stop(self, stop_mode, reason: Reason, depending_on_reason: Reason, depended_by_reason: Reason):
-    self.handled = True
-    log.info(f"{human_readable_id(self.entity)}: request {self.request_type.name} {stop_mode}{f" because {reason.name}" if reason else ""}")
-    for d in self.depending_on.copy():
-      d.cancel(depending_on_reason)
-    if depended_by_reason:
-      for d in self.depended_by.copy():
-        d.fail(depended_by_reason)
-    self.depending_on = []
-    self.depended_by = []
-    self.entity.requested.remove(self.request_type)
-
-  def fail(self, reason: Reason):
-    if not self.handled:
-      self.stop("failed", reason, Reason.DEPENDENT_CANCELLED, Reason.DEPENDENT_CANCELLED)
-
-  def succeed(self):
-    if not self.handled:
-      self.succeeded = True
-      self.stop("succeeded", None, Reason.DEPENDENT_SUCCEEDED, None)
-      for d in self.depended_by.copy():
-        d.dependency_succeeded()
-  
-  def dependency_succeeded(self):
-    if not self.handled:
-      dependencies_succeeded = True
-      for d in self.depending_on:
-        if not d.handled:
-          dependencies_succeeded = False
-        elif not d.succeeded:
-          self.fail(Reason.DEPENDENCY_FAILED)
-          return
-      if dependencies_succeeded:
-        self.dependencies_succeeded = True
-        self.enact()
-
-  def enact(self):
-    if not self.handled:
-      if self.entity.is_fulfilled(self.request_type):
-        self.succeed()
-      else:
-        if self.depending_on and self.dependencies_succeeded:
-          if self.entity.state_allows(self.request_type):
-
-            # this is checked only here, because at this point something 
-            # must be done at the entity itself to fulfill the request
-            # while up to this point the request might have been fulfilled
-            # by bringing online the parent
-            #
-            # maybe this is not necessary at all though.
-            unsupported = self.entity.supports_request(self.request_type)
-            if unsupported:
-              self.fail(unsupported)
-            elif not self.enacted:
-              self.entity.enact(self)
-    return self.fulfilled
-
-  def add_dependent_on(self, dependency):
-    self.depending_on.append(dependency)
-    dependency.depended_by.append(self)
-
-
-
-
 
 
 def old_request_dependencies(self, origin, request, unrequest, all_dependencies, deps):
@@ -950,8 +848,8 @@ class BackingDevice:
   required: bool = False
   online_dependencies: bool = True
 
-  def unsupported_request(self):
-    return self.device.unsupported_request()
+  def unsupported_request(self, request_type):
+    return self.device.unsupported_request(request_type)
   
   def state_supports(self, request_type):
     return self.device.state_supports(request_type)
@@ -1090,24 +988,6 @@ class ParityRaid(DevicesAgregate):
   def init(self, parent, blockdevs):
     init_backing(self, parent, blockdevs)
 
-
-
-
-  def request(self, request_type):
-    one_failed = False
-    num_succeeded = 0
-    for d in self.devices:
-      res = d.request(request_type)
-      if res:
-        num_succeeded += 1
-      else:
-        if d.required:
-          one_failed = True
-    if one_failed or (num_succeeded < len(self.devices) - self.parity):
-      for d in self.devices:
-        d.request(request, origin, True, all_dependencies)
-      return False
-    return True
 
 
 
