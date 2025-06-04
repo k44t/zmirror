@@ -507,7 +507,6 @@ class Entity:
 
 
 
-
 def old_request_dependencies(self, origin, request, unrequest, all_dependencies, deps):
   for i, dep in enumerate(deps):
     if not dep == origin:
