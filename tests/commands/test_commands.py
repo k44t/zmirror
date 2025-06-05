@@ -12,12 +12,12 @@
 import pytest
 import re
 
-from itertools import zip_longest
 
 from util.util_stage1 import *
 
 
 
+from zmirror import user_commands
 from zmirror.daemon import handle
 import zmirror.commands
 from zmirror.dataclasses import *
@@ -28,6 +28,8 @@ import zmirror.operations as operations
 
 from util.util_stage2 import *
 
+from zmirror.logging import log
+
 
 
 
@@ -35,20 +37,13 @@ from util.util_stage2 import *
 @pytest.fixture(scope="class", autouse=True)
 def setup_before_all_methods():
   # Code to execute once before all test methods in each class
+
   insert_zpool_status_stub()
   insert_dev_exists_stub()
   insert_get_zfs_volume_mode_stub()
   insert_find_provisioning_mode_stub()
 
 
-def assert_commands(cmds):
-    for a, b in zip_longest(cmds, commands.commands):
-      if isinstance(a, re.Pattern):
-        if b is None:
-          raise ValueError("NoneType does not match regex pattern")
-        assert a.match(b)
-      else:
-        assert a == b
 
 class Tests():
 
@@ -82,6 +77,7 @@ class Tests():
     for key, entity in config.cache_dict.items():
       assert entity_id_string(entity) == key
       assert entity.state.what == EntityState.DISCONNECTED
+
 
 
   # #####################
@@ -159,7 +155,14 @@ class Tests():
   # physical device of sysfs-b gets plugged-in
   # disk of sysfs-b appears (udev: add)
   def test_disk_sysfs_b_online(self):
+    
+    disk = config.cache_dict["Disk|uuid:00000000-0000-0000-0000-000000000002"]
+
+    assert disk.state.what == EntityState.DISCONNECTED
+    
     trigger_event()
+
+    assert disk.state.what == EntityState.ONLINE
 
     assert_commands([
       # we set force_enable_trim for this device
@@ -263,6 +266,16 @@ class Tests():
       "zpool offline zmirror-sysfs zmirror-sysfs-s"
     ])
 
+  # we let the request fail, simulating that the device is still online.
+  def test_have_offline_request_fail_for_arbitrary_reason(self):
+
+    zdev_entity = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    zdev_entity.requested[RequestType.OFFLINE].fail(Reason.COMMAND_FAILED)
+
+    assert RequestType.OFFLINE not in zdev_entity.requested
+    
+    
+
 
   # the user unplugs the disk
   def test_disk_sysfs_s_offline(self):
@@ -311,12 +324,53 @@ class Tests():
     assert_commands([
       # zmirror needs to take the zdev offline
       'zpool offline zmirror-sysfs zmirror-sysfs-s',
-      # and close the dmcrypt
-      'cryptsetup close zmirror-sysfs-s'
-      # IN THIS ORDER!
+      # and close the dmcrypt, but only after the device has gone offline!
+      ## 'cryptsetup close zmirror-sysfs-s'
     ])
 
 
+  # ZED tells us that the zdev has gone offline
+  def test_zdev_sysfs_s_offline(self):
+
+    disk = config.cache_dict["Disk|uuid:00000000-0000-0000-0000-000000000004"]
+    partition = config.cache_dict["Partition|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-s"]
+    zdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+    assert_commands([])
+
+    trigger_event()
+
+
+    assert disk.state.what == EntityState.DISCONNECTED
+    assert partition.state.what == EntityState.DISCONNECTED
+    assert crypt.state.what == EntityState.ONLINE
+    assert zdev.state.what == EntityState.INACTIVE
+
+    assert_commands([
+      # and close the dmcrypt, but only after the device has gone offline!
+      'cryptsetup close zmirror-sysfs-s'
+    ])
+
+
+  def test_dmcrypt_sysfs_s_offline(self):
+
+    disk = config.cache_dict["Disk|uuid:00000000-0000-0000-0000-000000000004"]
+    partition = config.cache_dict["Partition|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-s"]
+    zdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+    trigger_event()
+
+
+    assert disk.state.what == EntityState.DISCONNECTED
+    assert partition.state.what == EntityState.DISCONNECTED
+    assert crypt.state.what == EntityState.INACTIVE
+    assert zdev.state.what == EntityState.DISCONNECTED
+
+    assert_commands([
+      # we do nothing
+    ])
 
   # ###################
   # big
@@ -898,12 +952,12 @@ class Tests():
 
     blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
     assert blockdev.state.what == EntityState.ONLINE
-    assert since_in(ZFSOperationState.RESILVER, blockdev.operations)
+    assert since_in(Operations.RESILVER, blockdev.operations)
 
     trigger_event()
 
     assert blockdev.state.what == EntityState.ONLINE
-    assert not since_in(ZFSOperationState.RESILVER, blockdev.operations)
+    assert not since_in(Operations.RESILVER, blockdev.operations)
 
     assert_commands([
       

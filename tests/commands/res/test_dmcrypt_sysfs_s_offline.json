@@ -1,0 +1,5 @@
+{
+  "DEVTYPE": "disk",
+  "ACTION": "remove",
+  "DM_NAME": "zmirror-sysfs-s"
+}

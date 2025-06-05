@@ -29,11 +29,8 @@ def request(rqst, typ, all_dependencies=False, **identifiers):
   entity = load_config_for_id(tid)
   if entity is None:
     raise ValueError(f"{tid} not configured")
-  result = entity.request(rqst, all_dependencies = all_dependencies)
-  if result:
-    iterate_content_tree(config.config_root, do_enact_request)
-    return True
-  return False
+  result = entity.request(rqst)
+  result.enact_hierarchy()
 
 
 
@@ -41,7 +38,7 @@ def enact_requests(entity=None):
   if entity is None:
     entity = config.config_root
   
-  iterate_content_tree3_depth_first(entity, do_enact_request, parent=None, strt=None)
+  iterate_content_tree3_depth_first(entity, do_enact_requests, parent=None, strt=None)
 
 
 def daemon_request(rqst, cancel, typ, ids):
@@ -172,11 +169,11 @@ def clear_requests():
     cache = cached(entity)
     for rqst in entity.requested.copy():
       if rqst == RequestType.TRIM:
-        if not since_in(ZFSOperationState.TRIM, cache.operations):
+        if not since_in(Operations.TRIM, cache.operations):
           log.warning(f"{human_readable_id(entity)}: timeout for request: {rqst.name}")
           entity.requested.remove(rqst)
       elif rqst == RequestType.SCRUB:
-        if not since_in(ZFSOperationState.SCRUB, cache.operations):
+        if not since_in(Operations.SCRUB, cache.operations):
           log.warning(f"{human_readable_id(entity)}: timeout for request: {rqst.name}")
           entity.requested.remove(rqst)
       else:
@@ -187,7 +184,7 @@ def clear_requests():
   iterate_content_tree(config.config_root, do)
 
 
-def handle_do_overdue_command(op: ZFSOperationState):
+def handle_do_overdue_command(op: Operations):
   
   rqst: RequestType = request_for_zfs_operation[op]
   def do(entity):
@@ -219,9 +216,9 @@ def handle_online_all_command(command):
 
 
 def handle_maintenance_command():
-  handle_do_overdue_command(ZFSOperationState.RESILVER)
-  handle_do_overdue_command(ZFSOperationState.TRIM)
-  handle_do_overdue_command(ZFSOperationState.SCRUB)
+  handle_do_overdue_command(Operations.RESILVER)
+  handle_do_overdue_command(Operations.TRIM)
+  handle_do_overdue_command(Operations.SCRUB)
 
 
 def handle_set_command(command):
@@ -300,11 +297,11 @@ def handle_command(command, con):
     elif name == "scrub-all":
       handle_scrub_all_command()
     elif name == "scrub-overdue":
-      handle_do_overdue_command(ZFSOperationState.SCRUB)
+      handle_do_overdue_command(Operations.SCRUB)
     elif name == "trim-overdue":
-      handle_do_overdue_command(ZFSOperationState.TRIM)
+      handle_do_overdue_command(Operations.TRIM)
     elif name == "resilver-overdue":
-      handle_do_overdue_command(ZFSOperationState.RESILVER)
+      handle_do_overdue_command(Operations.RESILVER)
     elif name == "trim-all":
       handle_trim_all_command()
     elif name == "online-all":

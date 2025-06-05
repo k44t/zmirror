@@ -165,7 +165,7 @@ def handle(env):
               handle_resilver_started(cache)
           else:
             if "resilvering" not in (match.group("operations") or ""):
-              if since_in(ZFSOperationState.RESILVER, cache.operations):
+              if since_in(Operations.RESILVER, cache.operations):
                 handle_resilver_finished(cache)
           
       event_handled = True
@@ -264,7 +264,7 @@ def handle(env):
 
 def udev_event_action(entity, action, now):
   if action == "add":
-    handle_appeared(entity)
+    handle_onlined(entity)
   elif action == "remove":
     handle_disconnected(entity)
 

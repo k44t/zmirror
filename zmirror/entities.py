@@ -185,15 +185,15 @@ def get_zpool_backing_device_state(zpool, dev):
       if state == "ONLINE":
         state = EntityState.ONLINE
         if scrubbing:
-          opers.add(ZFSOperationState.SCRUB)
+          opers.add(Operations.SCRUB)
       else:
         state = EntityState.INACTIVE
       opernames = match.group("operations")
       if opernames is not None:
         if "resilver" in opernames:
-          opers.add(ZFSOperationState.RESILVER)
+          opers.add(Operations.RESILVER)
         if "trim" in opers:
-          opers.add(ZFSOperationState.TRIM)
+          opers.add(Operations.TRIM)
       return (state, opers)
   return None
 

@@ -37,7 +37,7 @@ def add_command(command, handler=None, unless_redundant=False):
   if handler is not None:
     cmd.on_execute.append(handler)
   commands.append(cmd)
-  return handler
+  return cmd
 
 
 

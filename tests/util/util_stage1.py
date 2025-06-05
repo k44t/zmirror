@@ -158,3 +158,5 @@ def insert_get_zfs_volume_mode_stub():
   
   import zmirror.config as config #pylint: disable=import-outside-toplevel
   config.get_zfs_volume_mode = zfs_volume_mode_stub
+
+

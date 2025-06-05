@@ -6,7 +6,22 @@ from zmirror.daemon import handle
 from zmirror.user_commands import enact_requests
 from .util_stage1 import open_local, get_frame_data
 import zmirror.entities as entities
+import zmirror.commands as commands
+import re
 
+from itertools import zip_longest
+
+def assert_commands(cmds):
+  for a, b in zip_longest(cmds, commands.commands):
+    if b is None:
+      raise ValueError(f"expected command missing: {a}")
+    command = b.command
+    if a is None:
+      raise ValueError(f"unexpected command: {command}")
+    if isinstance(a, re.Pattern):
+      assert a.match(command)
+    else:
+      assert a == command
 
 
 def trigger_event():

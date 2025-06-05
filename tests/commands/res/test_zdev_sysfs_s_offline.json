@@ -1,0 +1,6 @@
+{
+  "ZEVENT_SUBCLASS": "statechange",
+  "ZEVENT_VDEV_STATE_STR": "OFFLINE",
+  "ZEVENT_VDEV_PATH": "/dev/mapper/zmirror-sysfs-s",
+  "ZEVENT_POOL": "zmirror-sysfs"
+}

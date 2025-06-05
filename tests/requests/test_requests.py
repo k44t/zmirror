@@ -41,14 +41,6 @@ def setup_before_all_methods():
   insert_find_provisioning_mode_stub()
 
 
-def assert_commands(cmds):
-    for a, b in zip_longest(cmds, commands.commands):
-      if isinstance(a, re.Pattern):
-        if b is None:
-          raise ValueError("NoneType does not match regex pattern")
-        assert a.match(b)
-      else:
-        assert a == b
 
 
 # in this test, some of the disks required to import some of the pools are present
@@ -138,9 +130,8 @@ class Tests():
 
   def test_request_zpool_sysfs_s_online(self):
 
-    result = user_commands.request(RequestType.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
+    user_commands.request(RequestType.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
 
-    assert not result
 
     assert_commands([
 
@@ -160,9 +151,15 @@ class Tests():
 
   def test_request_zpool_sysfs_b_online(self):
 
-    result = user_commands.request(RequestType.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-b")
+    partition = config.cache_dict["Partition|name:zmirror-sysfs-b"]
+    dmcrypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-b"]
 
-    assert result
+    assert partition.state.what == EntityState.ONLINE
+    assert dmcrypt.state.what == EntityState.INACTIVE
+
+
+    user_commands.request(RequestType.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-b")
+
 
     assert_commands([
       "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-a zmirror-sysfs-a --key-file ./test/zmirror-key",
@@ -174,9 +171,8 @@ class Tests():
 
   def test_request_zpool_sysfs_b_online_with_all_dependencies(self):
 
-    result = user_commands.request(RequestType.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-b", all_dependencies=True)
+    user_commands.request(RequestType.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-b", all_dependencies=True)
 
-    assert result
 
     assert_commands([
       "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-a zmirror-sysfs-a --key-file ./test/zmirror-key",
@@ -298,7 +294,7 @@ class Tests():
       if isinstance(entity, ZDev) and entity.pool == "zmirror-sysfs":
         entity.request(RequestType.SCRUB)
     entities.iterate_content_tree(config.config_root, possibly_scrub)
-    entities.iterate_content_tree(config.config_root, user_commands.do_enact_request)
+    entities.iterate_content_tree(config.config_root, user_commands.do_enact_requests)
 
     assert_commands([
       'zpool scrub -s zmirror-sysfs', 
@@ -317,7 +313,7 @@ class Tests():
 
     trigger_event()
 
-    assert since_in(ZFSOperationState.SCRUB, blockdev.operations)
+    assert since_in(Operations.SCRUB, blockdev.operations)
 
     assert_commands([
       
@@ -348,7 +344,7 @@ class Tests():
 
     blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
-    assert since_in(ZFSOperationState.RESILVER, blockdev.operations)
+    assert since_in(Operations.RESILVER, blockdev.operations)
 
     
     assert_commands([
@@ -363,7 +359,7 @@ class Tests():
 
     blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
-    assert not since_in(ZFSOperationState.RESILVER, blockdev.operations)
+    assert not since_in(Operations.RESILVER, blockdev.operations)
 
     
     assert_commands([
@@ -381,7 +377,7 @@ class Tests():
 
     trigger_event()
 
-    assert since_in(ZFSOperationState.SCRUB, blockdev.operations)
+    assert since_in(Operations.SCRUB, blockdev.operations)
 
     assert_commands([
       
@@ -511,11 +507,11 @@ class Tests():
 
     assert s.state.what == EntityState.ONLINE
 
-    assert since_in(ZFSOperationState.SCRUB, a.operations)
-    assert since_in(ZFSOperationState.SCRUB, b.operations)
-    assert since_in(ZFSOperationState.SCRUB, s.operations)
-    assert since_in(ZFSOperationState.SCRUB, bak_a.operations)
-    assert not since_in(ZFSOperationState.SCRUB, bak_b.operations)
+    assert since_in(Operations.SCRUB, a.operations)
+    assert since_in(Operations.SCRUB, b.operations)
+    assert since_in(Operations.SCRUB, s.operations)
+    assert since_in(Operations.SCRUB, bak_a.operations)
+    assert not since_in(Operations.SCRUB, bak_b.operations)
 
     assert_commands([])
 
@@ -536,11 +532,11 @@ class Tests():
 
 
 
-    assert not since_in(ZFSOperationState.SCRUB, a.operations)
-    assert not since_in(ZFSOperationState.SCRUB, b.operations)
-    assert not since_in(ZFSOperationState.SCRUB, s.operations)
-    assert not since_in(ZFSOperationState.SCRUB, bak_a.operations)
-    assert not since_in(ZFSOperationState.SCRUB, bak_b.operations)
+    assert not since_in(Operations.SCRUB, a.operations)
+    assert not since_in(Operations.SCRUB, b.operations)
+    assert not since_in(Operations.SCRUB, s.operations)
+    assert not since_in(Operations.SCRUB, bak_a.operations)
+    assert not since_in(Operations.SCRUB, bak_b.operations)
 
     assert s.state.what == EntityState.ONLINE
 
@@ -562,7 +558,7 @@ class Tests():
 
     assert s.state.what == EntityState.ONLINE
 
-    assert since_in(ZFSOperationState.TRIM, s.operations)
+    assert since_in(Operations.TRIM, s.operations)
 
     assert_commands([
     ])
@@ -579,7 +575,7 @@ class Tests():
     assert s.state.what == EntityState.ONLINE
 
 
-    assert not since_in(ZFSOperationState.TRIM, s.operations)
+    assert not since_in(Operations.TRIM, s.operations)
     assert RequestType.TRIM not in s.requested
 
     assert_commands([
@@ -596,7 +592,7 @@ class Tests():
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     assert s.state.what == EntityState.ONLINE
-    assert not since_in(ZFSOperationState.TRIM, s.operations)
+    assert not since_in(Operations.TRIM, s.operations)
 
     assert_commands([
       "zpool trim zmirror-sysfs zmirror-sysfs-s"
@@ -611,7 +607,7 @@ class Tests():
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
 
-    assert since_in(ZFSOperationState.TRIM, s.operations)
+    assert since_in(Operations.TRIM, s.operations)
 
     assert_commands([
     ])
@@ -623,7 +619,7 @@ class Tests():
 
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
-    assert not since_in(ZFSOperationState.TRIM, s.operations)
+    assert not since_in(Operations.TRIM, s.operations)
 
     assert_commands([
       "zpool offline zmirror-sysfs zmirror-sysfs-s"

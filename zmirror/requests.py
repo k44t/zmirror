@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from typing import Any
 from .util import read_file
 from enum import Enum
+import random
+import sys
 
 import dateparser
 
@@ -41,13 +43,46 @@ class Reason(KiEnum):
   TOO_MANY_RAID_DEPENDENCIES_FAILED = 10
   ALL_MIRROR_DEPENDENCIES_FAILED = 11
   NO_LONGER_REQUIRED = 12
+  COMMAND_FAILED = 13
 
 
 
-@yaml_data
-class Requested:
-  request_type = None
-  entity = None
+enactment_id = 0
+
+def next_enactment_id():
+  global enactment_id
+  if enactment_id == sys.maxsize:
+    enactment_id = 0
+  else:
+    enactment_id += 1
+  return enactment_id
+
+
+@yaml_enum
+class RequestType(KiEnum):
+
+  OFFLINE = 0
+
+  ONLINE = 1
+
+  SCRUB = 2
+
+  TRIM = 3
+
+  CANCEL_SCRUB = 4
+
+  CANCEL_TRIM = 5
+
+  def opposite(self):
+    if self == RequestType.ONLINE:
+      return RequestType.OFFLINE
+    return RequestType.ONLINE
+
+
+@dataclass
+class Request:
+  request_type: RequestType
+  entity: Any
 
   depending_on: list = field(default_factory=list)
   depended_by: list = field(default_factory=list)
@@ -69,6 +104,8 @@ class Requested:
 
   cancel_on_last_dependent_stop = False
 
+  enactment_id = None
+
   def cancel(self, reason: Reason, cancel_dependencies=False):
     if not self.handled:
       self.stop0("cancelled", reason)
@@ -85,7 +122,7 @@ class Requested:
   def stop99(self):
     self.depending_on = []
     self.depended_by = []
-    self.entity.requested.remove(self.request_type)
+    self.entity.requested.pop(self.request_type)
 
   def fail(self, reason: Reason):
     if not self.handled:
@@ -93,7 +130,7 @@ class Requested:
       for d in self.depending_on.copy():
         d.dependent_failed(self)
       for d in self.depended_by.copy():
-        d.depndency_failed(self)
+        d.dependency_failed(self)
       self.stop99()
 
 
@@ -120,7 +157,6 @@ class Requested:
 
   def dependency_stop(self, _dep):
     if not self.handled:
-      self.dependencies_succeeded = self.check_dependencies()
       self.enact()
 
   def dependent_stop(self, dep, cancel_requested=False):
@@ -128,7 +164,7 @@ class Requested:
       self.depended_by.remove(dep)
       if cancel_requested:
         self.cancel(Reason.USER_REQUESTED)
-      elif not self.dependend_by and self.cancel_on_last_dependent_stop:
+      elif not self.depended_by and self.cancel_on_last_dependent_stop:
         self.cancel(Reason.NO_LONGER_REQUIRED)
   
   def dependent_failed(self, dep):
@@ -150,12 +186,31 @@ class Requested:
     if cancel_requested:
       self.dependent_stop(dep, cancel_requested)
 
+  def enact_hierarchy(self, enactment_id=None):
+    if not self.handled:
+
+      # enactment_id keeps us from going into infinite recursion
+      if enactment_id is None:
+        enactment_id = next_enactment_id()
+      
+      if self.enactment_id == enactment_id:
+        return
+      self.enactment_id = enactment_id
+
+      for d in self.depending_on.copy():
+        d.enact_hierarchy(enactment_id)
+      self.enactment_id = None
+      self.enact()
+
+  def set_enacted(self):
+    self.enacted = True
+
   def enact(self):
     if not self.handled:
       if self.entity.is_fulfilled(self.request_type):
         self.succeed()
       else:
-        if self.dependencies_succeeded:
+        if self.check_dependencies():
           if self.entity.state_allows(self.request_type):
 
             # this is checked only here, because at this point something 
@@ -164,20 +219,20 @@ class Requested:
             # by bringing online the parent
             #
             # maybe this is not necessary at all though.
-            unsupported = self.entity.supports_request(self.request_type)
+            unsupported = self.entity.unsupported_request(self.request_type)
             if unsupported:
               self.fail(unsupported)
             elif not self.enacted:
               self.entity.enact(self)
-    return self.fulfilled
+
 
   def add_dependency(self, dependency):
     if not self.handled:
       self.depending_on.append(dependency)
       dependency.depended_by.append(self)
 
-
-class MirrorRequest(Requested):
+@dataclass
+class MirrorRequest(Request):
   """for this request to succeed at least one dependency must succeed"""
 
   def check_dependencies(self):
@@ -193,8 +248,8 @@ class MirrorRequest(Requested):
       self.fail(Reason.ALL_MIRROR_DEPENDENCIES_FAILED)
     return False
 
-
-class RaidRequest(Requested):
+@dataclass
+class RaidRequest(Request):
   """for this request to succeed at least num_of_dependencies - parity must succeed"""
   parity: int = None
 
@@ -218,5 +273,7 @@ class RaidRequest(Requested):
     num_unhandled = num_total - num_handled
     if (num_succeeded + num_unhandled) < num_required:
       self.fail(Reason.TOO_MANY_RAID_DEPENDENCIES_FAILED)
-      return False
+    
+    
+    return False
 

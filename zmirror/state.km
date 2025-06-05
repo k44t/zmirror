@@ -1,0 +1,10 @@
+so the question is what to consider online and what to consider offline and inactive
+
+
+currently, what I have implemented, is that partitions become ONLINE when the zdev inside becomes ONLINE.
+
+but for zfs volumes I have implemented, that they become online when they themselves appear in the system, and not their content.
+
+zdevs, the content becomes online, when it is taken online in the pool. before it is only present (inactive)
+
+and that makes sense for filesystems or zdevs. but yeah. let's change things.
