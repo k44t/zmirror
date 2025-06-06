@@ -44,18 +44,21 @@ class Reason(KiEnum):
   ALL_MIRROR_DEPENDENCIES_FAILED = 11
   NO_LONGER_REQUIRED = 12
   COMMAND_FAILED = 13
+  # for cancelling a request
+  REPLACING_REQUEST = 14
+  BELOW_ENACTMENT_LEVEL = 15
 
 
 
-enactment_id = 0
+last_enactment_id = 0
 
 def next_enactment_id():
-  global enactment_id
-  if enactment_id == sys.maxsize:
-    enactment_id = 0
+  global last_enactment_id
+  if last_enactment_id == sys.maxsize:
+    last_enactment_id = 0
   else:
-    enactment_id += 1
-  return enactment_id
+    last_enactment_id += 1
+  return last_enactment_id
 
 
 @yaml_enum
@@ -69,9 +72,14 @@ class RequestType(KiEnum):
 
   TRIM = 3
 
+  APPEAR = 7
+
+
   CANCEL_SCRUB = 4
 
   CANCEL_TRIM = 5
+
+  SNAPSHOT = 6
 
   def opposite(self):
     if self == RequestType.ONLINE:
@@ -98,6 +106,8 @@ class Request:
 
   # succeeded
   succeeded = False
+
+  enactment_level = sys.maxsize
 
   # all necessary dependencies succeeded
   dependencies_succeeded = False
@@ -207,23 +217,26 @@ class Request:
 
   def enact(self):
     if not self.handled:
-      if self.entity.is_fulfilled(self.request_type):
+      if self.entity.is_fulfilled(self):
         self.succeed()
       else:
-        if self.check_dependencies():
-          if self.entity.state_allows(self.request_type):
+        if self.enactment_level >= 0:
+          if self.check_dependencies():
+            if self.entity.state_allows(self.request_type):
 
-            # this is checked only here, because at this point something 
-            # must be done at the entity itself to fulfill the request
-            # while up to this point the request might have been fulfilled
-            # by bringing online the parent
-            #
-            # maybe this is not necessary at all though.
-            unsupported = self.entity.unsupported_request(self.request_type)
-            if unsupported:
-              self.fail(unsupported)
-            elif not self.enacted:
-              self.entity.enact(self)
+              # this is checked only here, because at this point something 
+              # must be done at the entity itself to fulfill the request
+              # while up to this point the request might have been fulfilled
+              # by bringing online the parent
+              #
+              # maybe this is not necessary at all though.
+              unsupported = self.entity.unsupported_request(self.request_type)
+              if unsupported:
+                self.fail(unsupported)
+              elif not self.enacted:
+                self.entity.enact(self)
+        else:
+          self.fail(Reason.BELOW_ENACTMENT_LEVEL)
 
 
   def add_dependency(self, dependency):

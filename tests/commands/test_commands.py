@@ -129,23 +129,28 @@ class Tests():
       # zmirror should not import the zmirror-sysfs pool
       ## "zpool import zmirror-sysfs",
 
-      # but it should try to online the device, which in this case should 
-      # not succeed, since the pool is not imported yet
-      "zpool online zmirror-sysfs zmirror-sysfs-a"
+      # neither should it try to online the device, because the zpool is offline
+      # "zpool online zmirror-sysfs zmirror-sysfs-a"
     ])
 
   # `zpool import zmirror-sysfs-a` (do `zpool export zmirror-sysfs-a` before, if the pool is already imported)
   def test_zpool_sysfs_online(self):
 
     pool = config.cache_dict["ZPool|name:zmirror-sysfs"]
+    a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+
+    assert a.state.what == EntityState.INACTIVE
 
     trigger_event()
 
+    assert a.state.what == EntityState.ONLINE
     assert pool.state.what == EntityState.ONLINE
 
 
     # zmirror has to do nothing
-    assert_commands([])
+    assert_commands([
+
+    ])
 
 
   # sysfs-b
@@ -184,6 +189,8 @@ class Tests():
   def test_dmcrypt_sysfs_b_online(self):
     trigger_event()
 
+
+    # TODO this needs fixing... I guess it should not come online, because no coming online is configured. but there must be a bug, as in fact with current implementation the event should make the zpool come online, which is undesirable.
     assert_commands([
       "zpool online zmirror-sysfs zmirror-sysfs-b"
     ])

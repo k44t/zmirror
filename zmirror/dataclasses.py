@@ -101,7 +101,7 @@ class EntityState(KiEnum):
 
 
 def state_corresponds_to_request(state, request):
-  return state.value == request.value or (state == EntityState.INACTIVE and request == RequestType.OFFLINE)
+  return state.value == request.value or (state == EntityState.INACTIVE and request in {RequestType.OFFLINE, RequestType.APPEAR})
 
 def operation_corresponds_to_request(oper, request):
   return oper.value == request.value
@@ -256,9 +256,9 @@ class Entity:
     return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
   
 
-  def is_fulfilled(self, request_type: RequestType):
+  def is_fulfilled(self, request: Request):
     state = cached(self).state.what
-    r = state_corresponds_to_request(state, request_type)
+    r = state_corresponds_to_request(state, request.request_type)
     return r
 
   def enact(self, request):
@@ -277,7 +277,7 @@ class Entity:
       command.on_execute.append(tell_request_enacted)
       request.set_enacted()
     else:
-      log.debug(f"{human_readable_id(self)}: request type unsupported {request_type}")
+      log.debug(f"{human_readable_id(self)}: request type cannot be enacted by this entity: {request_type}")
 
 
   def print_status(self, kdstream):
@@ -302,30 +302,36 @@ class Entity:
     tell_parent_child_online(self.parent, self, prev_state)
 
 
-  def request_dependencies(self, request_type: RequestType):
-    if request_type == RequestType.ONLINE:
+  def request_dependencies(self, request_type: RequestType, enactment_level = sys.maxsize):
+    if request_type in {RequestType.ONLINE, RequestType.APPEAR}:
       if hasattr(self.parent, "request"):
-        return [self.parent.request(RequestType.ONLINE)]
+        return [self.parent.request(RequestType.ONLINE, enactment_level - 1)]
       return []
     else:
       raise ValueError(f"{human_readable_id(self)}: bug: @Entity.request_dependencies:  {request_type} not implemented")
 
 
-  def request(self, request_type: RequestType):
-    if request_type in self.requested:
-      log.warning(f"{human_readable_id(self)}: already requested: {request_type.name}")
-      return self.requested[request_type]
-    else:
-      rqst = Request(request_type, self)
+  def request(self, request_type: RequestType, enactment_level = sys.maxsize):
+    def create():
+      request = Request(request_type, self)
       # adding the new request to self.requested should stop the infinite recursion
       # if a dependency results in another request to this entity (such as when an ONLINE 
       # request on a ZDev triggers an ONLINE request on a ZPOOL, which then triggers
       # an ONLINE request on the Zdev again.)
-      self.requested[request_type] = rqst
-      deps = self.request_dependencies(request_type)
+      self.requested[request_type] = request
+      deps = self.request_dependencies(request_type, enactment_level)
       for dep in deps:
-        rqst.add_dependency(dep)
-      return rqst
+        request.add_dependency(dep)
+      return request
+    if request_type in self.requested:
+      log.warning(f"{human_readable_id(self)}: already requested: {request_type.name}")
+      request = self.requested[request_type]
+      if request.enactment_level < enactment_level:
+        request.cancel(Reason.REPLACING_REQUEST)
+        return create()
+      return request
+    else:
+      return create()
 
 
   def cancel_request(self, request_type: RequestType, reason):
@@ -403,38 +409,38 @@ def run_action(self, action):
       if any(e in [RequestType.TRIM, RequestType.SCRUB] for e in self.requested):
         log.info(f"{human_readable_id(self)}: not taking offline since other operations are pending")
       else:
-        return self.request(RequestType.OFFLINE).enact_hierarchy()
+        return self.request(RequestType.OFFLINE, enactment_level=0).enact_hierarchy()
     else:
       log.error(f"{human_readable_id(self)}: entity does not support being taken offline")
       return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
   elif action == "online":
     if hasattr(self, "enact_online"):
-      return self.request(RequestType.ONLINE).enact_hierarchy()
+      return self.request(RequestType.ONLINE, enactment_level=0).enact_hierarchy()
     else:
       log.error(f"{human_readable_id(self)}: entity does not support being taken online")
       return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
   elif action == "snapshot":
     if hasattr(self, "enact_snapshot"):
-      self.enact_snapshot()
+      self.request(RequestType.SNAPSHOT, enactment_level=0)
     else:
       log.error(f"{human_readable_id(self)}: entity does not have the ability to create snapshots")
       return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
   elif action == "scrub":
     if hasattr(self, "enact_scrub"):
-      self.request(RequestType.SCRUB).enact_hierarchy()
+      self.request(RequestType.SCRUB, enactment_level=0).enact_hierarchy()
     else:
       log.error(f"{human_readable_id(self)}: entity cannot be scrubbed")
       return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
   elif action == "trim":
     if hasattr(self, "enact_trim"):
-      self.request(RequestType.TRIM).enact_hierarchy()
+      self.request(RequestType.TRIM, enactment_level=0).enact_hierarchy()
     else:
       log.error(f"{human_readable_id(self)}: entity cannot be trimmed")
       return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
 
   elif action == "snapshot-parent":
     if hasattr(self.parent, "enact_snapshot"):
-      return self.parent.enact_snapshot()
+      return self.parent.request(RequestType.SNAPSHOT, enactment_level=0)
     else:
       log.error(f"{make_id(self)}: the parent entity does not have the ability to create snapshots")
       return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
@@ -477,14 +483,16 @@ class Children(Entity):
       kdstream.newline()
       print_status_many(self.content, kdstream)
 
-  def request_dependencies(self, request_type):
+  def request_dependencies(self, request_type: RequestType, enactment_level: int = sys.maxsize):
     if request_type == RequestType.OFFLINE:
       def do(entity):
-        return entity.request(RequestType.OFFLINE)
+        return entity.request(RequestType.OFFLINE, enactment_level - 1)
       r = list(map(do, self.content))
       return r
     elif request_type == RequestType.ONLINE:
-      return super().request_dependencies(request_type)
+      return super().request_dependencies(request_type, enactment_level)
+    elif request_type == RequestType.APPEAR:
+      return super().request_dependencies(request_type, enactment_level)
     else:
       raise ValueError(f"bug: request type {request_type.name} cannot be fulfilled by class `Children`")
   
@@ -691,14 +699,15 @@ class BackingDevice:
   required: bool = False
   online_dependencies: bool = True
 
+  
   def unsupported_request(self, request_type):
     return self.device.unsupported_request(request_type)
   
   def state_supports(self, request_type):
     return self.device.state_supports(request_type)
 
-  def request(self, request_type):
-    return self.device.request(request_type)
+  def request(self, request_type, enactment_level: int = sys.maxsize):
+    return self.device.request(request_type, enactment_level)
 
   def get_state(self):
     return self.device.get_state()
@@ -716,19 +725,6 @@ def unavailable_guard(blockdevs, devname):
   else:
     return UnavailableDependency(devname)
 
-def init_backing(self, pool, blockdevs):
-  self.parent = pool
-  for i, dev in enumerate(self.devices):
-    if isinstance(dev, str):
-      self.devices[i] = BackingDevice(unavailable_guard(blockdevs, dev))
-    else:
-      if not "name" in dev:
-        raise ValueError(f"misconfiguration: backing for {human_readable_id(pool)}. `name` missing in Mirror.")
-      self.devices[i] = BackingDevice(
-        unavailable_guard(blockdevs, dev["name"]),
-        yes_no_absent_or_dict(dev, "required", False, f"misconfiguration: backing for {human_readable_id(pool)}"),
-        yes_no_absent_or_dict(dev, "online_dependencies", True, f"misconfiguration: backing for {human_readable_id(pool)}")
-      )
 
 
 
@@ -736,9 +732,17 @@ def init_backing(self, pool, blockdevs):
 @yaml_data
 class DevicesAgregate:
 
-  def is_fulfilled(self, request_type):
+  pool = None
+
+  def id(self):
+    id = self.pool.id()
+    id["backing"] = "yes"
+    return id
+
+  def is_fulfilled(self, request):
     # this is managed by the request itself, a DevicesAgregate does not track request fulfillment
-    return False
+    return request.check_dependencies()
+
 
   def unsupported_request(self, request_type):
     raise NotImplementedError()
@@ -746,20 +750,21 @@ class DevicesAgregate:
       return None
     return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
   
-  def state_supports(self, request_type):
-    raise NotImplementedError()
-    return self.device.state_supports(request_type)
+  def state_allows(self, request_type):
+    # since DevicesAggregates cannot enact any requests themselves
+    # there is also no state that could possibly allow for any enactments
+    return False
 
   devices: list = field(default_factory=list)
 
   def prepare_request(self, request_type):
     raise NotImplementedError()
 
-  def request(self, request_type):
-    if request_type == RequestType.ONLINE:
+  def request(self, request_type, enactment_level: int = sys.maxsize):
+    if request_type in {RequestType.ONLINE, RequestType.APPEAR} :
       r = self.prepare_request(request_type)
       for d in self.devices:
-        r.depending_on.append(d.request(request_type))
+        r.depending_on.append(d.request(request_type, enactment_level - 1))
       return r
     raise ValueError(f"{human_readable_id(self.entity)}: bug: unsupported request type for backing: {request_type.name}")
 
@@ -791,8 +796,6 @@ class DevicesAgregate:
 
 @yaml_data
 class Mirror(DevicesAgregate):
-
-  pool = None
 
   def prepare_request(self, request_type):
     return MirrorRequest(request_type, self)
@@ -826,13 +829,16 @@ class Mirror(DevicesAgregate):
     if one_inactive:
       return EntityState.INACTIVE
 
+  def id(self):
+    id = self.pool.id()
+    id["backing"] = "yes"
+    return id
 
 
 
-@yaml_data
+@dataclass
 class ParityRaid(DevicesAgregate):
   parity: int = None
-  parent = None
 
   def prepare_request(self, request_type):
     return RaidRequest(request_type, self, parity=self.parity)
@@ -843,6 +849,19 @@ class ParityRaid(DevicesAgregate):
 
 
 
+def init_backing(self: DevicesAgregate, pool, blockdevs):
+  self.pool = pool
+  for i, dev in enumerate(self.devices):
+    if isinstance(dev, str):
+      self.devices[i] = BackingDevice(unavailable_guard(blockdevs, dev))
+    else:
+      if not "name" in dev:
+        raise ValueError(f"misconfiguration: backing for {human_readable_id(pool)}. `name` missing in Mirror.")
+      self.devices[i] = BackingDevice(
+        unavailable_guard(blockdevs, dev["name"]),
+        yes_no_absent_or_dict(dev, "required", False, f"misconfiguration: backing for {human_readable_id(pool)}"),
+        yes_no_absent_or_dict(dev, "online_dependencies", True, f"misconfiguration: backing for {human_readable_id(pool)}")
+      )
 
 
 @yaml_data
@@ -865,10 +884,10 @@ class ZPool(Onlineable, Children):
   #  pass
 
 
-  def request_dependencies(self, request_type):
+  def request_dependencies(self, request_type, enactment_level: int = sys.maxsize):
     if request_type == RequestType.ONLINE:
       def do(backing):
-        return backing.request(request_type)
+        return backing.request(RequestType.APPEAR, enactment_level - 1)
       return list(map(do, self.backed_by))
     else:
       return super().request_dependencies(request_type)
@@ -902,9 +921,6 @@ class ZPool(Onlineable, Children):
       kdstream.indent()
       print_status_many(self.content, kdstream)
       kdstream.dedent()
-
-
-
 
 
   def id(self):
@@ -1005,6 +1021,7 @@ class ZFSVolume(Children):
     return make_id(self, pool=self.get_pool(), name=self.name)
 
   def handle_appeared(self, prev_state):
+    succeed_request(self, RequestType.APPEAR)
     self.enact_requests()
     run_actions(self, "appeared")
 
@@ -1088,6 +1105,7 @@ class DMCrypt(Onlineable, Embedded, Children):
 
 
   def handle_appeared(self, prev_state):
+    succeed_request(self, RequestType.APPEAR)
     self.enact_requests()
     run_actions(self, "appeared")
 
@@ -1390,11 +1408,11 @@ class ZDev(Onlineable, Embedded, Entity):
       kdstream.print_property(cache, "operations")
 
 
-  def is_fulfilled(self, request_type: RequestType):
+  def is_fulfilled(self, request: Request):
     for op in self.operations:
-      if operation_corresponds_to_request(op, request_type):
+      if operation_corresponds_to_request(op, request.request_type):
         return True
-    return super().is_fulfilled(request_type)
+    return super().is_fulfilled(request)
   
 
 
@@ -1418,19 +1436,21 @@ class ZDev(Onlineable, Embedded, Entity):
 
 
 
-  def request_dependencies(self, request_type):
+  def request_dependencies(self, request_type, enactment_level: int = sys.maxsize):
     if request_type == RequestType.SCRUB:
       return [self.request(RequestType.ONLINE)]
     elif request_type == RequestType.TRIM:
       return [self.request(RequestType.ONLINE)]
     elif request_type == RequestType.OFFLINE:
       return []
+    elif request_type == RequestType.APPEAR:
+      return [self.parent.request(request_type, enactment_level - 1)]
     elif request_type == RequestType.ONLINE:
       pool = config.find_config(ZPool, name=self.pool)
       if pool is None:
         log.error(f"{human_readable_id(self)}: pool {self.pool} not configured.")
         pool = UnavailableDependency(entity_id_string(self))
-      return [self.parent.request(request_type), pool.request(request_type)]
+      return [self.parent.request(request_type, enactment_level - 1), pool.request(request_type, enactment_level - 1)]
     else:
       raise ValueError(f"{human_readable_id(self)}: unsupported request type: {request_type.name}")
 
@@ -1459,6 +1479,7 @@ class ZDev(Onlineable, Embedded, Entity):
     return state
 
   def handle_appeared(self, prev_state):
+    succeed_request(self, RequestType.APPEAR)
     pool_id = f"ZPool|name:{self.pool}"
     if pool_id in config.config_dict:
       config.config_dict[pool_id].handle_backing_device_appeared()

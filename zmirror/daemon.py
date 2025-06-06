@@ -72,10 +72,6 @@ def handle(env):
       zpool_status = config.get_zpool_status(zpool)
 
 
-      if zevent == "pool_import" or zevent == "pool_create":
-        zpool_cache = find_or_create_cache(ZPool, name=zpool)
-        
-        handle_onlined(zpool_cache)
 
 
       found_online = False
@@ -105,7 +101,13 @@ def handle(env):
               handle_onlined(cache)
               if "resilvering" in (match.group("operations") or ""):
                 handle_resilver_started(cache)
-          
+
+      if zevent == "pool_import" or zevent == "pool_create":
+        zpool_cache = find_or_create_cache(ZPool, name=zpool)
+        
+        handle_onlined(zpool_cache)
+        event_handled = True
+
       if found_online is False:
         log.error("likely bug: zpool event but no devices online")
     # TODO: add to docs that the admin must ensure that zpool import
@@ -163,12 +165,13 @@ def handle(env):
             if "resilvering" in (match.group("operations") or ""):
               # this method will only have an effect if the operation is not currently resilvering
               handle_resilver_started(cache)
+              event_handled = True
           else:
             if "resilvering" not in (match.group("operations") or ""):
               if since_in(Operations.RESILVER, cache.operations):
                 handle_resilver_finished(cache)
+                event_handled = True
           
-      event_handled = True
 
   elif "DEVTYPE" in env:
     action = env["ACTION"]
