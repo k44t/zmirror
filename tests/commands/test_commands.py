@@ -420,9 +420,8 @@ class Tests():
       # now zmirror should import the zmirror-big pool
       "zpool import zmirror-big",
 
-      # whether the pool is already imported or not
-      # the online command is always issued (if required by the configuration)
-      "zpool online zmirror-big zmirror-big-a"
+      # the online command is not issued because the zpool is not imported yet
+      ## "zpool online zmirror-big zmirror-big-a"
     ])
 
 
@@ -817,11 +816,8 @@ class Tests():
     assert blockdev_alpha.state.what == EntityState.INACTIVE
 
     assert_commands([
-      # and since this command can safely be run
-      # whether the pool is online or not
-      # (without triggering any event in case the device was already online)
-      # we simply issue it here
-      "zpool online zmirror-bak-b zmirror-bak-b-alpha"
+      # the pool is not online, so the device can't come online
+      ## "zpool online zmirror-bak-b zmirror-bak-b-alpha"
     ])
 
 
@@ -863,8 +859,8 @@ class Tests():
       # we import because now all required backing disks are present
       "zpool import zmirror-bak-b",
 
-      # we always issue the online command, in case it is configured (which it is in this case)
-      "zpool online zmirror-bak-b zmirror-bak-b-beta"
+      # the pool is not online, so the device cannot come online
+      ## "zpool online zmirror-bak-b zmirror-bak-b-beta"
     ])
 
 

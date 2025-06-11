@@ -19,9 +19,12 @@ def assert_commands(cmds):
     if a is None:
       raise ValueError(f"unexpected command: {command}")
     if isinstance(a, re.Pattern):
-      assert a.match(command)
+      if not a.match(command):
+        raise ValueError(f"failed pattern ({a}) match on command: {command}")
     else:
-      assert a == command
+      if not a == command:
+        raise ValueError(f"expected command: {a}\nfound command: {command}")
+
 
 
 def trigger_event():

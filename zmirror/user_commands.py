@@ -24,7 +24,7 @@ import traceback
 
 
 
-def request(rqst, typ, all_dependencies=False, **identifiers):
+def request(rqst, typ, **identifiers):
   tid = make_id_string(make_id(typ, **identifiers))
   entity = load_config_for_id(tid)
   if entity is None:
@@ -171,14 +171,14 @@ def clear_requests():
       if rqst == RequestType.TRIM:
         if not since_in(Operations.TRIM, cache.operations):
           log.warning(f"{human_readable_id(entity)}: timeout for request: {rqst.name}")
-          entity.requested.remove(rqst)
+          entity.remove_request(rqst)
       elif rqst == RequestType.SCRUB:
         if not since_in(Operations.SCRUB, cache.operations):
           log.warning(f"{human_readable_id(entity)}: timeout for request: {rqst.name}")
-          entity.requested.remove(rqst)
+          entity.remove_request(rqst)
       else:
         log.warning(f"{human_readable_id(entity)}: timeout for request: {rqst.name}")
-        entity.requested.remove(rqst)
+        entity.remove_request(rqst)
 
 
   iterate_content_tree(config.config_root, do)

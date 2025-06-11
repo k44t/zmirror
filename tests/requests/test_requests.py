@@ -116,6 +116,9 @@ class Tests():
     trigger_event()
 
 
+  # sysfs-b
+  # #####################
+
   # physical device of sysfs-b gets plugged-in
   # disk of sysfs-b appears (udev: add)
   def test_disk_sysfs_b_online(self):
@@ -128,25 +131,45 @@ class Tests():
 
 
 
+  # sysfs-s
+  # #####################
+
   def test_request_zpool_sysfs_s_online(self):
 
-    user_commands.request(RequestType.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
+    user_commands.request(RequestType.ONLINE_IF_POOL, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
 
+    dmcrypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-s"]
+
+    # the requests should not be in there, because they must have failed since the partition
+    # could not have been onlined.
+    assert RequestType.ONLINE not in dmcrypt.requested and RequestType.ONLINE_IF_POOL not in dmcrypt.requested
 
     assert_commands([
-
+      # nothing should happen as zmirror-sysfs is not available yet
     ])
 
 
-  # partition of sysfs-s appears (udev: add)
+  # partition of sysfs-s appears (udev: add)... this is to test udev events appearing in a weird order
   def test_partition_sysfs_s_online(self):
     trigger_event()
+ 
+    assert_commands([
+      'echo unmap > /#/projects/zmirror/tests/requests/res/provisioning_mode.txt',
+      
+      # this should not happen, as the request should have already failed
+      ##  'cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-s zmirror-sysfs-s --key-file ./test/zmirror-key'
+    ])
 
 
-  # physical device of sysfs-a gets plugged-in (by user)
+  # physical device of sysfs-s gets plugged-in (by user)
   # disk of sysfs-a appears (udev: add)
   def test_disk_sysfs_s_online(self):
     trigger_event()
+
+
+    assert_commands([
+      # nothing should happen
+    ])
 
 
   def test_request_zpool_sysfs_b_online(self):
@@ -157,28 +180,25 @@ class Tests():
     assert partition.state.what == EntityState.ONLINE
     assert dmcrypt.state.what == EntityState.INACTIVE
 
+    dmcrypt_entity = config.config_dict["DMCrypt|name:zmirror-bak-a"]
+
+    assert not dmcrypt_entity.requested
 
     user_commands.request(RequestType.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-b")
 
 
+
+    # the online request for bak-a should have failed and hence nothing should
+    # currently be requested
+    assert not dmcrypt_entity.requested
+
+    # all present disks that make part of the zpool should be decrypted
     assert_commands([
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-a zmirror-sysfs-a --key-file ./test/zmirror-key",
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-b zmirror-sysfs-b --key-file ./test/zmirror-key"
-    ])
-
-
-
-
-  def test_request_zpool_sysfs_b_online_with_all_dependencies(self):
-
-    user_commands.request(RequestType.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-b", all_dependencies=True)
-
-
-    assert_commands([
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-a zmirror-sysfs-a --key-file ./test/zmirror-key",
       "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-b zmirror-sysfs-b --key-file ./test/zmirror-key",
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-s zmirror-sysfs-s --key-file ./test/zmirror-key"
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-a zmirror-sysfs-a --key-file ./test/zmirror-key",
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-s zmirror-sysfs-s --key-file ./test/zmirror-key",
     ])
+
 
 
 
@@ -199,8 +219,8 @@ class Tests():
       # since we requested zmirror to bring online the pool, now it should do it
       "zpool import zmirror-sysfs",
 
-      # also this will be issued always
-      "zpool online zmirror-sysfs zmirror-sysfs-a"
+      # the zpool insn't online yet, so the online command is not being issued
+      ## "zpool online zmirror-sysfs zmirror-sysfs-a"
     ])
 
 
@@ -270,13 +290,23 @@ class Tests():
   # disk of bak-a appears (udev: add)
   def test_disk_bak_a_online(self):
 
+    dmcrypt_entity = config.config_dict["DMCrypt|name:zmirror-bak-a"]
+
+    assert not dmcrypt_entity.requested
+
     trigger_event()
+
+    assert not dmcrypt_entity.requested
 
     assert_commands([])
 
 
   # partition of bak-a appears (udev: add)
   def test_partition_bak_a_online(self):
+
+    dmcrypt_entity = config.config_dict["DMCrypt|name:zmirror-bak-a"]
+
+    assert not dmcrypt_entity.requested
 
     trigger_event()
 

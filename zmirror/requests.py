@@ -81,6 +81,9 @@ class RequestType(KiEnum):
 
   SNAPSHOT = 6
 
+  # online request that does not online the corresponding pool
+  ONLINE_IF_POOL = 8
+
   def opposite(self):
     if self == RequestType.ONLINE:
       return RequestType.OFFLINE
@@ -91,6 +94,7 @@ class RequestType(KiEnum):
 class Request:
   request_type: RequestType
   entity: Any
+  enactment_level: int
 
   depending_on: list = field(default_factory=list)
   depended_by: list = field(default_factory=list)
@@ -107,7 +111,6 @@ class Request:
   # succeeded
   succeeded = False
 
-  enactment_level = sys.maxsize
 
   # all necessary dependencies succeeded
   dependencies_succeeded = False
@@ -220,23 +223,23 @@ class Request:
       if self.entity.is_fulfilled(self):
         self.succeed()
       else:
-        if self.enactment_level >= 0:
-          if self.check_dependencies():
-            if self.entity.state_allows(self.request_type):
-
-              # this is checked only here, because at this point something 
-              # must be done at the entity itself to fulfill the request
-              # while up to this point the request might have been fulfilled
-              # by bringing online the parent
-              #
-              # maybe this is not necessary at all though.
-              unsupported = self.entity.unsupported_request(self.request_type)
-              if unsupported:
-                self.fail(unsupported)
-              elif not self.enacted:
-                self.entity.enact(self)
+        unsupported = self.entity.unsupported_request(self.request_type)
+        if unsupported:
+          self.fail(unsupported)
         else:
-          self.fail(Reason.BELOW_ENACTMENT_LEVEL)
+          if self.enactment_level >= 0:
+            if self.check_dependencies():
+              if self.entity.state_allows(self.request_type):
+                # this is checked only here, because at this point something 
+                # must be done at the entity itself to fulfill the request
+                # while up to this point the request might have been fulfilled
+                # by bringing online the parent
+                #
+                # maybe this is not necessary at all though.
+                if not self.enacted:
+                  self.entity.enact(self)
+          else:
+            self.fail(Reason.BELOW_ENACTMENT_LEVEL)
 
 
   def add_dependency(self, dependency):
@@ -251,13 +254,16 @@ class MirrorRequest(Request):
   def check_dependencies(self):
     # all_failed will be true unless one dependency has not been handled yet
     # and it will be ignored if one dependency has succeeded
-    all_failed = True
+    one_succeeded = False
     for d in self.depending_on:
       if not d.handled:
-        all_failed = False
-      elif d.succeeded:
-        return True
-    if all_failed:
+        # a mirror request can only succeed once all its child requests have either 
+        # failed or succeeded. This is to prevent the pool from coming online while
+        # some zdevs are still being decrypted.
+        return False
+      if d.succeeded:
+        one_succeeded = True
+    if not one_succeeded:
       self.fail(Reason.ALL_MIRROR_DEPENDENCIES_FAILED)
     return False
 
@@ -268,23 +274,19 @@ class RaidRequest(Request):
 
   def check_dependencies(self):
     num_succeeded = 0
-    num_handled = 0
     num_total = len(self.depending_on)
     num_required = num_total - self.parity
     for d in self.depending_on:
-      if d.handled:
-        num_handled += 1
+      if not d.handled:
+        # this request will only succeed once all dependent requests have been handled
+        return False
       if d.succeeded:
         num_succeeded += 1
     
     # once the parity has been reached the request has been fulfilled
     if num_succeeded >= num_required:
       return True
-
-    # if the remaining unhandled devices + the succeeded devices are not
-    # enough to fulfill the necessity
-    num_unhandled = num_total - num_handled
-    if (num_succeeded + num_unhandled) < num_required:
+    else:
       self.fail(Reason.TOO_MANY_RAID_DEPENDENCIES_FAILED)
     
     
