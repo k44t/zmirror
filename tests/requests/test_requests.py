@@ -216,8 +216,10 @@ class Tests():
 
 
     assert_commands([
-      # since we requested zmirror to bring online the pool, now it should do it
-      "zpool import zmirror-sysfs",
+      # at this point no command should be issued, because zmirror is supposed to wait for
+      # all dependencies (all zdevs) to either either fulfil or fail their appear requests. 
+      # Hence we must trigger the appear events now.
+      ## "zpool import zmirror-sysfs",
 
       # the zpool insn't online yet, so the online command is not being issued
       ## "zpool online zmirror-sysfs zmirror-sysfs-a"
@@ -225,6 +227,28 @@ class Tests():
 
 
 
+
+
+
+
+
+  # dmcrypt of sysfs-b appears
+  def test_dmcrypt_sysfs_b_online(self):
+    trigger_event()
+
+    assert_commands([
+      ## "zpool online zmirror-sysfs zmirror-sysfs-b"
+    ])
+
+
+
+  # dmcrypt of sysfs-b appears
+  def test_dmcrypt_sysfs_s_online(self):
+    trigger_event()
+
+    assert_commands([
+      "zpool import zmirror-sysfs"
+    ])
 
 
   # `zpool import zmirror-sysfs-a` (do `zpool export zmirror-sysfs-a` before, if the pool is already imported)
@@ -241,27 +265,6 @@ class Tests():
     assert_commands([])
 
 
-
-
-
-
-  # sysfs-b
-  # ###############
-
-  # dmcrypt of sysfs-b appears
-  def test_dmcrypt_sysfs_b_online(self):
-    trigger_event()
-
-    assert_commands([
-      "zpool online zmirror-sysfs zmirror-sysfs-b"
-    ])
-
-  # the event when the blockdev actually goes online inside the zpool
-  def test_backing_blockdev_sysfs_b_online(self):
-    trigger_event()
-
-    # zmirror needs to do nothing (issue no commands)
-    assert_commands([])
 
   # resilvering starts
   def test_zpool_sysfs_backing_blockdev_sysfs_b_resilver_start(self):

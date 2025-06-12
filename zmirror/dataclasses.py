@@ -318,6 +318,8 @@ class Entity:
 
   def request(self, request_type: RequestType, enactment_level = sys.maxsize):
     def create():
+      if self.unsupported_request(request_type):
+        log.debug(f"{human_readable_id(self)}: unsupported request type: {request_type}")
       request = Request(request_type, self, enactment_level)
       # adding the new request to self.requested should stop the infinite recursion
       # if a dependency results in another request to this entity (such as when an ONLINE 
@@ -418,13 +420,7 @@ def run_action(self, action):
     else:
       log.error(f"{human_readable_id(self)}: entity does not support being taken offline")
       return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
-  elif action == "online":
-    if hasattr(self, "enact_online"):
-      return self.request(RequestType.ONLINE, enactment_level=0).enact_hierarchy()
-    else:
-      log.error(f"{human_readable_id(self)}: entity does not support being taken online")
-      return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
-  elif action == "online_if_pool":
+  elif action in {"online", "online_if_pool"}: #TODO delete online_if_pool
     if hasattr(self, "enact_online"):
       return self.request(RequestType.ONLINE, enactment_level=0).enact_hierarchy()
     else:
@@ -501,9 +497,9 @@ class Children(Entity):
       r = list(map(do, self.content))
       return r
     elif request_type == RequestType.ONLINE:
-      return super().request_dependencies(request_type, enactment_level)
+      return super().request_dependencies(RequestType.ONLINE, enactment_level)
     elif request_type == RequestType.APPEAR:
-      return super().request_dependencies(request_type, enactment_level)
+      return super().request_dependencies(RequestType.ONLINE, enactment_level)
     else:
       raise ValueError(f"bug: request type {request_type.name} cannot be fulfilled by class `Children`")
   
@@ -748,10 +744,13 @@ class DevicesAgregate:
 
   requested: dict = field(default_factory=dict)
 
+
   def id(self):
-    id = self.pool.id()
-    id["backing"] = "yes"
-    return id
+    return (type(self), {"pool": self.pool.name})
+  
+  @classmethod
+  def id_fields(cls):
+    return ["pool"]
 
   def is_fulfilled(self, request):
     # this is managed by the request itself, a DevicesAgregate does not track request fulfillment
@@ -759,7 +758,7 @@ class DevicesAgregate:
 
 
   def unsupported_request(self, request_type):
-    if request_type == RequestType.ONLINE:
+    if request_type in {RequestType.ONLINE, RequestType.APPEAR}:
       return None
     return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
   
@@ -843,10 +842,6 @@ class Mirror(DevicesAgregate):
     if one_inactive:
       return EntityState.INACTIVE
 
-  def id(self):
-    tid = self.pool.id()
-    tid[1]["backing"] = "yes"
-    return tid
 
 
 
@@ -1489,7 +1484,7 @@ class ZDev(Onlineable, Embedded, Entity):
       pool = config.find_config(ZPool, name=self.pool)
       if pool is None:
         log.error(f"{human_readable_id(self)}: pool {self.pool} not configured.")
-        pool = UnavailableDependency(entity_id_string(self))
+        pool = UnavailableDependency(f"UNCONFIGURED: {entity_id_string(self)}")
       pool_enactment = enactment_level - 1
       if request_type == RequestType.ONLINE_IF_POOL:
         pool_enactment = -1

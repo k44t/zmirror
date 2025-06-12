@@ -223,23 +223,23 @@ class Request:
       if self.entity.is_fulfilled(self):
         self.succeed()
       else:
-        unsupported = self.entity.unsupported_request(self.request_type)
-        if unsupported:
-          self.fail(unsupported)
-        else:
-          if self.enactment_level >= 0:
-            if self.check_dependencies():
-              if self.entity.state_allows(self.request_type):
-                # this is checked only here, because at this point something 
-                # must be done at the entity itself to fulfill the request
-                # while up to this point the request might have been fulfilled
-                # by bringing online the parent
-                #
-                # maybe this is not necessary at all though.
-                if not self.enacted:
-                  self.entity.enact(self)
+        if self.check_dependencies():
+          unsupported = self.entity.unsupported_request(self.request_type)
+          if unsupported:
+            self.fail(unsupported)
           else:
-            self.fail(Reason.BELOW_ENACTMENT_LEVEL)
+            if self.enactment_level >= 0:
+                if self.entity.state_allows(self.request_type):
+                  # this is checked only here, because at this point something
+                  # must be done at the entity itself to fulfill the request
+                  # while up to this point the request might have been fulfilled
+                  # by bringing online the parent
+                  #
+                  # maybe this is not necessary at all though.
+                  if not self.enacted:
+                    self.entity.enact(self)
+            else:
+              self.fail(Reason.BELOW_ENACTMENT_LEVEL)
 
 
   def add_dependency(self, dependency):
@@ -263,9 +263,11 @@ class MirrorRequest(Request):
         return False
       if d.succeeded:
         one_succeeded = True
-    if not one_succeeded:
+    if one_succeeded:
+      return True
+    else:
       self.fail(Reason.ALL_MIRROR_DEPENDENCIES_FAILED)
-    return False
+      return False
 
 @dataclass
 class RaidRequest(Request):
@@ -274,8 +276,6 @@ class RaidRequest(Request):
 
   def check_dependencies(self):
     num_succeeded = 0
-    num_total = len(self.depending_on)
-    num_required = num_total - self.parity
     for d in self.depending_on:
       if not d.handled:
         # this request will only succeed once all dependent requests have been handled
@@ -283,12 +283,13 @@ class RaidRequest(Request):
       if d.succeeded:
         num_succeeded += 1
     
+    num_total = len(self.depending_on)
+    num_required = num_total - self.parity
+    
     # once the parity has been reached the request has been fulfilled
     if num_succeeded >= num_required:
       return True
     else:
       self.fail(Reason.TOO_MANY_RAID_DEPENDENCIES_FAILED)
-    
-    
-    return False
+      return False
 
