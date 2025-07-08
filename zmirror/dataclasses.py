@@ -1108,6 +1108,17 @@ class ZFSVolume(Children):
 # an entity that is embedded inside another and thus must be notified by its parent (zdevs and dmcrypts)
 class Embedded:
 
+  def unsupported_request(self, request_type):
+    # this is a bit of a hack
+    # embedded entities "support" the request type apppear
+    # so that at the point when the parent's ONLINE event
+    # is being handled, but the child's APPEAR event has
+    # not been triggered, the event won't fail.
+
+    if request_type == RequestType.APPEAR:
+      return None
+    return super().unsupported_request(self, request_type)
+
   def handle_parent_offline(self, _new_state=EntityState.INACTIVE):
     state = cached(self).state.what
     if state == EntityState.ONLINE:
@@ -1386,7 +1397,7 @@ class ZDev(Onlineable, Embedded, Entity):
   def unsupported_request(self, request_type: RequestType):
     if request_type in [RequestType.OFFLINE, RequestType.ONLINE, RequestType.SCRUB, RequestType.TRIM, RequestType.ONLINE_IF_POOL]:
       return None
-    return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
+    return Embedded.unsupported_request(self, request_type)
   
 
   def state_allows(self, request_type: RequestType):

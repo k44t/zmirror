@@ -119,6 +119,10 @@ class Request:
 
   enactment_id = None
 
+  # dataclass implements __eq__ by comparing all fields, resulting in recursion
+  def __eq__(self, other):
+    return self is other
+
   def cancel(self, reason: Reason, cancel_dependencies=False):
     if not self.handled:
       self.stop0("cancelled", reason)
@@ -172,9 +176,12 @@ class Request:
     if not self.handled:
       self.enact()
 
+  # another request that depended on this one has suceeded or failed. 
+  # hence now this request may be cancelled.
   def dependent_stop(self, dep, cancel_requested=False):
     if not self.handled:
-      self.depended_by.remove(dep)
+      if dep in self.depended_by:
+        self.depended_by.remove(dep)
       if cancel_requested:
         self.cancel(Reason.USER_REQUESTED)
       elif not self.depended_by and self.cancel_on_last_dependent_stop:

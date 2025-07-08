@@ -51,15 +51,22 @@ def daemon_request(rqst, cancel, typ, ids):
   if entity is None:
     log.error(f"{make_id_string(make_id(typ, **filtered_args))}: entity not configured")
     return
-  if entity.request(rqst, unrequest=cancel):
-    config.last_request_at = datetime.now()
-    
+  
+  if cancel:
+    if rqst in entity.requested:
+      entity.requested[rqst].cancel(Reason.USER_REQUESTED)
 
-
+      log.info(f"{make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} cancelled successfully")
+    else:
+      log.info(f"{make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} was not scheduled")
   else:
-    log.error(f"{make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} failed. See previous error messages.")
-    return
-  log.info(f"{make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} scheduled successfully")
+    if entity.request(rqst):
+      config.last_request_at = datetime.now()
+      entity.requested[rqst].enact_hierarchy()
+    else:
+      log.error(f"{make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} failed. See previous error messages.")
+      return
+    log.info(f"{make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} scheduled successfully")
 
 
 

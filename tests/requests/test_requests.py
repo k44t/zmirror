@@ -149,7 +149,8 @@ class Tests():
     ])
 
 
-  # partition of sysfs-s appears (udev: add)... this is to test udev events appearing in a weird order
+  # partition of sysfs-s appears (udev: add)... 
+  # this is to test udev events appearing in a weird order (partition before disk)
   def test_partition_sysfs_s_online(self):
     trigger_event()
  
@@ -208,9 +209,37 @@ class Tests():
 
     pool = config.config_dict["ZPool|name:zmirror-sysfs"]
 
+    dmcrypt_a = config.config_dict["DMCrypt|name:zmirror-sysfs-a"]
+
+
+    zdev_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+
+
+    assert RequestType.ONLINE in dmcrypt_a.requested
+
+    dmcrypt_request = dmcrypt_a.requested[RequestType.ONLINE]
+
+    assert not dmcrypt_request.handled
+    assert not dmcrypt_request.succeeded
+
+
+    assert RequestType.APPEAR in zdev_a.requested
+
+    zdev_request = zdev_a.requested[RequestType.APPEAR]
+
     assert RequestType.ONLINE in pool.requested
 
+    assert not zdev_request.handled
+    assert not zdev_request.succeeded
+
     trigger_event()
+
+
+    assert dmcrypt_request.handled
+    assert dmcrypt_request.succeeded
+
+    assert zdev_request.handled
+    assert zdev_request.succeeded
 
     assert RequestType.ONLINE in pool.requested
 
@@ -244,6 +273,37 @@ class Tests():
 
   # dmcrypt of sysfs-b appears
   def test_dmcrypt_sysfs_s_online(self):
+
+    pool = config.config_dict["ZPool|name:zmirror-sysfs"]
+
+    zdev_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+    zdev_b = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
+    zdev_s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+
+    assert RequestType.ONLINE in pool.requested
+
+    request = pool.requested[RequestType.ONLINE]
+    
+
+    assert RequestType.ONLINE in zdev_a.requested
+
+    # has already appeared
+    assert RequestType.APPEAR not in zdev_a.requested
+
+
+    # ONLINE has been requested manually for zdev_b
+    assert RequestType.ONLINE in zdev_b.requested
+    
+    # has already appeared
+    assert RequestType.APPEAR not in zdev_b.requested
+
+
+    assert RequestType.ONLINE not in zdev_s.requested
+    assert RequestType.APPEAR in zdev_s.requested
+
+
+
     trigger_event()
 
     assert_commands([
@@ -256,9 +316,15 @@ class Tests():
 
     pool = config.cache_dict["ZPool|name:zmirror-sysfs"]
 
+
+    zdev_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+    zdev_b = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
+    zdev_s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
     trigger_event()
 
     assert pool.state.what == EntityState.ONLINE
+
 
 
     # zmirror has to do nothing
@@ -352,22 +418,6 @@ class Tests():
       
     ])
 
-  # dmcrypt of sysfs-s appears (a little late though... because the command was first issued right at the beginning of the test)
-  def test_dmcrypt_sysfs_s_online(self):
-    
-
-
-    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
-
-    assert blockdev.state.what == EntityState.DISCONNECTED
-    
-    trigger_event()
-
-    assert blockdev.state.what == EntityState.INACTIVE
-    
-    assert_commands([
-      "zpool online zmirror-sysfs zmirror-sysfs-s"
-    ])
 
 
   # the event when the blockdev actually goes online inside the zpool
