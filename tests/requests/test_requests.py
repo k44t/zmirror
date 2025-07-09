@@ -64,7 +64,7 @@ class Tests():
     with tempfile.NamedTemporaryFile(delete=False) as temp_file:
       
       
-      # Apply the regex substitution
+      # remove all event handlers that online devices from the config
       content = re.sub(r"- online(?=\s|$)", "- pass", content)
 
       temp_file.write(content.encode("utf-8"))
@@ -384,16 +384,51 @@ class Tests():
     ])
 
 
+  # we simulate sysfs_s being taken offline
+  def test_zdev_sysfs_s_offline(self):
+    trigger_event()
+
+  # ditto
+  def test_dmcrypt_sysfs_s_offline(self):
+    trigger_event()
+
 
 
   def test_request_scrub_zmirror_sysfs(self):
     
 
+    print("\n\n\nSTARTING\n############################################\n\n\n")
+
+    zdev_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+    zdev_b = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
+    zdev_s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+    zdev_bak_a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    zdev_bak_b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
+
     def possibly_scrub(entity):
       if isinstance(entity, ZDev) and entity.pool == "zmirror-sysfs":
+
+        print(f"{human_readable_id(entity)}: scrub")
         entity.request(RequestType.SCRUB)
+      else:
+
+        print(f"{human_readable_id(entity)}: NO scrub")
+
     entities.iterate_content_tree(config.config_root, possibly_scrub)
+
+
+
     entities.iterate_content_tree(config.config_root, user_commands.do_enact_requests)
+
+    assert RequestType.SCRUB in zdev_a.requested
+    assert RequestType.SCRUB in zdev_b.requested
+    assert RequestType.SCRUB in zdev_s.requested
+
+    assert RequestType.SCRUB in zdev_bak_a.requested
+
+    # here the scrub request will fail, because the device is not present
+    assert RequestType.SCRUB not in zdev_bak_b.requested
 
     assert_commands([
       'zpool scrub -s zmirror-sysfs', 
@@ -474,9 +509,7 @@ class Tests():
     
     assert_commands([
       # we import the bak-a pool
-      "zpool import zmirror-bak-a",
-
-      "zpool online zmirror-bak-a zmirror-bak-a"
+      "zpool import zmirror-bak-a"
     ])
 
 

@@ -133,11 +133,19 @@ class Tests():
       # "zpool online zmirror-sysfs zmirror-sysfs-a"
     ])
 
+  # this simulates the user manually taking online the pool
   # `zpool import zmirror-sysfs-a` (do `zpool export zmirror-sysfs-a` before, if the pool is already imported)
   def test_zpool_sysfs_online(self):
 
     pool = config.cache_dict["ZPool|name:zmirror-sysfs"]
     a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+
+
+    zdev_s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    cached(zdev_s)
+
+    assert zdev_s.requested == {}
+    assert zdev_s.cache.state.what == EntityState.DISCONNECTED
 
     assert a.state.what == EntityState.INACTIVE
 
@@ -146,6 +154,8 @@ class Tests():
     assert a.state.what == EntityState.ONLINE
     assert pool.state.what == EntityState.ONLINE
 
+    assert zdev_s.requested == {}
+    assert zdev_s.cache.state.what == EntityState.DISCONNECTED
 
     # zmirror has to do nothing
     assert_commands([
@@ -176,6 +186,7 @@ class Tests():
 
   # partition of sysfs-b appears (udev: add)
   def test_partition_sysfs_b_online(self):
+
     trigger_event()
 
     assert_commands([
@@ -244,6 +255,7 @@ class Tests():
 
   # dmcrypt of sysfs-s appears
   def test_dmcrypt_sysfs_s_online(self):
+
     
     trigger_event()
     

@@ -174,6 +174,13 @@ class ZMirror:
   scrub_interval: str = None
   trim_interval: str = None
 
+  def id(self):
+    return make_id(self)
+  
+  @classmethod
+  def id_fields(cls):
+    return []
+
 
 
 def cached(entity):
@@ -335,6 +342,7 @@ class Entity:
       request = self.requested[request_type]
       if request.enactment_level < enactment_level:
         request.cancel(Reason.REPLACING_REQUEST)
+        log.info(f"{human_readable_id(self)}: recreating request: {request_type.name}")
         return create()
       return request
     else:
@@ -1222,9 +1230,10 @@ def uncached_userevent_by_name(cache, name):
 
 
 def handle_resilver_started(cache):
-  if not since_in(Operations.RESILVER, cache.operations):
-    cache_log_info(cache, "resilver started")
+  if not since_in(Operations.RESILVER, cache.operations):  
     cache.operations.append(Since(Operations.RESILVER, datetime.now()))
+  handle_onlined(cache)
+  cache_log_info(cache, "resilver started")
 
 
 def handle_resilver_finished(cache):

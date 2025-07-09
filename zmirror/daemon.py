@@ -98,9 +98,10 @@ def handle(env):
               handle_scrub_canceled(cache)
             elif zevent == "pool_import":
               log.info(f"zdev {cache.pool}:{cache.name}: pool imported, device online")
-              handle_onlined(cache)
               if "resilvering" in (match.group("operations") or ""):
                 handle_resilver_started(cache)
+              else:
+                handle_onlined(cache)
 
       if zevent == "pool_import" or zevent == "pool_create":
         zpool_cache = find_or_create_cache(ZPool, name=zpool)
@@ -126,7 +127,6 @@ def handle(env):
       vdev_path = env["ZEVENT_VDEV_PATH"]
       cache = find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path)
       if zevent == "vdev_online":
-        handle_onlined(cache)
         # we have no event by witch we can reliably capture that a resilver started for a zdev
         # (resilver_started is a pool event). Hence we automatically assume that a zdev
         # that has been onlined in an active pool will resilver
