@@ -24,6 +24,9 @@ def assert_commands(cmds):
     else:
       if not a == command:
         raise ValueError(f"expected command: {a}\nfound command: {command}")
+    #for h in b.on_execute:
+      # for testing purposes all commands succeed
+      # h(None, 0, None, None)
 
 
 

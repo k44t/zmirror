@@ -207,21 +207,21 @@ class Tests():
     ])
 
   # the event when the blockdev actually goes online inside the zpool
-  def test_backing_blockdev_sysfs_b_online(self):
+  def test_zdev_sysfs_b_online(self):
     trigger_event()
 
     # zmirror needs to do nothing (issue no commands)
     assert_commands([])
 
   # resilvering starts
-  def test_zpool_sysfs_backing_blockdev_sysfs_b_resilver_start(self):
+  def test_zdev_sysfs_b_resilver_start(self):
     trigger_event()
 
     # zmirror needs to do nothing (issue no commands)
     assert_commands([])
 
   # resilvering ends
-  def test_zpool_sysfs_backing_blockdev_sysfs_b_resilver_finish(self):
+  def test_zdev_sysfs_b_resilver_finish(self):
     trigger_event()
 
     # zmirror needs to do nothing (issue no commands) as nothing is defined in the config file
@@ -264,20 +264,20 @@ class Tests():
     ])
 
   # the event when the blockdev actually goes online inside the zpool
-  def test_backing_blockdev_sysfs_s_online(self):
+  def test_zdev_sysfs_s_online(self):
     
     trigger_event()
     
     assert_commands([])
 
 
-  def test_zpool_sysfs_backing_blockdev_sysfs_s_resilver_start(self):
+  def test_zdev_sysfs_s_resilver_start(self):
     trigger_event()
     
     assert_commands([])
 
 
-  def test_zpool_sysfs_backing_blockdev_sysfs_s_resilver_finish(self):
+  def test_zdev_sysfs_s_resilver_finish(self):
     trigger_event()
     
     assert_commands([
@@ -522,7 +522,7 @@ class Tests():
 
 
   # when the zpool appears
-  def test_backing_blockdev_big_b_online(self):
+  def test_zdev_big_b_online(self):
 
 
     b = config.cache_dict["ZDev|pool:zmirror-big|name:zmirror-big-b"]
@@ -586,6 +586,11 @@ class Tests():
 
     assert blockdev.state.what == EntityState.ONLINE
 
+    zdev_sysfs = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+
+    # is this correct?
+    assert zdev_sysfs.state.what == EntityState.DISCONNECTED
+
     # zpool is configured to take the volumes "online"
     # and we have implemented this by setting the volmode
     # so that the respective udev events will be triggered
@@ -600,16 +605,32 @@ class Tests():
     ])
 
 
+  # when bak-a-sysfs zfs_volume appears (udev: add)
+  def test_zfs_volume_bak_a_sysfs_online(self):
 
-  # when the resilver starts
-  def test_zpool_sysfs_backing_blockdev_bak_a_sysfs_resilver_start(self):
+    zpool = config.cache_dict["ZPool|name:zmirror-bak-a"]
+
+    assert zpool.state.what == EntityState.ONLINE
+
+    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    volume = config.cache_dict["ZFSVolume|pool:zmirror-bak-a|name:sysfs"]
+
+    assert volume.state.what == EntityState.INACTIVE
+    assert blockdev.state.what == EntityState.DISCONNECTED
+
     trigger_event()
-    
-    # zmirror needs to do nothing (issue no commands)
-    assert_commands([])
+
+
+    assert volume.state.what == EntityState.ONLINE
+    assert blockdev.state.what == EntityState.INACTIVE
+
+    assert_commands([
+      "zpool online zmirror-sysfs zvol/zmirror-bak-a/sysfs"
+    ])
+
   
   # when bak-a-big the blockdev becomes active in the sysfs pool
-  def test_zpool_sysfs_backing_blockdev_bak_a_big_online(self):
+  def test_zdev_bak_a_big_online(self):
     trigger_event()
 
     blockdev = config.cache_dict["ZDev|pool:zmirror-big|name:zvol/zmirror-bak-a/big"]
@@ -623,7 +644,7 @@ class Tests():
 
 
   # when the resilver has finished
-  def test_zpool_big_backing_blockdev_bak_a_big_resilver_start(self):
+  def test_zdev_bak_a_big_resilver_start(self):
     trigger_event()
     # zmirror needs to do nothing (issue no commands)
     assert_commands([])
@@ -631,25 +652,11 @@ class Tests():
 
 
 
-  # when bak-a-sysfs zfs_volume appears (udev: add)
-  def test_zfs_volume_bak_a_sysfs_online(self):
 
-    zpool = config.cache_dict["ZPool|name:zmirror-bak-a"]
-
-    assert zpool.state.what == EntityState.ONLINE
-
-    trigger_event()
-
-    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
-    volume = config.cache_dict["ZFSVolume|pool:zmirror-bak-a|name:sysfs"]
-
-    assert_commands([
-      "zpool online zmirror-sysfs zvol/zmirror-bak-a/sysfs"
-    ])
 
 
   # when bak-a-big the blockdev becomes active in the sysfs pool
-  def test_zpool_sysfs_backing_blockdev_bak_a_sysfs_online(self):
+  def test_zdev_bak_a_sysfs_online(self):
     trigger_event()
 
     blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
@@ -661,10 +668,17 @@ class Tests():
       # we do nothing
     ])
 
+  # when the resilver starts
+#  def test_zdev_bak_a_sysfs_resilver_start(self):
+#    trigger_event()
+    
+    # zmirror needs to do nothing (issue no commands)
+#    assert_commands([])
+
 
 
   # when the resilver on the zvols/zmirror-bak-a/sysfs blockdev finishes...
-  def test_zpool_sysfs_backing_blockdev_bak_a_sysfs_resilver_finish(self):
+  def test_zdev_bak_a_sysfs_resilver_finish(self):
     trigger_event()
 
     assert_commands([
@@ -682,7 +696,7 @@ class Tests():
 
 
   # when the blockdev is taken offline within the sysfs pool
-  def test_zpool_sysfs_backing_blockdev_bak_a_sysfs_disconnected(self):
+  def test_zdev_bak_a_sysfs_disconnected(self):
 
     blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     volume = config.cache_dict["ZFSVolume|pool:zmirror-bak-a|name:sysfs"]
@@ -712,7 +726,7 @@ class Tests():
 
 
   # when the resilver of zvol/zmirror-bak-a/big finishes
-  def test_zpool_big_backing_blockdev_bak_a_big_resilver_finish(self):
+  def test_zdev_bak_a_big_resilver_finish(self):
     
     trigger_event()
 
@@ -729,7 +743,7 @@ class Tests():
     ])
 
   # when the blockdev is being taken offline in the big pool
-  def test_zpool_big_backing_blockdev_bak_a_big_disconnected(self):
+  def test_zdev_bak_a_big_disconnected(self):
     trigger_event()
 
 
@@ -927,7 +941,7 @@ class Tests():
 
 
   # when bak-b-sysfs zfs_volume appears (udev: add) (caused by set volmode=full)
-  def test_zpool_sysfs_backing_blockdev_bak_b_big_online(self):
+  def test_zdev_bak_b_big_online(self):
     
     trigger_event()
     
@@ -936,7 +950,7 @@ class Tests():
     ])
 
   # when bak-b-big zfs_volume appears (udev: add)
-  def test_zpool_sysfs_backing_blockdev_bak_b_sysfs_online(self):
+  def test_zdev_bak_b_sysfs_online(self):
     
     trigger_event()
     
@@ -945,7 +959,7 @@ class Tests():
     ])
 
   # when the resilver of the volume for sysfs starts
-  def test_zpool_sysfs_backing_blockdev_bak_b_sysfs_resilver_start(self):
+  def test_zdev_bak_b_sysfs_resilver_start(self):
     trigger_event()
 
     assert_commands([
@@ -954,7 +968,7 @@ class Tests():
 
 
   # when the resilver of the volume for big starts
-  def test_zpool_big_backing_blockdev_bak_b_big_resilver_start(self):
+  def test_zdev_bak_b_big_resilver_start(self):
     trigger_event()
 
     assert_commands([
@@ -963,7 +977,7 @@ class Tests():
 
 
   # when the resilver for sysfs finishes
-  def test_zpool_sysfs_backing_blockdev_bak_b_sysfs_resilver_finish(self):
+  def test_zdev_bak_b_sysfs_resilver_finish(self):
 
     blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
     assert blockdev.state.what == EntityState.ONLINE
@@ -987,7 +1001,7 @@ class Tests():
 
 
   # when it the event from taking it offline in the pool appears
-  def test_zpool_sysfs_backing_blockdev_bak_b_sysfs_disconnected(self):
+  def test_zdev_bak_b_sysfs_disconnected(self):
     blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
     assert blockdev.state.what == EntityState.ONLINE
     
@@ -1012,7 +1026,7 @@ class Tests():
     ])
 
   # when the resilver for big finishes
-  def test_zpool_big_backing_blockdev_bak_b_big_resilver_finish(self):
+  def test_zdev_bak_b_big_resilver_finish(self):
     trigger_event()
 
     assert_commands([
@@ -1024,7 +1038,7 @@ class Tests():
     ])
 
   # when the blockdev disappears from the pool it backs
-  def test_zpool_big_backing_blockdev_bak_b_big_disconnected(self):
+  def test_zdev_bak_b_big_disconnected(self):
     trigger_event()
     assert_commands([
       # we also virtually take the volume "offline" in which it resides

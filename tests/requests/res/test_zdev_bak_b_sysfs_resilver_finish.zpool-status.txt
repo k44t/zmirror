@@ -1,0 +1,1 @@
+../../commands/res/test_zdev_bak_b_sysfs_resilver_finish.zpool-status.txt

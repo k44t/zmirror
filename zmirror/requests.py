@@ -68,18 +68,18 @@ class RequestType(KiEnum):
 
   ONLINE = 1
 
-  SCRUB = 2
+  # no number 2 since then this RequestType would correspond to the state INACTIVE which would not be true
+  APPEAR = 3
 
-  TRIM = 3
+  SCRUB = 4
 
-  APPEAR = 7
+  TRIM = 5
 
+  CANCEL_SCRUB = 6
 
-  CANCEL_SCRUB = 4
+  CANCEL_TRIM = 7
 
-  CANCEL_TRIM = 5
-
-  SNAPSHOT = 6
+  SNAPSHOT = 8
 
   # online request that does not online the corresponding pool
   ONLINE_IF_POOL = 8
@@ -224,6 +224,22 @@ class Request:
 
   def set_enacted(self):
     self.enacted = True
+
+
+  def set_enactment_level(self, level, enactment_id=None):
+
+    if enactment_id is None:
+      enactment_id = next_enactment_id()
+
+    if self.enactment_id == enactment_id:
+      return
+    self.enactment_id = enactment_id
+
+
+    self.enactment_level = level
+    for d in self.depending_on:
+      d.set_enactment_level(level - 1)
+
 
   def enact(self):
     if not self.handled:

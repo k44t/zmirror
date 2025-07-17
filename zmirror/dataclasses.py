@@ -341,9 +341,8 @@ class Entity:
       log.warning(f"{human_readable_id(self)}: already requested: {request_type.name}")
       request = self.requested[request_type]
       if request.enactment_level < enactment_level:
-        request.cancel(Reason.REPLACING_REQUEST)
-        log.info(f"{human_readable_id(self)}: recreating request: {request_type.name}")
-        return create()
+        log.info(f"{human_readable_id(self)}: changing enactment level: {request_type.name}")
+        request.set_enactment_level(enactment_level)
       return request
     else:
       return create()

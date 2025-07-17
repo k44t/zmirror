@@ -24,6 +24,7 @@ from zmirror.dataclasses import *
 import zmirror.config
 import zmirror.entities as entities
 from zmirror.zmirror import main
+from zmirror.logging import log
 
 from util.util_stage2 import *
 
@@ -333,14 +334,14 @@ class Tests():
 
 
   # resilvering starts
-  def test_zpool_sysfs_backing_blockdev_sysfs_b_resilver_start(self):
+  def test_zdev_sysfs_b_resilver_start(self):
     trigger_event()
 
     # zmirror needs to do nothing (issue no commands)
     assert_commands([])
 
   # resilvering ends
-  def test_zpool_sysfs_backing_blockdev_sysfs_b_resilver_finish(self):
+  def test_zdev_sysfs_b_resilver_finish(self):
     trigger_event()
 
     # zmirror needs to do nothing (issue no commands) as nothing is defined in the config file
@@ -397,34 +398,52 @@ class Tests():
   def test_request_scrub_zmirror_sysfs(self):
     
 
-    print("\n\n\nSTARTING\n############################################\n\n\n")
+    log.info("\n\n\nSTARTING\n############################################\n\n\n")
 
     zdev_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
     zdev_b = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
     zdev_s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
-    zdev_bak_a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
-    zdev_bak_b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
+    zdev_bak_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    zdev_bak_b = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
 
     def possibly_scrub(entity):
       if isinstance(entity, ZDev) and entity.pool == "zmirror-sysfs":
 
-        print(f"{human_readable_id(entity)}: scrub")
+        log.info(f"{human_readable_id(entity)}: scrub")
         entity.request(RequestType.SCRUB)
+        assert RequestType.SCRUB in entity.requested
       else:
 
-        print(f"{human_readable_id(entity)}: NO scrub")
+        # log.info(f"{human_readable_id(entity)}: NO scrub")
+        pass
+
 
     entities.iterate_content_tree(config.config_root, possibly_scrub)
 
 
 
+    assert RequestType.SCRUB in zdev_a.requested
+    assert RequestType.SCRUB in zdev_b.requested
+    assert RequestType.SCRUB in zdev_s.requested
+
+    # this scrub needs to be present as it is fulfillable.
+    assert RequestType.SCRUB in zdev_bak_a.requested
+
+    # here the scrub request will fail, because the device is not present
+    assert RequestType.SCRUB in zdev_bak_b.requested
+
+
+
     entities.iterate_content_tree(config.config_root, user_commands.do_enact_requests)
+
+
 
     assert RequestType.SCRUB in zdev_a.requested
     assert RequestType.SCRUB in zdev_b.requested
     assert RequestType.SCRUB in zdev_s.requested
 
+    # this scrub needs to be present as it is fulfillable.
     assert RequestType.SCRUB in zdev_bak_a.requested
 
     # here the scrub request will fail, because the device is not present
@@ -445,9 +464,15 @@ class Tests():
     
     assert blockdev.operations == []
 
+    zdev_bak_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+
+    assert RequestType.SCRUB in zdev_bak_a.requested
+
     trigger_event()
 
     assert since_in(Operations.SCRUB, blockdev.operations)
+
+    assert RequestType.SCRUB in zdev_bak_a.requested
 
     assert_commands([
       
@@ -456,7 +481,7 @@ class Tests():
 
 
   # the event when the blockdev actually goes online inside the zpool
-  def test_backing_blockdev_sysfs_s_online(self):
+  def test_zdev_sysfs_s_online(self):
     
     trigger_event()
 
@@ -488,6 +513,10 @@ class Tests():
 
   def test_zdev_sysfs_s_scrub_start(self):
 
+    zdev_bak_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+
+    assert RequestType.SCRUB in zdev_bak_a.requested
+
 
     blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
     
@@ -496,6 +525,9 @@ class Tests():
     trigger_event()
 
     assert since_in(Operations.SCRUB, blockdev.operations)
+
+
+    assert RequestType.SCRUB in zdev_bak_a.requested
 
     assert_commands([
       
@@ -516,6 +548,7 @@ class Tests():
   def test_zpool_bak_a_online(self):
 
     trigger_event()
+
 
     zpool = config.cache_dict["ZPool|name:zmirror-bak-a"]
 
@@ -543,9 +576,25 @@ class Tests():
 
     zpool = config.cache_dict["ZPool|name:zmirror-bak-a"]
 
+    zdev_bak_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+
+    assert RequestType.SCRUB in zdev_bak_a.requested
+
+
+    assert not since_in(Operations.SCRUB, cached(zdev_bak_a).operations)
+
     assert zpool.state.what == EntityState.ONLINE
 
+    assert cached(zdev_bak_a).state.what == EntityState.DISCONNECTED
+
     trigger_event()
+
+    assert cached(zdev_bak_a).state.what == EntityState.INACTIVE
+
+    assert not since_in(Operations.SCRUB, cached(zdev_bak_a).operations)
+
+
+    assert RequestType.SCRUB in zdev_bak_a.requested
 
     blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     volume = config.cache_dict["ZFSVolume|pool:zmirror-bak-a|name:sysfs"]
@@ -557,57 +606,54 @@ class Tests():
 
 
   # when bak-a-big the blockdev becomes active in the sysfs pool
-  def test_zpool_sysfs_backing_blockdev_bak_a_sysfs_online(self):
+  def test_zdev_bak_a_sysfs_online(self):
 
-    bak_a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
 
-    req = uncached(bak_a).requested
-    assert req == {RequestType.SCRUB, RequestType.ONLINE}
+    zdev_bak_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+
+    assert RequestType.SCRUB in zdev_bak_a.requested
+
 
     trigger_event()
 
 
-    req2 = uncached(bak_a).requested
-    
-    assert req is req2
-
-    assert req == {RequestType.SCRUB}
-
-    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
-
-    assert blockdev.state.what == EntityState.ONLINE
+    assert RequestType.SCRUB in zdev_bak_a.requested
 
 
     assert_commands([
-      # a scrub has been requested and zmirror trys to start it 
-      # which will fail because resilvering needs to happen first
-      "zpool scrub -s zmirror-sysfs",
-      "zpool scrub zmirror-sysfs"
+      # resilvering needs to happen first
     ])
 
 
 
-  # when the resilver starts
-  def test_zpool_sysfs_backing_blockdev_bak_a_sysfs_resilver_start(self):
-    trigger_event()
-    
-    assert_commands([])
 
 
   # when the resilver ends
-  def test_zpool_sysfs_backing_blockdev_bak_a_sysfs_resilver_finish(self):
-    trigger_event()
+  def test_zdev_bak_a_sysfs_resilver_finish(self):
     
+    zdev_bak_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+
+    assert RequestType.SCRUB in zdev_bak_a.requested
+
+
+    trigger_event()
+
+
+
+
+
     assert_commands([
 
+      re.compile(r"zfs snapshot zmirror-bak-a/sysfs@.*"),
+
       "zpool scrub -s zmirror-sysfs",
-      "zpool scrub zmirror-sysfs",
-      re.compile(r"zfs snapshot zmirror-bak-a/sysfs@.*")
+      "zpool scrub zmirror-sysfs"
       
       # zmirror refuses to offline the device becausee a scrub is scheduled
       ## 'zpool offline zmirror-sysfs zvol/zmirror-bak-a/sysfs'
     ])
 
+    assert RequestType.SCRUB in zdev_bak_a.requested
 
 
   # scrub start
@@ -629,6 +675,9 @@ class Tests():
     assert since_in(Operations.SCRUB, bak_a.operations)
     assert not since_in(Operations.SCRUB, bak_b.operations)
 
+    for x in [a, b, s, bak_a, bak_b]:
+      assert RequestType.SCRUB not in x.requested
+
     assert_commands([])
 
 
@@ -641,8 +690,6 @@ class Tests():
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
     bak_a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     bak_b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
-
-    assert uncached(bak_a).requested == {RequestType.SCRUB}
 
     trigger_event()
 
@@ -663,7 +710,7 @@ class Tests():
       "zpool offline zmirror-sysfs zvol/zmirror-bak-a/sysfs"
     ])
   
-  def test_zpool_sysfs_backing_blockdev_sysfs_s_trim_start(self):
+  def test_zdev_sysfs_s_trim_start(self):
     
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
@@ -681,7 +728,7 @@ class Tests():
 
 
   # an administrator has stopped the trim via the `zpool trim -s zmirror-sysfs` command.
-  def test_zpool_sysfs_backing_blockdev_sysfs_s_trim_cancel(self):
+  def test_zdev_sysfs_s_trim_cancel(self):
     
     trigger_event()
 
@@ -700,7 +747,7 @@ class Tests():
 
 
   # the user tells zmirror to request trim again
-  def test_zpool_sysfs_backing_blockdev_sysfs_s_trim_request(self):
+  def test_zdev_sysfs_s_trim_request(self):
     
     user_commands.request(RequestType.TRIM, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
 
@@ -716,7 +763,7 @@ class Tests():
 
 
   # trimming has started
-  def test_zpool_sysfs_backing_blockdev_sysfs_s_trim_start2(self):
+  def test_zdev_sysfs_s_trim_start2(self):
     
     trigger_event()
 
@@ -729,7 +776,7 @@ class Tests():
     ])
 
   # trimming has finished
-  def test_zpool_sysfs_backing_blockdev_sysfs_s_trim_finish(self):
+  def test_zdev_sysfs_s_trim_finish(self):
     
     trigger_event()
 
