@@ -254,7 +254,7 @@ class Entity:
     copy = self.requested.copy()
     for request_type in copy:
       request = copy[request_type]
-      request.enact()
+      request.enact_hierarchy()
 
   def state_allows(self, request_type):
     state = cached(self).state.what
@@ -322,12 +322,14 @@ class Entity:
     else:
       raise ValueError(f"{human_readable_id(self)}: bug: @Entity.request_dependencies:  {request_type} not implemented")
 
+  def prepare_request(self, request_type: RequestType, enactment_level = sys.maxsize):
+    return Request(request_type, self, enactment_level)
 
   def request(self, request_type: RequestType, enactment_level = sys.maxsize):
     def create():
       if self.unsupported_request(request_type):
         log.debug(f"{human_readable_id(self)}: unsupported request type: {request_type}")
-      request = Request(request_type, self, enactment_level)
+      request = self.prepare_request(request_type, enactment_level)
       # adding the new request to self.requested should stop the infinite recursion
       # if a dependency results in another request to this entity (such as when an ONLINE 
       # request on a ZDev triggers an ONLINE request on a ZPOOL, which then triggers
@@ -427,7 +429,7 @@ def run_action(self, action):
     else:
       log.error(f"{human_readable_id(self)}: entity does not support being taken offline")
       return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
-  elif action in {"online", "online_if_pool"}: #TODO delete online_if_pool
+  elif action == "online":
     if hasattr(self, "enact_online"):
       return self.request(RequestType.ONLINE, enactment_level=0).enact_hierarchy()
     else:
@@ -605,10 +607,6 @@ def possibly_force_enable_trim(self):
 
 
 
-class TimerEvent(Enum):
-  RESTART = 0
-  TIMEOUT = 1
-
 
 @yaml_data
 class ManualChildren(Children):
@@ -745,7 +743,7 @@ def unavailable_guard(blockdevs, devname):
 
 
 @yaml_data
-class DevicesAgregate:
+class DevicesAgregate(Entity):
 
   pool = None
 
@@ -779,14 +777,12 @@ class DevicesAgregate:
   def prepare_request(self, request_type, enactment_level):
     raise NotImplementedError()
 
-  def request(self, request_type, enactment_level: int = sys.maxsize):
-    if request_type in {RequestType.ONLINE, RequestType.APPEAR} :
-      r = self.prepare_request(request_type, enactment_level)
-      for d in self.devices:
-        r.add_dependency(d.request(request_type, enactment_level - 1))
-      self.requested[request_type] = r
-      return r
-    raise ValueError(f"{human_readable_id(self.entity)}: bug: unsupported request type for backing: {request_type.name}")
+  def request_dependencies(self, request_type: RequestType, enactment_level = sys.maxsize):
+    if request_type in {RequestType.ONLINE, RequestType.APPEAR}:
+      return [d.request(request_type, enactment_level - 1) for d in self.devices]
+    else:
+      raise ValueError(f"{human_readable_id(self.entity)}: bug: unsupported request type for backing: {request_type.name}")
+
 
   def get_state(self):
     one_online = False
@@ -1105,7 +1101,7 @@ class ZFSVolume(Children):
     return commands.add_command(f"zfs snapshot {self.parent.name}/{self.name}@zmirror-{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}")
 
 
-  def get_devpath(self):
+  def dev_path(self):
     if self.parent is not None:
       return f"/dev/zvol/{self.parent.name}/{self.name}"
     else:
@@ -1153,7 +1149,7 @@ class DMCrypt(Onlineable, Embedded, Children):
   def id(self):
     return make_id(self, name=self.name)
 
-  def get_devpath(self):
+  def dev_path(self):
     return f"/dev/mapper/{self.name}"
 
 
@@ -1167,7 +1163,7 @@ class DMCrypt(Onlineable, Embedded, Children):
     pass
 
   def load_initial_state(self):
-    if config.dev_exists(self.get_devpath()):
+    if config.dev_exists(self.dev_path()):
       return EntityState.ONLINE
     return EntityState.UNKNOWN
 
@@ -1200,7 +1196,7 @@ def uncached(cache, fn=None):
   else:
     entity = config.load_config_for_cache(cache)
     if entity is None:
-      log.warning(f"entity not configured: {entity_id_string(cache)}")
+      log.debug(f"entity not configured: {entity_id_string(cache)}")
       return
     entity.cache = cache
   if fn:
@@ -1214,6 +1210,7 @@ def uncached_handle_by_name(cache, name, prev_state):
     method = getattr(entity, "handle_" + name)
     method(prev_state)
   uncached(cache, do)
+
 
 def uncached_operation_handle_by_name(cache, name):
   def do(entity):
@@ -1333,9 +1330,20 @@ def handle_onlined(cache):
 
 
 @yaml_data
-class UnavailableDependency:
+class UnavailableDependency(Entity):
 
-  name: str
+  name: str = None
+
+
+
+  def request_dependencies(self, request_type, enactment_level: int = sys.maxsize):
+    return []
+
+  def request(self, request_type, enactment_level: int = sys.maxsize):
+    request = super().request(request_type, enactment_level)
+    request.fail(Reason.DEPENDENCY_NOT_CONFIGURED)
+    return request
+    
 
 
 
@@ -1403,7 +1411,7 @@ class ZDev(Onlineable, Embedded, Entity):
   
 
   def unsupported_request(self, request_type: RequestType):
-    if request_type in [RequestType.OFFLINE, RequestType.ONLINE, RequestType.SCRUB, RequestType.TRIM, RequestType.ONLINE_IF_POOL]:
+    if request_type in [RequestType.OFFLINE, RequestType.ONLINE, RequestType.SCRUB, RequestType.TRIM]:
       return None
     return Embedded.unsupported_request(self, request_type)
   
@@ -1489,7 +1497,6 @@ class ZDev(Onlineable, Embedded, Entity):
 
 
 
-
   def request_dependencies(self, request_type, enactment_level: int = sys.maxsize):
     if request_type == RequestType.SCRUB:
       return [self.request(RequestType.ONLINE)]
@@ -1499,14 +1506,12 @@ class ZDev(Onlineable, Embedded, Entity):
       return []
     elif request_type == RequestType.APPEAR:
       return [self.parent.request(RequestType.ONLINE, enactment_level - 1)]
-    elif request_type in {RequestType.ONLINE, RequestType.ONLINE_IF_POOL}:
+    elif request_type == RequestType.ONLINE:
       pool = config.find_config(ZPool, name=self.pool)
       if pool is None:
         log.error(f"{human_readable_id(self)}: pool {self.pool} not configured.")
         pool = UnavailableDependency(f"UNCONFIGURED: {entity_id_string(self)}")
       pool_enactment = enactment_level - 1
-      if request_type == RequestType.ONLINE_IF_POOL:
-        pool_enactment = -1
       return [self.parent.request(RequestType.ONLINE, enactment_level - 1), pool.request(RequestType.ONLINE, pool_enactment)]
     else:
       raise ValueError(f"{human_readable_id(self)}: unsupported request type: {request_type.name}")
@@ -1523,9 +1528,11 @@ class ZDev(Onlineable, Embedded, Entity):
     else:
       state, opers = state
     if state != EntityState.ONLINE:
-      dev = self.dev_name()
+      dev = self.parent.dev_path()
       if config.dev_exists(dev):
         state = EntityState.INACTIVE
+      else:
+        state = EntityState.DISCONNECTED
     cache = cached(self)
     for org_oper in cache.operations.copy():
       if org_oper.what not in opers:
@@ -1541,10 +1548,6 @@ class ZDev(Onlineable, Embedded, Entity):
     if pool_id in config.config_dict:
       config.config_dict[pool_id].handle_backing_device_appeared()
     run_actions(self, "appeared")
-
-  def handle_onlined(self, prev_state):
-    succeed_request(self, RequestType.ONLINE_IF_POOL)
-    super().handle_onlined(prev_state)
 
   def handle_scrub_started(self):
     succeed_request(self, RequestType.SCRUB)

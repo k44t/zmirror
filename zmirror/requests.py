@@ -11,6 +11,7 @@
 
 from datetime import datetime
 from dataclasses import dataclass, field
+from threading import Timer
 from typing import Any
 from .util import read_file
 from enum import Enum
@@ -26,7 +27,7 @@ from kpyutils.kiify import yaml_data, yaml_enum, KiEnum, KdStream, yes_no_absent
 from .logging import log
 from . import commands as commands
 from . import config as config
-from .config import iterate_content_tree3_depth_first
+from .config import iterate_content_tree3_depth_first, TimerEvent
 
 
 class Reason(KiEnum):
@@ -81,9 +82,6 @@ class RequestType(KiEnum):
 
   SNAPSHOT = 8
 
-  # online request that does not online the corresponding pool
-  ONLINE_IF_POOL = 8
-
   def opposite(self):
     if self == RequestType.ONLINE:
       return RequestType.OFFLINE
@@ -99,8 +97,6 @@ class Request:
   depending_on: list = field(default_factory=list)
   depended_by: list = field(default_factory=list)
 
-  
-
   # enacted, failed or cancelled.
   handled = False
 
@@ -115,9 +111,11 @@ class Request:
   # all necessary dependencies succeeded
   dependencies_succeeded = False
 
-  cancel_on_last_dependent_stop = False
+  cancel_on_last_dependent_stop = True
 
   enactment_id = None
+
+  timer = None
 
   # dataclass implements __eq__ by comparing all fields, resulting in recursion
   def __eq__(self, other):
@@ -134,12 +132,21 @@ class Request:
 
   def stop0(self, stop_mode, reason: Reason = None):
     self.handled = True
-    log.info(f"{config.human_readable_id(self.entity)}: request {self.request_type.name} {stop_mode}{f" because {reason.name}" if reason else ""}")
+    self.stop_timer()
+    msg = f"{config.human_readable_id(self.entity)}: request {self.request_type.name} {stop_mode}{f" because {reason.name}" if reason else ""}"
+    if reason in {Reason.NO_LONGER_REQUIRED, Reason.BELOW_ENACTMENT_LEVEL}:
+      log.debug(msg)
+    else:
+      log.info(msg)
     
   def stop99(self):
     self.depending_on = []
-    self.depended_by = []
+    self.depended_by = [] 
+    # try:
     self.entity.requested.pop(self.request_type)
+    # except:
+    #  raise
+    
 
   def fail(self, reason: Reason):
     if not self.handled:
@@ -174,6 +181,7 @@ class Request:
 
   def dependency_stop(self, _dep):
     if not self.handled:
+      self.restart_timer()
       self.enact()
 
   # another request that depended on this one has suceeded or failed. 
@@ -182,10 +190,8 @@ class Request:
     if not self.handled:
       if dep in self.depended_by:
         self.depended_by.remove(dep)
-      if cancel_requested:
-        self.cancel(Reason.USER_REQUESTED)
-      elif not self.depended_by and self.cancel_on_last_dependent_stop:
-        self.cancel(Reason.NO_LONGER_REQUIRED)
+      if cancel_requested or (not self.depended_by and self.cancel_on_last_dependent_stop):
+        self.cancel(Reason.NO_LONGER_REQUIRED, cancel_dependencies=True)
   
   def dependent_failed(self, dep):
     self.dependent_stop(dep)
@@ -217,10 +223,35 @@ class Request:
         return
       self.enactment_id = enactment_id
 
-      for d in self.depending_on.copy():
-        d.enact_hierarchy(enactment_id)
-      self.enactment_id = None
-      self.enact()
+
+      if self.entity.is_fulfilled(self):
+        self.succeed()
+      else:
+        for d in self.depending_on.copy():
+          d.enact_hierarchy(enactment_id)
+        self.enactment_id = None
+        self.start_timer()
+        self.enact()
+
+  def start_timer(self):
+    if self.timer is None:
+      def timeout():
+        config.event_queue.put(TimerEvent(self.timer_finished))
+      self.timer = Timer(config.timeout, timeout)
+
+  def restart_timer(self):
+    self.stop_timer()
+    self.start_timer()
+  
+  def stop_timer(self):
+    if self.timer is not None:
+      self.timer.cancel()
+      self.timer = None
+  
+  def timer_finished(self):
+    if not self.handled:
+      self.cancel(Reason.TIMEOUT)
+
 
   def set_enacted(self):
     self.enacted = True

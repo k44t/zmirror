@@ -14,7 +14,7 @@ from threading import Timer
 import signal
 import sys
 
-from zmirror.user_commands import clear_requests, enact_requests, handle_command, restart_request_timer
+from zmirror.user_commands import cancel_requests_for_timeout, enact_requests, handle_command, restart_request_timer
 
 
 
@@ -62,7 +62,7 @@ def handle(env):
         for dev in globals.zfs_blockdevs[zpool].values():
           dev_cache = find_or_create_cache(ZDev, pool=zpool, name=dev.name)
           handle_deactivated(dev_cache)
-        log.warning(f"{human_readable_id(zpool_cache)}: zpool destroyed. (You might need to update your zmirror configuration or recreate the pool.)")
+        # log.warning(f"{human_readable_id(zpool_cache)}: zpool destroyed. (You might need to update your zmirror configuration or recreate the pool.)")
 
 
       event_handled = True
@@ -90,18 +90,23 @@ def handle(env):
             if zevent == "scrub_finish":
               log.info(f"zdev {cache.pool}:{cache.name}: scrubbing finished")
               handle_scrub_finished(cache)
+              event_handled = True
             elif zevent == "scrub_start":
               log.info(f"zdev {cache.pool}:{cache.name}: scrubbing started")
               handle_scrub_started(cache)
+              event_handled = True
             elif zevent == "scrub_abort":
               log.info(f"zdev {cache.pool}:{cache.name}: scrubbing cancelled")
               handle_scrub_canceled(cache)
+              event_handled = True
             elif zevent == "pool_import":
               log.info(f"zdev {cache.pool}:{cache.name}: pool imported, device online")
               if "resilvering" in (match.group("operations") or ""):
                 handle_resilver_started(cache)
+                event_handled = True
               else:
                 handle_onlined(cache)
+                event_handled = True
 
       if zevent == "pool_import" or zevent == "pool_create":
         zpool_cache = find_or_create_cache(ZPool, name=zpool)
@@ -239,6 +244,7 @@ def handle(env):
         if "PARTNAME" in env:
           cache = find_or_create_cache(Partition, name=env["PARTNAME"])
           udev_event_action(cache, action, now)
+          event_handled = True
     
     # TODO: figure out what this event actually is.
     elif action == "change" and "DM_ACTIVATION" in env and env["DM_ACTIVATION"] == "1":
@@ -254,7 +260,7 @@ def handle(env):
 
           break
   if event_handled:
-    log.info("event handled by zmirror")
+    log.debug("event handled by zmirror")
     return True
   else:
     log.debug("event not handled by zmirror")
@@ -317,10 +323,6 @@ def handle_client(con: socket.socket, client_address, event_queue: queue.Queue):
 
 
 def handle_events(event_queue):
-  timer: Timer = None
-  def timeout():
-    log.info("timeout")
-    event_queue.put(TimerEvent.TIMEOUT)
   while True:
     handled = False
     try:
@@ -332,23 +334,14 @@ def handle_events(event_queue):
         handle_command(event.event, event.con)
         handled = True
       elif isinstance(event, TimerEvent):
-        log.info(f"timer event: {event} ({config.timeout})")
-        if event == TimerEvent.RESTART:
-          if timer is not None:
-            timer.cancel()
-          log.info(f"timer event: {event} ({config.timeout})")
-          timer = Timer(config.config_root.timeout, timeout)
-          timer.start()
-        elif event == TimerEvent.TIMEOUT:
-          clear_requests()
-          timer = None
+        log.info(f"timer event: ({config.timeout})")
+        event.action()
       else:
         handled = handle(event)
       if handled:
         save_cache()
         enact_requests()
         commands.execute_commands()
-        restart_request_timer()
     except Exception as ex:
       try:
         log.error(f"failed to handle event: {json.dumps(event, indent=2)}")

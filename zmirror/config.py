@@ -23,6 +23,11 @@ timeout = None
 is_daemon = False
 
 
+class TimerEvent:
+  def __init__(self, action):
+    self.action = action
+
+
 def dev_exists(dev_path):
   if dev_path.startswith("/dev/"):
     return os.path.exists(dev_path)

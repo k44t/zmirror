@@ -24,12 +24,12 @@ import traceback
 
 
 
-def request(rqst, typ, **identifiers):
+def request(rqst, typ, enactment_level = sys.maxsize, **identifiers):
   tid = make_id_string(make_id(typ, **identifiers))
   entity = load_config_for_id(tid)
   if entity is None:
     raise ValueError(f"{tid} not configured")
-  result = entity.request(rqst)
+  result = entity.request(rqst, enactment_level = enactment_level)
   result.enact_hierarchy()
 
 
@@ -171,21 +171,10 @@ def handle_trim_all_command():
   iterate_content_tree(config.config_root, do)
 
 
-def clear_requests():
+def cancel_requests_for_timeout():
   def do(entity):
-    cache = cached(entity)
     for rqst in entity.requested.copy():
-      if rqst == RequestType.TRIM:
-        if not since_in(Operations.TRIM, cache.operations):
-          log.warning(f"{human_readable_id(entity)}: timeout for request: {rqst.name}")
-          entity.remove_request(rqst)
-      elif rqst == RequestType.SCRUB:
-        if not since_in(Operations.SCRUB, cache.operations):
-          log.warning(f"{human_readable_id(entity)}: timeout for request: {rqst.name}")
-          entity.remove_request(rqst)
-      else:
-        log.warning(f"{human_readable_id(entity)}: timeout for request: {rqst.name}")
-        entity.remove_request(rqst)
+      rqst.cancel(Reason.TIMEOUT)
 
 
   iterate_content_tree(config.config_root, do)

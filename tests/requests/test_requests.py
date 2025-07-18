@@ -137,13 +137,13 @@ class Tests():
 
   def test_request_zpool_sysfs_s_online(self):
 
-    user_commands.request(RequestType.ONLINE_IF_POOL, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
+    user_commands.request(RequestType.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s", enactment_level=0)
 
     dmcrypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-s"]
 
     # the requests should not be in there, because they must have failed since the partition
     # could not have been onlined.
-    assert RequestType.ONLINE not in dmcrypt.requested and RequestType.ONLINE_IF_POOL not in dmcrypt.requested
+    assert RequestType.ONLINE not in dmcrypt.requested
 
     assert_commands([
       # nothing should happen as zmirror-sysfs is not available yet
@@ -286,8 +286,8 @@ class Tests():
 
     request = pool.requested[RequestType.ONLINE]
     
-
-    assert RequestType.ONLINE in zdev_a.requested
+    # has not been requested (the pool only requires the device to be INACTIVE, not online)
+    assert RequestType.ONLINE not in zdev_a.requested
 
     # has already appeared
     assert RequestType.APPEAR not in zdev_a.requested

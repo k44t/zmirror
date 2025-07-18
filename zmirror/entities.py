@@ -51,6 +51,7 @@ def init_config(cache_path, config_path):
   config.config_dict = dict()
   config.lvm_physical_volumes = dict()
   config.zfs_blockdevs = dict()
+    
 
   config.find_config = find_config
 

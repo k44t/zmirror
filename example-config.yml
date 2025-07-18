@@ -169,7 +169,7 @@ content:
             # bring the corresponding zpool online. Onlining zpools however
             # we configure via on_backing_appeared on the zpool itself.
             on_appeared:
-              - online_if_pool
+              - online
 
             on_scrubbed:
               - trim
@@ -289,7 +289,7 @@ content:
               pool: zmirror-sysfs
 
               on_appeared: 
-                - online_if_pool
+                - online
 
               # after the disk has been scrubbed we want to trim it to preserve performance
               on_scrubbed:
@@ -356,7 +356,7 @@ content:
               pool: zmirror-sysfs
 
               on_appeared: 
-                - online_if_pool
+                - online
 
               on_scrubbed:
                 - trim
@@ -417,7 +417,7 @@ content:
                 pool: zmirror-sysfs
 
                 on_appeared: 
-                  - online_if_pool
+                  - online
                 
                 # This NVMe drive is a different spec (2242) than sysfs-a, b and c. It has a smaller
                 # form factor, so it fits into a smaller USB drive big encloser. But it also is 
@@ -509,7 +509,7 @@ content:
             pool: zmirror-big
               
             on_appeared:
-              - online_if_pool
+              - online
 
             scrub_interval: 4 weeks
 
@@ -545,7 +545,7 @@ content:
           
 
             on_appeared:
-              - online_if_pool
+              - online
 
             scrub_interval: 4 weeks
 
@@ -755,7 +755,7 @@ content:
               - offline
 
             on_appeared:
-              - online_if_pool
+              - online
 
             scrub_interval: 4 weeks
       
@@ -776,7 +776,7 @@ content:
             pool: zmirror-big
 
             on_appeared:
-              - online_if_pool
+              - online
 
             on_scrubbed: 
               - offline
@@ -895,7 +895,7 @@ content:
             pool: zmirror-sysfs
             
             on_appeared:
-              - online_if_pool
+              - online
           
             on_scrubbed:
               - offline
@@ -919,7 +919,7 @@ content:
             pool: zmirror-big
 
             on_appeared:
-              - online_if_pool
+              - online
           
             on_scrubbed:
               - offline
@@ -962,7 +962,7 @@ content:
             pool: zmirror-bak-b
           
             on_appeared:
-              - online_if_pool
+              - online
 
             scrub_interval: 4 weeks
 
@@ -989,7 +989,7 @@ content:
             pool: zmirror-bak-b
           
             on_appeared:
-              - online_if_pool
+              - online
             
             scrub_interval: 4 weeks
 
@@ -1071,7 +1071,7 @@ content:
             pool: zmirror-blubak
           
             on_appeared:
-              - online_if_pool
+              - online
 
 
 
@@ -1102,7 +1102,7 @@ content:
             pool: zmirror-blubak
             
             on_appeared:
-              - online_if_pool
+              - online
           
             on_scrubbed:
               - offline

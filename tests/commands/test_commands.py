@@ -898,6 +898,7 @@ class Tests():
     dm_alpha = config.cache_dict["DMCrypt|name:zmirror-bak-b-alpha"]
     dm_beta = config.cache_dict["DMCrypt|name:zmirror-bak-b-beta"]
     zpool = config.cache_dict["ZPool|name:zmirror-bak-b"]
+    zpool_config = uncached(zpool)
 
     assert blockdev_alpha.state.what == EntityState.INACTIVE
     assert blockdev_beta.state.what == EntityState.INACTIVE
