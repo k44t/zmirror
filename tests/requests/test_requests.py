@@ -795,6 +795,12 @@ class Tests():
   def test_zdev_sysfs_s_offline2(self):
     trigger_event()
 
+    # TODO figure out what needs to happen. When the partition disappears the close command is issued but apparently not when the zdev goes offline. But there should be an event handler.
+    # TODO once the device is offline, have it requested to be online again
+    # TODO have the online request time out
+    # TODO let the timeout event run
+    # TODO ensure the request is cancelled because of timeout
+
     assert_commands([
       "cryptsetup close zmirror-sysfs-s"
     ])
