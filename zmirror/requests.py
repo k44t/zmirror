@@ -121,11 +121,11 @@ class Request:
   def __eq__(self, other):
     return self is other
 
-  def cancel(self, reason: Reason, cancel_dependencies=False):
+  def cancel(self, reason: Reason):
     if not self.handled:
       self.stop0("cancelled", reason)
       for d in self.depending_on.copy():
-        d.dependent_cancelled(self, cancel_dependencies)
+        d.dependent_cancelled(self)
       for d in self.depended_by.copy():
         d.dependency_cancelled(self)
       self.stop99()
@@ -135,7 +135,7 @@ class Request:
     self.stop_timer()
     msg = f"{config.human_readable_id(self.entity)}: request {self.request_type.name} {stop_mode}{f" because {reason.name}" if reason else ""}"
     if reason in {Reason.NO_LONGER_REQUIRED, Reason.BELOW_ENACTMENT_LEVEL}:
-      log.debug(msg)
+      log.info(msg)
     else:
       log.info(msg)
     
@@ -186,12 +186,12 @@ class Request:
 
   # another request that depended on this one has suceeded or failed. 
   # hence now this request may be cancelled.
-  def dependent_stop(self, dep, cancel_requested=False):
+  def dependent_stop(self, dep):
     if not self.handled:
       if dep in self.depended_by:
         self.depended_by.remove(dep)
-      if cancel_requested or (not self.depended_by and self.cancel_on_last_dependent_stop):
-        self.cancel(Reason.NO_LONGER_REQUIRED, cancel_dependencies=True)
+      if not self.depended_by and self.cancel_on_last_dependent_stop:
+        self.cancel(Reason.NO_LONGER_REQUIRED)
   
   def dependent_failed(self, dep):
     self.dependent_stop(dep)
@@ -208,9 +208,8 @@ class Request:
   def dependency_cancelled(self, dep):
     self.dependency_stop(dep)
 
-  def dependent_cancelled(self, dep, cancel_requested=False):
-    if cancel_requested:
-      self.dependent_stop(dep, cancel_requested)
+  def dependent_cancelled(self, dep):
+    self.dependent_stop(dep)
 
   def enact_hierarchy(self, enactment_id=None):
     if not self.handled:

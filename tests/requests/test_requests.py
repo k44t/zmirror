@@ -389,6 +389,10 @@ class Tests():
   def test_zdev_sysfs_s_offline(self):
     trigger_event()
 
+    assert_commands([
+      "cryptsetup close zmirror-sysfs-s"
+    ])
+
   # ditto
   def test_dmcrypt_sysfs_s_offline(self):
     trigger_event()
@@ -787,6 +791,30 @@ class Tests():
     assert_commands([
       "zpool offline zmirror-sysfs zmirror-sysfs-s"
     ])
+  
+  def test_zdev_sysfs_s_offline2(self):
+    trigger_event()
+
+    assert_commands([
+      "cryptsetup close zmirror-sysfs-s"
+    ])
+
+  def test_dmcrypt_sysfs_s_offline2(self):
+    trigger_event()
+
+    assert_commands([
+      
+    ])
+
+  def test_user_request_online(self):
+
+    user_commands.request(RequestType.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
+
+    assert_commands([
+      "zpool online zmirror-sysfs zmirror-sysfs-s"
+    ])
+
+
 
 if __name__ == '__main__':
   pytest.main()

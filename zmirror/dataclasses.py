@@ -340,10 +340,10 @@ class Entity:
         request.add_dependency(dep)
       return request
     if request_type in self.requested:
-      log.warning(f"{human_readable_id(self)}: already requested: {request_type.name}")
+      log.debug(f"{human_readable_id(self)}: already requested: {request_type.name}")
       request = self.requested[request_type]
       if request.enactment_level < enactment_level:
-        log.info(f"{human_readable_id(self)}: changing enactment level: {request_type.name}")
+        log.debug(f"{human_readable_id(self)}: changing enactment level: {request_type.name}")
         request.set_enactment_level(enactment_level)
       return request
     else:
