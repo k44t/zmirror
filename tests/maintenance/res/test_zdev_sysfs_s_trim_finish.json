@@ -1,0 +1,5 @@
+{
+  "ZEVENT_SUBCLASS": "trim_finish",
+  "ZEVENT_VDEV_PATH": "/dev/disk/by-partlabel/zmirror-sysfs-s",
+  "ZEVENT_POOL": "zmirror-sysfs"
+}

@@ -1,0 +1,1 @@
+../../commands/res/test_scrub_finished_sysfs_a_and_b.zpool-status.txt

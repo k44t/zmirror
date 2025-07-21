@@ -48,7 +48,6 @@ trim_interval: 1 week
 
 # sets the default trim interval. May be overridden by setting `scrub_interval` 
 # directly on a device
-# uncomment to enable
 scrub_interval: 4 weeks
 
 
@@ -67,6 +66,9 @@ content:
 
     # but we still configure the backing so that zmirror knows 
     backed_by:
+
+
+      # zmirror only supports Mirror or single-device backing. This is due to a simplification in the programming logic, which assumes that when a device is onlined it always needs to resilver first (which only mirrored devices do).
       - !Mirror
         devices: 
           # without zmirror-big-a present zmirror should not import the pool
@@ -193,9 +195,8 @@ content:
     # since disks have no names, the info field will be printed in zmirror logs for better usability
     info: zmirror-sysfs-b
 
-    # *WARNING*: ONLY set this to true if you absolutely know that your device supports trim
-    #
-    # Force enable trim support on SSD devices/enclosures that actually do support trim.
+    # *WARNING*: ONLY set this to true if you know with certainty that both your SSD/NVMe and
+    # - if applicable its (USB-) enclosure support the TRIM command.
     #
     # The TRIM command is used by solid state devices to clear datablocks and 
     # mark them unwritten, which can greatly enhance disk performance.

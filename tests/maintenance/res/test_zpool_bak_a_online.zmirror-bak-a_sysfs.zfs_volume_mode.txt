@@ -1,0 +1,1 @@
+../../commands/res/test_zpool_bak_a_online.zmirror-bak-a_sysfs.zfs_volume_mode.txt
