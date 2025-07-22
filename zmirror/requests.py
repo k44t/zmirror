@@ -88,6 +88,28 @@ class RequestType(KiEnum):
     return RequestType.ONLINE
 
 
+# user created requests have a root, which the user requests consider their "dependent"
+# (so that they won't be cancelled unless manually requested)
+class RequestRoot:
+
+  def dependency_succeeded(self, dep):
+    pass
+  
+  def dependency_failed(self, dep):
+    pass
+  
+  def dependency_cancelled(self, dep):
+    pass
+
+  def add_dependency(self, dependency):
+    dependency.depended_by.append(self)
+  
+
+
+request_root = RequestRoot()
+
+
+
 @dataclass
 class Request:
   request_type: RequestType
@@ -237,6 +259,7 @@ class Request:
       def timeout():
         config.event_queue.put(TimerEvent(self.timer_finished))
       self.timer = Timer(config.timeout, timeout)
+      self.timer.start()
 
   def restart_timer(self):
     self.stop_timer()
@@ -250,6 +273,7 @@ class Request:
   def timer_finished(self):
     if not self.handled:
       self.cancel(Reason.TIMEOUT)
+      self.stop_timer()
 
 
   def set_enacted(self):
@@ -299,6 +323,8 @@ class Request:
     if not self.handled:
       self.depending_on.append(dependency)
       dependency.depended_by.append(self)
+  
+
 
 @dataclass
 class MirrorRequest(Request):

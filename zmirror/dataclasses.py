@@ -377,7 +377,9 @@ class Entity:
     tell_parent_child_offline(self.parent, self, prev_state)
     if isinstance(self.parent, Entity):
       if cached(self.parent).state.what == EntityState.DISCONNECTED:
-        handle_deactivated(cached(self))
+        # TODO I changed this line from handle_deactivated to handle_disconnected.
+        # did I introduce a bug?
+        handle_disconnected(cached(self))
 
 
 

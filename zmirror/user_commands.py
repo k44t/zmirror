@@ -31,6 +31,8 @@ def request(rqst, typ, enactment_level = sys.maxsize, **identifiers):
     raise ValueError(f"{tid} not configured")
   result = entity.request(rqst, enactment_level = enactment_level)
   result.enact_hierarchy()
+  request_root.add_dependency(result)
+  return result
 
 
 
@@ -261,10 +263,6 @@ def handle_get_command(command, stream):
 
 
 
-
-def restart_request_timer():
-  log.info("restarting timeout")
-  config.event_queue.put(TimerEvent.RESTART)
 
 
 

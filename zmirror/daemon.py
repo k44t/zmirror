@@ -14,7 +14,7 @@ from threading import Timer
 import signal
 import sys
 
-from zmirror.user_commands import cancel_requests_for_timeout, enact_requests, handle_command, restart_request_timer
+from zmirror.user_commands import cancel_requests_for_timeout, enact_requests, handle_command
 
 
 

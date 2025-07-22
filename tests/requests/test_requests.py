@@ -9,6 +9,7 @@
 # @brief Pytests group2 for zmirror
 # ******************************************************************************
 
+import queue
 import pytest
 import re
 import tempfile
@@ -54,7 +55,7 @@ class Tests():
   @classmethod
   def setup_class(cls):
 
-
+    config.event_queue = queue.Queue()
     
 
     with open('./example-config.yml', 'r') as file:
@@ -276,6 +277,10 @@ class Tests():
   def test_dmcrypt_sysfs_s_online(self):
 
     pool = config.config_dict["ZPool|name:zmirror-sysfs"]
+    
+
+    crypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-s"]
+    assert crypt.state.what == EntityState.INACTIVE
 
     zdev_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
     zdev_b = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
@@ -306,6 +311,9 @@ class Tests():
 
 
     trigger_event()
+
+    assert crypt.state.what == EntityState.ONLINE
+
 
     assert_commands([
       "zpool import zmirror-sysfs"
@@ -387,7 +395,13 @@ class Tests():
 
   # we simulate sysfs_s being taken offline
   def test_zdev_sysfs_s_offline(self):
+
+    crypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-s"]
+    assert crypt.state.what == EntityState.ONLINE
+
     trigger_event()
+
+    assert crypt.state.what == EntityState.ONLINE
 
     assert_commands([
       "cryptsetup close zmirror-sysfs-s"
@@ -395,7 +409,13 @@ class Tests():
 
   # ditto
   def test_dmcrypt_sysfs_s_offline(self):
+
+    crypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-s"]
+    assert crypt.state.what == EntityState.ONLINE
+
     trigger_event()
+
+    assert crypt.state.what == EntityState.INACTIVE
 
 
 
@@ -461,6 +481,7 @@ class Tests():
     ])
 
 
+
   def test_zdev_sysfs_a_scrub_start(self):
 
 
@@ -480,6 +501,33 @@ class Tests():
 
     assert_commands([
       
+    ])
+
+
+
+  # dmcrypt of sysfs-b appears
+  def test_dmcrypt_sysfs_s_online2(self):
+
+    pool = config.config_dict["ZPool|name:zmirror-sysfs"]
+
+    crypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-s"]
+    assert crypt.state.what == EntityState.INACTIVE
+
+    zdev_s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+
+    assert RequestType.ONLINE in zdev_s.requested
+    # assert RequestType.APPEAR in zdev_s.requested
+
+
+
+    trigger_event()
+
+    assert crypt.state.what == EntityState.ONLINE
+
+
+    assert_commands([
+      "zpool online zmirror-sysfs zmirror-sysfs-s"
     ])
 
 
@@ -793,13 +841,15 @@ class Tests():
     ])
   
   def test_zdev_sysfs_s_offline2(self):
+
+    crypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-s"]
+    assert crypt.state.what == EntityState.ONLINE
+
     trigger_event()
 
-    # TODO figure out what needs to happen. When the partition disappears the close command is issued but apparently not when the zdev goes offline. But there should be an event handler.
-    # TODO once the device is offline, have it requested to be online again
-    # TODO have the online request time out
-    # TODO let the timeout event run
-    # TODO ensure the request is cancelled because of timeout
+
+    assert crypt.state.what == EntityState.ONLINE
+
 
     assert_commands([
       "cryptsetup close zmirror-sysfs-s"
@@ -812,13 +862,67 @@ class Tests():
       
     ])
 
-  def test_user_request_online(self):
+  def test_user_request_zmirror_sysfs_s_online_timeout(self):
+
+    log.info("\n\n\n######################")
+    log.info("starting")
+    log.info("######################\n\n\n")
+    
+    config.timeout = 0.1
 
     user_commands.request(RequestType.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
 
     assert_commands([
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-s zmirror-sysfs-s --key-file ./test/zmirror-key"
+    ])
+
+    # TODO once the device is offline, have it requested to be online again
+    # TODO have the online request time out
+    # TODO let the timeout event run
+    # TODO ensure the request is cancelled because of timeout
+  
+  def test_dmcrypt_sysfs_s_online3(self):
+    trigger_event()
+
+    assert_commands([
       "zpool online zmirror-sysfs zmirror-sysfs-s"
     ])
+
+    s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+    assert cached(s).state.what == EntityState.INACTIVE
+
+    request = s.requested[RequestType.ONLINE]
+    
+
+    queue = config.event_queue
+
+    assert queue.empty()
+
+
+    assert not request.handled
+    assert not request.succeeded
+
+    log.info("\n\n\n######################")
+    log.info("waiting for timeout")
+    log.info("######################\n\n\n")
+
+    import time
+    time.sleep(0.3)
+
+    assert not queue.empty()
+
+    event = queue.get()
+    assert isinstance(event, TimerEvent)
+    event.action()
+
+
+    assert request.handled
+    assert not request.succeeded
+
+
+
+
 
 
 
