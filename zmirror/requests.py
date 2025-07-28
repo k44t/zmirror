@@ -157,7 +157,7 @@ class Request:
     self.stop_timer()
     msg = f"{config.human_readable_id(self.entity)}: request {self.request_type.name} {stop_mode}{f" because {reason.name}" if reason else ""}"
     if reason in {Reason.NO_LONGER_REQUIRED, Reason.BELOW_ENACTMENT_LEVEL}:
-      log.info(msg)
+      log.debug(msg)
     else:
       log.info(msg)
     
@@ -257,8 +257,13 @@ class Request:
   def start_timer(self):
     if self.timer is None:
       def timeout():
+        try:
+          config.timers.remove(self.timer)
+        except:
+          pass
         config.event_queue.put(TimerEvent(self.timer_finished))
       self.timer = Timer(config.timeout, timeout)
+      config.timers.append(self.timer)
       self.timer.start()
 
   def restart_timer(self):
@@ -268,6 +273,10 @@ class Request:
   def stop_timer(self):
     if self.timer is not None:
       self.timer.cancel()
+      try:
+        config.timers.remove(self.timer)
+      except:
+        pass
       self.timer = None
   
   def timer_finished(self):

@@ -43,11 +43,15 @@ timeout: 60
 # accordingly.
 
 # sets the default trim interval. May be overridden by setting `trim_interval` 
-# directly on a device
+# directly on a device.
+# 
+# you can also set the interval to `nil` which means that no interval is set. This is the application default.
 trim_interval: 1 week
 
 # sets the default trim interval. May be overridden by setting `scrub_interval` 
-# directly on a device
+# directly on a device.
+# 
+# you can also set the interval to `nil` which means that no interval is set. This is the application default.
 scrub_interval: 4 weeks
 
 
@@ -178,6 +182,10 @@ content:
               
             
 
+            # you could also set the interval to `nil` which in this case would mean
+            # that instead of inheriting the global scrub_interval we configured above
+            # the scrub_interval of this device would be cleared and thus scrub
+            # would never considered to be OVERDUE by zmirror.
             scrub_interval: 2 weeks
 
 

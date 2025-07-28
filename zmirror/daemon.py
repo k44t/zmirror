@@ -334,10 +334,12 @@ def handle_events(event_queue):
         handle_command(event.event, event.con)
         handled = True
       elif isinstance(event, TimerEvent):
-        log.info(f"timer event: ({config.timeout})")
+        log.debug(f"timer event: ({config.timeout})")
         event.action()
+        handled = True
       else:
         handled = handle(event)
+      
       if handled:
         save_cache()
         enact_requests()
@@ -466,6 +468,9 @@ def daemon(args):# pylint: disable=unused-argument
       event_queue.put(None)
       handle_event_thread.join()
       log.info("zmirror daemon shut down gracefully")
+      
+      # this is necessary if some timeouts are still pending (timer threads may keep running after sys.exit has been called)
+      os.kill(os.getpid(), signal.SIGKILL) #pylint: disable=unreachable
       sys.exit(0)
 
 

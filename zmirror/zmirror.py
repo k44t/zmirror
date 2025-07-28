@@ -156,10 +156,12 @@ def main(args=None):
   online_parser = subs.add_parser('online', parents=[socket_parser], help='request device to go online')
   offline_parser = subs.add_parser('offline', parents=[socket_parser], help='request device to go offline')
   status_parser = subs.add_parser('status', parents=[socket_parser], help='show device status')
+  trim_parser = subs.add_parser('trim', parents=[socket_parser], help='request device trim')
 
   online_subs = online_parser.add_subparsers(required=True)
   offline_subs = offline_parser.add_subparsers(required=True)
   status_subs = status_parser.add_subparsers(required=True)
+  trim_subs = trim_parser.add_subparsers(required=True)
 
   scrub_parser = subs.add_parser("scrub", parents=[socket_parser, cancel_parser], help="request device to be scrubbed")
   scrub_subs = scrub_parser.add_subparsers(required=True)
@@ -199,10 +201,14 @@ def main(args=None):
 
     common_parser = argparse.ArgumentParser(add_help=False)
     for fld in typ.id_fields():
-      common_parser.add_argument(f"--{fld}", type=str, required=True)
+      common_parser.add_argument(f"{fld}", type=str, default=None)
     
     online = online_subs.add_parser(command_name, parents=[common_parser, cancel_parser])
     online.set_defaults(func=make_send_request_daemon_command(RequestType.ONLINE, typ))
+
+    if typ in {ZDev}:
+      trim = trim_subs.add_parser(command_name, parents=[common_parser, cancel_parser])
+      trim.set_defaults(func=make_send_request_daemon_command(RequestType.TRIM, typ))
 
     offline = offline_subs.add_parser(command_name, parents=[common_parser, cancel_parser])
     offline.set_defaults(func=make_send_request_daemon_command(RequestType.OFFLINE, typ))

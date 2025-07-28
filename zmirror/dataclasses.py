@@ -1236,6 +1236,7 @@ def handle_resilver_started(cache):
 
 def handle_resilver_finished(cache):
   cache_log_info(cache, "resilvered")
+  cache.last_resilver = datetime.now()
   since_remove(Operations.RESILVER, cache.operations)
   uncached_operation_handle_by_name(cache, "resilver_finished")
 
@@ -1428,8 +1429,20 @@ class ZDev(Onlineable, Embedded, Entity):
         return True
     return super().state_allows(request_type)
     
-      
+  
+  def finalize_init(self):
+    for op in Operations:
+      prop_name = f"{op.name.lower()}_interval"
+      val = getattr(self, prop_name)
+      if val is None:
+        val = getattr(config.config_root, prop_name)
+      if val is not None and val.lower() in {"nil", "none", "void"}:
+        val = None
+      setattr(self, prop_name, val)
 
+  def effective_interval(self, op: Operations):
+    return self.configured_interval(op)
+  
 
   def configured_interval(self, op: Operations):
     return getattr(self, f"{op.name.lower()}_interval")
@@ -1438,8 +1451,6 @@ class ZDev(Onlineable, Embedded, Entity):
     cache = cached(self)
     return getattr(cache, f"last_{op.name.lower()}")
 
-  def effective_interval(self, op: Operations):
-    return self.configured_interval(op) or getattr(config.config_root, f"{op.name.lower()}_interval")
   
   def is_overdue(self, op: Operations):
     interval = self.effective_interval(op)
@@ -1460,12 +1471,15 @@ class ZDev(Onlineable, Embedded, Entity):
   def print_status(self, kdstream):
     Entity.print_status(self, kdstream)
     cache = cached(self)
+    
+    kdstream.newline()
+    
     for op in Operations:
       name = enum_command_name(op)
-      kdstream.print_property(self, f"last_{name}")
+      kdstream.print_property(cache, f"last_{name}")
       if self.is_overdue(op):
         kdstream.print_raw(" # OVERDUE")
-      kdstream.print_property(self, f"{name}_interval", hide_if_empty=True)
+      kdstream.print_property(self, f"{name}_interval")
 
     if cache.operations:
       kdstream.newline()

@@ -18,6 +18,7 @@ last_request_at = datetime.now()
 log_level = logging.INFO
 event_queue = None
 timeout = None
+timers = []
 
 
 is_daemon = False

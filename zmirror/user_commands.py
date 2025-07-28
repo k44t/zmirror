@@ -58,17 +58,17 @@ def daemon_request(rqst, cancel, typ, ids):
     if rqst in entity.requested:
       entity.requested[rqst].cancel(Reason.USER_REQUESTED)
 
-      log.info(f"{make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} cancelled successfully")
+      log.info(f"executed user command `cancel {rqst.name.lower()}` for {make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} cancelled successfully")
     else:
-      log.info(f"{make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} was not scheduled")
+      log.info(f"execuded user command `cancel {rqst.name.lower()}` for {make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} was not scheduled, and could not be cancelled")
   else:
     if entity.request(rqst):
       config.last_request_at = datetime.now()
       entity.requested[rqst].enact_hierarchy()
     else:
-      log.error(f"{make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} failed. See previous error messages.")
+      log.error(f"execuded user command `{rqst.name.lower()}` for {make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} failed. See previous error messages.")
       return
-    log.info(f"{make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} scheduled successfully")
+    log.info(f"execuded user command `{rqst.name.lower()}` for {make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} scheduled successfully.")
 
 
 
@@ -241,7 +241,7 @@ def handle_set_command(command):
   else:
     raise ValueError(f"unknown property: {prop}")
 
-  log.info(f"set property {prop} to: {value}")
+  log.info(f"executed set command: property {prop} set to: {value}")
 
 
 def handle_get_command(command, stream):
@@ -329,7 +329,7 @@ def handle_command(command, con):
       con.close()
     except: #pylint: disable=bare-except
       pass
-    log.info(f"handled user command: {name}")
+    log.info(f"executed user command: {name}")
   # print("client handled")
 
 
@@ -349,7 +349,7 @@ request_for_name = {
   "online": RequestType.ONLINE,
   "offline": RequestType.OFFLINE,
   "scrub": RequestType.SCRUB,
-  "trim": RequestType.SCRUB
+  "trim": RequestType.TRIM
 }
 
 name_for_request = {value: key for key, value in request_for_name.items()}
@@ -434,8 +434,13 @@ def make_send_request_daemon_command(rqst, typ):
 
     delattr(args, "cancel")
     r["type"] = command_name_for_type[typ]
-    r["identifiers"] = vars(args)
-
+    identifiers = dict()
+    for fld in typ.id_fields():
+      val = getattr(args, fld)
+      if val is None:
+        raise ValueError(f"no value given for: {fld}")
+      identifiers[fld] = val
+    r["identifiers"] = identifiers
     return r
   return make_send_daemon_wrapper(do)
 
