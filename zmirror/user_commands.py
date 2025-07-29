@@ -35,6 +35,28 @@ def request(rqst, typ, enactment_level = sys.maxsize, **identifiers):
   return result
 
 
+def request_overdue(op: Operation, entity):
+  result = None
+  rqst: RequestType = request_for_zfs_operation[op]
+  if isinstance(entity, ZDev):
+    msg = f"{entity_id_string(entity)}: last {rqst.name} was {entity.last(op) or "NEVER"} (interval: {entity.effective_interval(op)})."
+    if entity.is_overdue(op):
+      msg += " OVERDUE."
+      if rqst not in entity.requested:
+        msg += f" Requesting {rqst.name}"
+        log.info(msg)
+        result = entity.request(rqst)
+        if not result:
+          log.error(f"{entity_id_string(entity)}: request {rqst.name} failed.")
+      else:
+        msg += f" {rqst.name} already requested."
+        log.debug(msg)
+    else:
+      # TODO: fix the bug that results in zmirror believing that the scrub is not yet overdue
+      # while believing that the trim is overdue.
+      log.debug(f"{msg} NOT overdue.")
+  return result
+
 
 def enact_requests(entity=None):
   if entity is None:
@@ -182,26 +204,11 @@ def cancel_requests_for_timeout():
   iterate_content_tree(config.config_root, do)
 
 
-def handle_do_overdue_command(op: Operations):
-  
-  rqst: RequestType = request_for_zfs_operation[op]
+
+
+def handle_do_overdue_command(op: Operation):
   def do(entity):
-    if isinstance(entity, ZDev):
-      msg = f"{entity_id_string(entity)}: last {rqst.name} was {entity.last(op) or "NEVER"} (interval: {entity.effective_interval(op)})."
-      if entity.is_overdue(op):
-        msg += " OVERDUE."
-        if rqst not in entity.requested:
-          msg += f" Requesting {rqst.name}"
-          log.info(msg)
-          if not entity.request(rqst):
-            log.error(f"{entity_id_string(entity)}: request {rqst.name} failed.")
-        else:
-          msg += f" {rqst.name} already requested."
-          log.info(msg)
-      else:
-        # TODO: fix the bug that results in zmirror believing that the scrub is not yet overdue
-        # while believing that the trim is overdue.
-        log.info(f"{msg} Not overdue.")
+    return request_overdue(op, entity)
   iterate_content_tree(config.config_root, do)
 
 
@@ -214,9 +221,9 @@ def handle_online_all_command(command):
 
 
 def handle_maintenance_command():
-  handle_do_overdue_command(Operations.RESILVER)
-  handle_do_overdue_command(Operations.TRIM)
-  handle_do_overdue_command(Operations.SCRUB)
+  handle_do_overdue_command(Operation.RESILVER)
+  handle_do_overdue_command(Operation.TRIM)
+  handle_do_overdue_command(Operation.SCRUB)
 
 
 def handle_set_command(command):
@@ -291,11 +298,11 @@ def handle_command(command, con):
     elif name == "scrub-all":
       handle_scrub_all_command()
     elif name == "scrub-overdue":
-      handle_do_overdue_command(Operations.SCRUB)
+      handle_do_overdue_command(Operation.SCRUB)
     elif name == "trim-overdue":
-      handle_do_overdue_command(Operations.TRIM)
+      handle_do_overdue_command(Operation.TRIM)
     elif name == "resilver-overdue":
-      handle_do_overdue_command(Operations.RESILVER)
+      handle_do_overdue_command(Operation.RESILVER)
     elif name == "trim-all":
       handle_trim_all_command()
     elif name == "online-all":

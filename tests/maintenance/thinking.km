@@ -1,0 +1,17 @@
+okay, let's figure out, how to even implement maintenance. I cannot simply add requests that do not timeout. Or can I?
+I mean... what should timeout are online requests.
+So let's say 
+
+device s is RESILVER, and TRIM and SCRUB OVERDUE.
+
+so, what happens next, is that the device is being requested to be ONLINE
+
+then a RESILVER starts, and maybe a TRIM starts too.
+
+but the SCRUB won't start until it is resilvered.
+
+so the SCRUB request could have no timer. it can of course be cancelled if an online request times out. which is what it should.
+
+and since a scrub is the only thing that might have to wait for another operation to finish, a SCRUB is also the only thing that should have no timer, or maybe a very long timer. No, not a very long timer. A resilver can run for days, so a SCRUB request should not have a timer that runs for days, that would be too complicated. Really the scrub request should not have a timeout. It should only be cancelled for other reasons.
+
+

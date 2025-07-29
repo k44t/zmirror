@@ -32,8 +32,10 @@ from zmirror.logging import log
 from util.util_stage2 import *
 
 import zmirror.user_commands as user_commands
+from zmirror.user_commands import request_overdue
 
 
+from datetime import datetime, timedelta
 
 
 @pytest.fixture(scope="class", autouse=True)
@@ -70,6 +72,14 @@ class Tests():
 
       assert entity.state.what == EntityState.DISCONNECTED
 
+      # we are simulating that all disks are connected, which
+      # would in a non-simulated state mean that all DMCrypts 
+      # are INACTIVE, so we simulate that too.
+      if type(entity) in {Disk, Partition}:
+        entity.state.what = EntityState.ONLINE
+      elif type(entity) in {DMCrypt}:
+        entity.state.what = EntityState.INACTIVE
+
     
     zpool = config.config_dict["ZPool|name:zmirror-sysfs"]
     a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
@@ -79,34 +89,178 @@ class Tests():
     bak_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     bak_b = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
 
-    # the pool is initially online
-    cached(zpool).state = Since(EntityState.ONLINE, datetime.now())
+    # the pool is initially online, and so is the main zdev
+    cached(zpool).state.what = EntityState.ONLINE
+    cached(a).state.what = EntityState.ONLINE
 
+    config.set_log_level("debug")
+
+
+
+  
 
 
 
 
   def setup_method(self, method): #pylint: disable=unused-argument
     pass
-    # core.config_file_path = os.pardir(__file__) + "/config.yml"
-    # load_config()
-    # core.cache_file_path = "./run/test/state/cache.yml"
-    # self.daemon_thread = threading.Thread(target=run_command, args=(["--state-dir", "./run/state", "--config-file", f"{get_current_module_directory()}/config.yml"], ))
-    # self.daemon_thread.start()
-    # if self.event_queue == None:
-      # self.event_queue = queue.Queue()
-
 
   def teardown_method(self, method): #pylint: disable=unused-argument
-    # terminate_thread(self.daemon_thread)
-    # silent_remove(core.cache_file_path)
-    # pass
     commands.commands = []
 
 
 
-  # physical device of sysfs-a gets plugged-in (by user)
-  # disk of sysfs-a appears (udev: add)
-  def test_disk_sysfs_a_online(self):
-    pass
+  def test_resilver_not_overdue(self):
+
+    s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    cached(s).last_resilver = datetime.now()
+    
+    rqst = request_overdue(Operation.RESILVER, s)
+
+    assert not rqst
+
+
+  def test_resilver_overdue(self):
+
+    s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    cached(s).last_resilver = datetime.now() - timedelta(weeks=6)
+    
+    rqst = request_overdue(Operation.RESILVER, s)
+
+    assert rqst
+
+    rqst.enact_hierarchy()
+
+    assert_commands([
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-s zmirror-sysfs-s --key-file ./test/zmirror-key"
+    ])
+
+    rqst.cancel(Reason.USER_REQUESTED)
+
+
+
+
+
+  def test_trim_not_overdue(self):
+
+    s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    cached(s).last_trim = datetime.now()
+    
+    rqst = request_overdue(Operation.TRIM, s)
+
+    assert not rqst
+
+
+  def test_trim_overdue(self):
+
+    s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    cached(s).last_trim = datetime.now() - timedelta(weeks=6)
+    
+    rqst = request_overdue(Operation.TRIM, s)
+
+    assert rqst
+
+    rqst.enact_hierarchy()
+
+    assert_commands([
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-s zmirror-sysfs-s --key-file ./test/zmirror-key"
+    ])
+
+
+    rqst.cancel(Reason.USER_REQUESTED)
+
+  def test_scrub_not_overdue(self):
+
+    s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    cached(s).last_scrub = datetime.now()
+    
+    rqst = request_overdue(Operation.SCRUB, s)
+
+    assert not rqst
+
+
+  def test_scrub_overdue(self):
+
+    s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    cached(s).last_scrub = datetime.now() - timedelta(weeks=6)
+    
+    rqst = request_overdue(Operation.SCRUB, s)
+
+    assert rqst
+
+    rqst.enact_hierarchy()
+
+    assert_commands([
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-s zmirror-sysfs-s --key-file ./test/zmirror-key"
+    ])
+
+  # dmcrypt of sysfs-s appears
+  def test_dmcrypt_sysfs_s_online(self):
+
+    
+    trigger_event()
+    
+    assert_commands([
+      "zpool online zmirror-sysfs zmirror-sysfs-s"
+    ])
+
+
+  def test_zdev_sysfs_s_online(self):
+        
+    trigger_event()
+    
+    assert_commands([])
+
+    s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    cache = cached(s)
+    assert cache.state.what == EntityState.ONLINE 
+    assert since_in(Operation.RESILVER, cache.operations)
+
+
+  def test_zdev_sysfs_s_resilver_finish(self):
+    trigger_event()
+    
+    assert_commands([
+      # sysfs-s is configured to be taken offline once resilver is done, because it is slower than the other mirror devices
+      "zpool scrub -s zmirror-sysfs",
+      "zpool scrub zmirror-sysfs"
+    ])
+
+
+
+  def test_zdev_sysfs_s_scrub_start(self):
+
+
+    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+    s = uncached(blockdev)
+
+    assert RequestType.SCRUB in s.requested
+
+    rqst =  s.requested[RequestType.SCRUB]
+
+    assert rqst.timer is False
+    
+    assert blockdev.operations == []
+
+    trigger_event()
+
+    assert since_in(Operation.SCRUB, blockdev.operations)
+
+
+    assert_commands([
+      
+    ])
+
+    assert RequestType.SCRUB not in s.requested
+
+
+
+  # this is necessary because we have not allowed all requests to be fulfilled
+  # and we don't want the testing process to run until the timers have finished
+  def test_shutdown_timers(self):
+    for timer in config.timers:
+      timer.cancel()
+    config.timers = []
+
 

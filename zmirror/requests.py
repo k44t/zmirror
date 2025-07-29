@@ -38,7 +38,7 @@ class Reason(KiEnum):
   DEPENDENT_CANCELLED = 4
   DEPENDENT_SUCCEEDED = 5
   USER_REQUESTED = 6
-  MUST_BE_DONE_MANUALLY = 7
+  MANUALLY_DISCONNECTED = 7
   NOT_SUPPORTED_FOR_ENTITY_TYPE = 8
   STATE_DOES_NOT_ALLOW_REQUEST = 9
   TOO_MANY_RAID_DEPENDENCIES_FAILED = 10
@@ -48,7 +48,7 @@ class Reason(KiEnum):
   # for cancelling a request
   REPLACING_REQUEST = 14
   BELOW_ENACTMENT_LEVEL = 15
-
+  NOT_CONFIGURED = 16
 
 
 last_enactment_id = 0
@@ -158,6 +158,11 @@ class Request:
     msg = f"{config.human_readable_id(self.entity)}: request {self.request_type.name} {stop_mode}{f" because {reason.name}" if reason else ""}"
     if reason in {Reason.NO_LONGER_REQUIRED, Reason.BELOW_ENACTMENT_LEVEL}:
       log.debug(msg)
+    elif reason in {Reason.DEPENDENCY_FAILED, Reason.DEPENDENCY_CANCELLED}:
+      if self.enactment_level == sys.maxsize:
+        log.info(f"maxlevel: {msg}")
+      else:
+        log.debug(msg)
     else:
       log.info(msg)
     
@@ -262,16 +267,17 @@ class Request:
         except:
           pass
         config.event_queue.put(TimerEvent(self.timer_finished))
-      self.timer = Timer(config.timeout, timeout)
-      config.timers.append(self.timer)
-      self.timer.start()
+      if self.timer is not False:
+        self.timer = Timer(config.timeout, timeout)
+        config.timers.append(self.timer)
+        self.timer.start()
 
   def restart_timer(self):
     self.stop_timer()
     self.start_timer()
   
   def stop_timer(self):
-    if self.timer is not None:
+    if isinstance(self.timer, Timer):
       self.timer.cancel()
       try:
         config.timers.remove(self.timer)
@@ -283,6 +289,8 @@ class Request:
     if not self.handled:
       self.cancel(Reason.TIMEOUT)
       self.stop_timer()
+      return True
+    return False
 
 
   def set_enacted(self):

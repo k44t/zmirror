@@ -186,15 +186,15 @@ def get_zpool_backing_device_state(zpool, dev):
       if state == "ONLINE":
         state = EntityState.ONLINE
         if scrubbing:
-          opers.add(Operations.SCRUB)
+          opers.add(Operation.SCRUB)
       else:
         state = EntityState.INACTIVE
       opernames = match.group("operations")
       if opernames is not None:
         if "resilver" in opernames:
-          opers.add(Operations.RESILVER)
+          opers.add(Operation.RESILVER)
         if "trim" in opers:
-          opers.add(Operations.TRIM)
+          opers.add(Operation.TRIM)
       return (state, opers)
   return None
 

@@ -55,6 +55,10 @@ trim_interval: 1 week
 scrub_interval: 4 weeks
 
 
+# we want our disks to be resilvered (updated) at least every 2 weeks
+resilver_interval: 2 weeks
+
+
 # under here all top-level entities (such as disks, partitions, lvm volume groups
 # or zpools) are configured
 content:
@@ -75,24 +79,12 @@ content:
       # zmirror only supports Mirror or single-device backing. This is due to a simplification in the programming logic, which assumes that when a device is onlined it always needs to resilver first (which only mirrored devices do).
       - !Mirror
         devices: 
-          # without zmirror-big-a present zmirror should not import the pool
-          - name: zmirror-sysfs-a
-            required: yes
-          
-          - name: zmirror-sysfs-b
-          
-          - name: zmirror-sysfs-s
-            
-            # zmirror should not automatically open the DMCrypt
-            # to online the device (only when zmirror-sysfs-s needs 
-            # scrubbing will zmirror try to online all of its dependencies)
-            online_dependencies: no
-
-          - name: zvol/zmirror-bak-a/sysfs
-            online_dependencies: no
-
-          - name: zvol/zmirror-bak-b/sysfs
-            online_dependencies: no
+          - zmirror-sysfs-a
+          - zmirror-sysfs-b
+          - zmirror-sysfs-c
+          - zmirror-sysfs-s
+          - zvol/zmirror-bak-a/sysfs
+          - zvol/zmirror-bak-b/sysfs
 
 
 
@@ -442,7 +434,6 @@ content:
                 on_trimmed:
                   - offline
 
-                scrub_interval: 4 weeks
 
 
 
@@ -460,6 +451,8 @@ content:
     # This will happen once I have powered the devices on via the shell
     # command, as the respective udev events are being sent by the kernel.
     #
+    # (I have a USB controlled device that can power on SATA devices)
+    #
     # *WARNING*: This configuration is dangerous:
     #
     # ZFS uses the first disk that is present when the pool was imported as its
@@ -467,13 +460,14 @@ content:
     # present at pool import time, and if that other disk contained newer 
     # data because it was last used, then that newer data WILL BE LOST.
     # 
-    # So you should make sure that you always connect the disk first, that 
-    # has the newer data.
+    # So you should make sure that you only ever import the pool when
+    # the disk with the newest data is connected.
     # 
     # In my case, one of the disks backing zmirror-big is an internal SATA
     # disk. This is my master disk, and it is always present and always
-    # contains the newest data. So I can never run into this issue.
-    # This internal disk is also marked as required within the `Mirror` definition
+    # contains the newest data.
+    #
+    # This internal disk is marked as required within the `Mirror` definition
     # so zmirror will not import the pool if it is not present.
     on_backing_appeared:
       - online
@@ -596,8 +590,8 @@ content:
   # such bugs.)
   # 
   # Ad 2. can only be mitigated by using backup media that will be written once
-  # and only be read again in case of needing to restore. An example would be 
-  # burning blurays (Millenium Disks). Another example would be magnetic tape.
+  # and only be read again in case of needing to restore. Examples of such
+  # backup types would be burning blurays (Millenium Disks) or magnetic tape.
   # 
   # You could combine zmirror with magnetic tape. But it would probably make more
   # sense to use a simpler filesystem for magnetic tapes which you will always

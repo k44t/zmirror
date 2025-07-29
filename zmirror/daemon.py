@@ -173,7 +173,7 @@ def handle(env):
               event_handled = True
           else:
             if "resilvering" not in (match.group("operations") or ""):
-              if since_in(Operations.RESILVER, cache.operations):
+              if since_in(Operation.RESILVER, cache.operations):
                 handle_resilver_finished(cache)
                 event_handled = True
           
@@ -335,8 +335,7 @@ def handle_events(event_queue):
         handled = True
       elif isinstance(event, TimerEvent):
         log.debug(f"timer event: ({config.timeout})")
-        event.action()
-        handled = True
+        handled = event.action()
       else:
         handled = handle(event)
       

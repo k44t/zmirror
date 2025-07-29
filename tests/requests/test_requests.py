@@ -495,7 +495,7 @@ class Tests():
 
     trigger_event()
 
-    assert since_in(Operations.SCRUB, blockdev.operations)
+    assert since_in(Operation.SCRUB, blockdev.operations)
 
     assert RequestType.SCRUB in zdev_bak_a.requested
 
@@ -539,7 +539,7 @@ class Tests():
 
     blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
-    assert since_in(Operations.RESILVER, blockdev.operations)
+    assert since_in(Operation.RESILVER, blockdev.operations)
 
     
     assert_commands([
@@ -554,7 +554,7 @@ class Tests():
 
     blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
-    assert not since_in(Operations.RESILVER, blockdev.operations)
+    assert not since_in(Operation.RESILVER, blockdev.operations)
 
     
     assert_commands([
@@ -576,7 +576,7 @@ class Tests():
 
     trigger_event()
 
-    assert since_in(Operations.SCRUB, blockdev.operations)
+    assert since_in(Operation.SCRUB, blockdev.operations)
 
 
     assert RequestType.SCRUB in zdev_bak_a.requested
@@ -633,7 +633,7 @@ class Tests():
     assert RequestType.SCRUB in zdev_bak_a.requested
 
 
-    assert not since_in(Operations.SCRUB, cached(zdev_bak_a).operations)
+    assert not since_in(Operation.SCRUB, cached(zdev_bak_a).operations)
 
     assert zpool.state.what == EntityState.ONLINE
 
@@ -643,7 +643,7 @@ class Tests():
 
     assert cached(zdev_bak_a).state.what == EntityState.INACTIVE
 
-    assert not since_in(Operations.SCRUB, cached(zdev_bak_a).operations)
+    assert not since_in(Operation.SCRUB, cached(zdev_bak_a).operations)
 
 
     assert RequestType.SCRUB in zdev_bak_a.requested
@@ -721,11 +721,11 @@ class Tests():
 
     assert s.state.what == EntityState.ONLINE
 
-    assert since_in(Operations.SCRUB, a.operations)
-    assert since_in(Operations.SCRUB, b.operations)
-    assert since_in(Operations.SCRUB, s.operations)
-    assert since_in(Operations.SCRUB, bak_a.operations)
-    assert not since_in(Operations.SCRUB, bak_b.operations)
+    assert since_in(Operation.SCRUB, a.operations)
+    assert since_in(Operation.SCRUB, b.operations)
+    assert since_in(Operation.SCRUB, s.operations)
+    assert since_in(Operation.SCRUB, bak_a.operations)
+    assert not since_in(Operation.SCRUB, bak_b.operations)
 
     for x in [a, b, s, bak_a, bak_b]:
       assert RequestType.SCRUB not in x.requested
@@ -747,11 +747,11 @@ class Tests():
 
 
 
-    assert not since_in(Operations.SCRUB, a.operations)
-    assert not since_in(Operations.SCRUB, b.operations)
-    assert not since_in(Operations.SCRUB, s.operations)
-    assert not since_in(Operations.SCRUB, bak_a.operations)
-    assert not since_in(Operations.SCRUB, bak_b.operations)
+    assert not since_in(Operation.SCRUB, a.operations)
+    assert not since_in(Operation.SCRUB, b.operations)
+    assert not since_in(Operation.SCRUB, s.operations)
+    assert not since_in(Operation.SCRUB, bak_a.operations)
+    assert not since_in(Operation.SCRUB, bak_b.operations)
 
     assert s.state.what == EntityState.ONLINE
 
@@ -773,7 +773,7 @@ class Tests():
 
     assert s.state.what == EntityState.ONLINE
 
-    assert since_in(Operations.TRIM, s.operations)
+    assert since_in(Operation.TRIM, s.operations)
 
     assert_commands([
     ])
@@ -790,7 +790,7 @@ class Tests():
     assert s.state.what == EntityState.ONLINE
 
 
-    assert not since_in(Operations.TRIM, s.operations)
+    assert not since_in(Operation.TRIM, s.operations)
     assert RequestType.TRIM not in s.requested
 
     assert_commands([
@@ -807,7 +807,7 @@ class Tests():
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     assert s.state.what == EntityState.ONLINE
-    assert not since_in(Operations.TRIM, s.operations)
+    assert not since_in(Operation.TRIM, s.operations)
 
     assert_commands([
       "zpool trim zmirror-sysfs zmirror-sysfs-s"
@@ -822,7 +822,7 @@ class Tests():
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
 
-    assert since_in(Operations.TRIM, s.operations)
+    assert since_in(Operation.TRIM, s.operations)
 
     assert_commands([
     ])
@@ -834,7 +834,7 @@ class Tests():
 
     s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
-    assert not since_in(Operations.TRIM, s.operations)
+    assert not since_in(Operation.TRIM, s.operations)
 
     assert_commands([
       "zpool offline zmirror-sysfs zmirror-sysfs-s"

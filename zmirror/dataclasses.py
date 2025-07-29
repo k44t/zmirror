@@ -110,7 +110,7 @@ def operation_corresponds_to_request(oper, request):
 
 
 @yaml_enum
-class Operations(KiEnum):
+class Operation(KiEnum):
   RESILVER = 1
   SCRUB = 2
   TRIM = 3
@@ -150,9 +150,9 @@ def set_cache_state(o, st, since_unknown=False):
 
 
 request_for_zfs_operation = {
-  Operations.RESILVER: RequestType.ONLINE,
-  Operations.SCRUB: RequestType.SCRUB,
-  Operations.TRIM: RequestType.TRIM
+  Operation.RESILVER: RequestType.ONLINE,
+  Operation.SCRUB: RequestType.SCRUB,
+  Operation.TRIM: RequestType.TRIM
 }
 
 zfs_operation_for_request = {value: key for key, value in request_for_zfs_operation.items()}
@@ -164,6 +164,7 @@ class ZMirror:
   enable_commands: bool = True
   timeout: int = 300
   log_level: str = "info"
+
 
 
   content: list = field(default_factory=list)
@@ -323,7 +324,13 @@ class Entity:
       raise ValueError(f"{human_readable_id(self)}: bug: @Entity.request_dependencies:  {request_type} not implemented")
 
   def prepare_request(self, request_type: RequestType, enactment_level = sys.maxsize):
-    return Request(request_type, self, enactment_level)
+
+    rslt = Request(request_type, self, enactment_level)
+    
+    # a SCRUB request has no timeout, since it might have to wait for a RESILVER to finish.
+    if request_type == RequestType.SCRUB:
+      rslt.timer = False
+    return rslt
 
   def request(self, request_type: RequestType, enactment_level = sys.maxsize):
     def create():
@@ -615,7 +622,7 @@ class ManualChildren(Children):
 
   def unsupported_request(self, request_type):
     if request_type in {RequestType.ONLINE, RequestType.OFFLINE}:
-      return Reason.MUST_BE_DONE_MANUALLY
+      return Reason.MANUALLY_DISCONNECTED
     return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
 
 
@@ -738,7 +745,7 @@ def unavailable_guard(blockdevs, devname):
   if devname in blockdevs:
     return blockdevs[devname]
   else:
-    return UnavailableDependency(devname)
+    return UnavailableDependency(name=devname)
 
 
 
@@ -915,7 +922,7 @@ class ZPool(Onlineable, Children):
         return backing.request(RequestType.APPEAR, enactment_level - 1)
       return list(map(do, self.backed_by))
     else:
-      return super().request_dependencies(request_type)
+      return super().request_dependencies(request_type, enactment_level= enactment_level)
 
 
 
@@ -987,7 +994,7 @@ class ZPool(Onlineable, Children):
         if b in devs:
           backed[i] = BackingDevice(device = devs[b], required=True, online_dependencies=True)
         else:
-          backed[i] = UnavailableDependency(b)
+          backed[i] = UnavailableDependency(name=b)
       else:
         b.init(self, devs)
 
@@ -1228,8 +1235,8 @@ def uncached_userevent_by_name(cache, name):
 
 
 def handle_resilver_started(cache):
-  if not since_in(Operations.RESILVER, cache.operations):  
-    cache.operations.append(Since(Operations.RESILVER, datetime.now()))
+  if not since_in(Operation.RESILVER, cache.operations):  
+    cache.operations.append(Since(Operation.RESILVER, datetime.now()))
   handle_onlined(cache)
   cache_log_info(cache, "resilver started")
 
@@ -1237,13 +1244,13 @@ def handle_resilver_started(cache):
 def handle_resilver_finished(cache):
   cache_log_info(cache, "resilvered")
   cache.last_resilver = datetime.now()
-  since_remove(Operations.RESILVER, cache.operations)
+  since_remove(Operation.RESILVER, cache.operations)
   uncached_operation_handle_by_name(cache, "resilver_finished")
 
 
 def handle_scrub_started(cache):
   cache_log_info(cache, "scrub started")
-  since_insert_if_not_in(Since(Operations.SCRUB, datetime.now()), cache.operations)
+  since_insert_if_not_in(Since(Operation.SCRUB, datetime.now()), cache.operations)
   def do(entity):
     entity.handle_scrub_started()
   uncached(cache, do)
@@ -1252,7 +1259,7 @@ def handle_scrub_started(cache):
 def handle_scrub_finished(cache):
   cache_log_info(cache, "scrubbed")
   now = datetime.now()
-  since_remove(Operations.SCRUB, cache.operations)
+  since_remove(Operation.SCRUB, cache.operations)
   cache.last_scrub = now
   def do(entity):
     entity.handle_scrub_finished()
@@ -1262,7 +1269,7 @@ def handle_scrub_finished(cache):
 
 def handle_trim_started(cache):
   cache_log_info(cache, "trim started")
-  since_insert_if_not_in(Since(Operations.TRIM, datetime.now()), cache.operations)
+  since_insert_if_not_in(Since(Operation.TRIM, datetime.now()), cache.operations)
   def do(entity):
     entity.handle_trim_started()
   uncached(cache, do)
@@ -1271,7 +1278,7 @@ def handle_trim_started(cache):
 def handle_trim_finished(cache):
   cache_log_info(cache, "trimmed")
   now = datetime.now()
-  since_remove(Operations.TRIM, cache.operations)
+  since_remove(Operation.TRIM, cache.operations)
   cache.last_trim = now
   def do(entity):
     entity.handle_trim_finished()
@@ -1280,13 +1287,13 @@ def handle_trim_finished(cache):
 
 def handle_scrub_canceled(cache):
   cache_log_info(cache, "scrub canceled")
-  since_remove(Operations.SCRUB, cache.operations)
+  since_remove(Operation.SCRUB, cache.operations)
   uncached_userevent_by_name(cache, "scrub_canceled")
 
 
 def handle_trim_canceled(cache):
   cache_log_info(cache, "trim canceled")
-  since_remove(Operations.TRIM, cache.operations)
+  since_remove(Operation.TRIM, cache.operations)
   uncached_userevent_by_name(cache, "trim_canceled")
 
 
@@ -1337,6 +1344,12 @@ class UnavailableDependency(Entity):
 
   name: str = None
 
+  @classmethod
+  def id_fields(cls):
+    return ["name"]
+
+  def id(self):
+    return make_id(self, name = self.name)
 
 
   def request_dependencies(self, request_type, enactment_level: int = sys.maxsize):
@@ -1344,7 +1357,7 @@ class UnavailableDependency(Entity):
 
   def request(self, request_type, enactment_level: int = sys.maxsize):
     request = super().request(request_type, enactment_level)
-    request.fail(Reason.DEPENDENCY_NOT_CONFIGURED)
+    request.fail(Reason.NOT_CONFIGURED)
     return request
     
 
@@ -1413,6 +1426,7 @@ class ZDev(Onlineable, Embedded, Entity):
     return ["pool", "name"]
   
 
+
   def unsupported_request(self, request_type: RequestType):
     if request_type in [RequestType.OFFLINE, RequestType.ONLINE, RequestType.SCRUB, RequestType.TRIM]:
       return None
@@ -1423,15 +1437,15 @@ class ZDev(Onlineable, Embedded, Entity):
     cache = cached(self)
     if cache.state.what == EntityState.ONLINE:
       if request_type == RequestType.SCRUB:
-        if not since_in(Operations.RESILVER, cache.operations):
+        if not since_in(Operation.RESILVER, cache.operations):
           return True
-      if request_type == RequestType.TRIM:
+      elif request_type == RequestType.TRIM:
         return True
     return super().state_allows(request_type)
     
   
   def finalize_init(self):
-    for op in Operations:
+    for op in Operation:
       prop_name = f"{op.name.lower()}_interval"
       val = getattr(self, prop_name)
       if val is None:
@@ -1440,19 +1454,19 @@ class ZDev(Onlineable, Embedded, Entity):
         val = None
       setattr(self, prop_name, val)
 
-  def effective_interval(self, op: Operations):
+  def effective_interval(self, op: Operation):
     return self.configured_interval(op)
   
 
-  def configured_interval(self, op: Operations):
+  def configured_interval(self, op: Operation):
     return getattr(self, f"{op.name.lower()}_interval")
   
-  def last(self, op: Operations):
+  def last(self, op: Operation):
     cache = cached(self)
     return getattr(cache, f"last_{op.name.lower()}")
 
   
-  def is_overdue(self, op: Operations):
+  def is_overdue(self, op: Operation):
     interval = self.effective_interval(op)
     if interval is not None:
       cache = cached(self)
@@ -1460,7 +1474,11 @@ class ZDev(Onlineable, Embedded, Entity):
       allowed_delta = dateparser.parse(interval)
           # this means that allowed_delta is a timestamp in the past
       last = getattr(cache, f"last_{op.name.lower()}")
-      return last is None or allowed_delta > last
+      if last is None or allowed_delta > last:
+        if op == Operation.RESILVER:
+          if cache.state.what == EntityState.ONLINE and cache.state.when is not None and cache.last_resilver is not None and (cache.state.when < cache.last_resilver):
+            return False
+        return True
     return False
 
   def handle_resilver_finished(self):
@@ -1474,7 +1492,7 @@ class ZDev(Onlineable, Embedded, Entity):
     
     kdstream.newline()
     
-    for op in Operations:
+    for op in Operation:
       name = enum_command_name(op)
       kdstream.print_property(cache, f"last_{name}")
       if self.is_overdue(op):
@@ -1526,7 +1544,7 @@ class ZDev(Onlineable, Embedded, Entity):
       pool = config.find_config(ZPool, name=self.pool)
       if pool is None:
         log.error(f"{human_readable_id(self)}: pool {self.pool} not configured.")
-        pool = UnavailableDependency(f"UNCONFIGURED: {entity_id_string(self)}")
+        pool = UnavailableDependency(name=f"UNCONFIGURED: {entity_id_string(self)}")
       pool_enactment = enactment_level - 1
       return [self.parent.request(RequestType.ONLINE, enactment_level - 1), pool.request(RequestType.ONLINE, pool_enactment)]
     else:
