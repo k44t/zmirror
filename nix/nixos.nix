@@ -62,14 +62,14 @@ in with lib; with types; {
       timers = lib.mkIf (cfg.maintenance-schedule != null) {
         "zmirror-maintenance" = {
           wantedBy = [ "timers.target" ];
-          timerConfig.OnCalendar = "daily";
+          timerConfig.OnCalendar = "03:00";
           timerConfig.Persistent = true;
         };
       };
       services = {
         "zmirror" = {
           script = "zmirror daemon ${optionalString (cfg.config-path != null) "--config-path '${cfg.config-path}'"} >> /dev/null";
-          path = with pkgs; [zfs zmirror cryptsetup];
+          path = with pkgs; [zfs zmirror cryptsetup systemd];
           wantedBy = ["local-fs.target"];
           reloadTriggers = [
 

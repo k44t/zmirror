@@ -1,5 +1,4 @@
-{ lib, rsync, poetry-core, zfs, tree, python, buildPythonPackage }:
-
+{ lib, rsync, poetry-core, zfs, tree, python, buildPythonPackage, kpyutils }:
 
 buildPythonPackage rec {
   pname = "zmirror-core";

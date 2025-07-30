@@ -1,10 +1,11 @@
-{ lib, stdenv, zfs, python, writeShellScript }:
+{ lib, stdenv, zfs, python3Packages, python3, writeShellScript }:
 let
 
 
-py = python.withPackages (pypkgs: [
+py = python3.withPackages (pypkgs: [
   (pypkgs.callPackage ./python-package.nix {})
 ]);
+
 
 script = writeShellScript "zmirror" ''
   PATH=${zfs}/bin:$PATH ${py}/bin/python -m zmirror "$@"

@@ -92,7 +92,7 @@ def daemon_request(rqst, cancel, typ, ids):
       config.last_request_at = datetime.now()
       entity.requested[rqst].enact_hierarchy()
     else:
-      log.error(f"execuded user command `{rqst.name.lower()}` for {make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} failed. See previous error messages.")
+      log.error(f"executed user command `{rqst.name.lower()}` for {make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} failed. See previous error messages.")
       return
     log.info(f"execuded user command `{rqst.name.lower()}` for {make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} scheduled successfully.")
 
@@ -290,7 +290,12 @@ def handle_command(command, con):
     handler.setFormatter(formatter)
 
     log.addHandler(handler)
+
+
     name = command["command"]
+
+    log.info(f"handling zmirror command: {name}")
+
     if name == "status-all":
       handle_status_all_command(stream)
     elif name == "status":
@@ -321,6 +326,11 @@ def handle_command(command, con):
       handle_daemon_version_command(stream)
     else:
       handle_request_command(command)
+    
+
+    save_cache()
+    enact_requests()
+    commands.execute_commands()
 
   except Exception as ex:
     log.error("failed to handle command")
@@ -340,7 +350,7 @@ def handle_command(command, con):
       con.close()
     except: #pylint: disable=bare-except
       pass
-    log.info(f"executed user command: {name}")
+    log.info(f"handled zmirror command: {name}")
   # print("client handled")
 
 

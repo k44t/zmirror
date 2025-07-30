@@ -332,7 +332,7 @@ def handle_events(event_queue):
         break
       elif isinstance(event, UserEvent):
         handle_command(event.event, event.con)
-        handled = True
+        # handled = False
       elif isinstance(event, TimerEvent):
         log.debug(f"timer event: ({config.timeout})")
         handled = event.action()
