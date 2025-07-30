@@ -624,16 +624,12 @@ content:
       - offline
     
 
-    # This zpool should be taken online if all necessary backing devices
-    # have appeared. 
-    # 
-    # This will happen once I have powered the devices on via the shell
-    # command, as the respective udev events are being sent by the kernel.
-    # 
-    # This configuration is not dangerous, because the backing layout does 
-    # not contain a mirror or a raid-z
-    on_backing_appeared:
-      - online
+    # This zpool will not be imported automatically. Instead scheduled
+    # `zmirror maintenance` will bring it online if needed and the backing is
+    # connected.
+    #
+    # on_backing_appeared:
+    #  - online
     
     # for above event handling to work, we also need to configure the backing layout:
     backed_by:
@@ -660,24 +656,26 @@ content:
       # 
       # When both `zmirror-bak-a/sysfs` and `zmirror-bak-a/big` are (cosidered)
       # offline, zmirror will export the pool (as configured above).
+      #
+      # to bring the volume "online" zmirror will issue the command:
+      #
+      # :: zfs set volmode=full zmirror-bak-a/sysfs
+      # 
+      # which causes the volume to become visible to the system like a any
+      # other blockdev (e.g. /dev/zd224)
+      # 
+      # Then zmirror catches the respective udev event and changes its
+      # internal state of the volume to online.
       - !ZFSVolume
         name: sysfs
 
         on_children_offline:
           - offline
         
-        # when the zpool zmirror-bak-a comes online, zmirror will issue the
-        # the command:
+        # we do not want it to be taken online when it appears
         #
-        # :: zfs set volmode=full zmirror-bak-a/sysfs
-        # 
-        # which causes the volume to become visible to the system like a any
-        # other blockdev (e.g. /dev/zd224)
-        # 
-        # Then zmirror catches the respective udev event and changes its
-        # internal state of the volume to online.
-        on_appeared:
-          - online
+        # on_appeared:
+        #  - online
         
         content:
 
@@ -725,9 +723,6 @@ content:
             pool: zmirror-sysfs
 
             on_resilvered:
-              # when a resilver is done, we want to snapshot the zfs volume
-              # backing the zpool
-              - snapshot-parent
 
               # VERY IMPORTANT
               # 
@@ -755,6 +750,10 @@ content:
               # Onlining the disk again after reconnecting it does not work either)
               - offline
 
+              # when a resilver is done, we want to snapshot the zfs volume
+              # backing the zpool
+              - snapshot-parent
+
             # above mentioned problem is unavoidable during a scrub, since for scrubbing
             # this blockdev must be online within the zmirror-sysfs zpool. 
             # Consequently we do scrubbing at night when lowered pool speed
@@ -766,10 +765,6 @@ content:
             on_scrubbed:
               - offline
 
-            on_appeared:
-              - online
-
-            scrub_interval: 4 weeks
       
       # the note from zmirror-bak-a/sysfs applies
       - !ZFSVolume
@@ -778,24 +773,18 @@ content:
         on_children_offline: 
           - offline
 
-        on_appeared:
-          - online
-        
         content:
           
           - !ZDev
             
             pool: zmirror-big
 
-            on_appeared:
-              - online
-
             on_scrubbed: 
               - offline
 
             on_resilvered: 
-              - snapshot-parent
               - offline
+              - snapshot-parent
 
             scrub_interval: 4 weeks
 
@@ -840,9 +829,6 @@ content:
         
         key_file: ./test/zmirror-key
         
-        on_appeared:
-          - online
-        
         on_children_offline: 
           - offline
 
@@ -869,18 +855,6 @@ content:
 
     on_children_offline: 
       - offline
-
-    # This zpool should be taken online if all necessary backing devices
-    # have appeared. 
-    # 
-    # This will happen once I have powered the devices on via the shell
-    # command, as the respective udev events are being sent by the kernel.
-    #
-    # This configuration is not dangerous, because all backing devices
-    # are configured as required. So zmirror will only import this pool
-    # once all backing disks of the mirror are present.
-    on_backing_appeared: 
-      - online
     
     # for above event handling to work, we also need to configure the backing:
     backed_by:
@@ -898,23 +872,18 @@ content:
         name: sysfs
         on_children_offline: 
           - offline
-        on_appeared:
-          - online
         content:
 
           # the note from zmirror-bak-a/sysfs applies
           - !ZDev
             pool: zmirror-sysfs
-            
-            on_appeared:
-              - online
           
             on_scrubbed:
               - offline
 
             on_resilvered:
-              - snapshot-parent
               - offline
+              - snapshot-parent
       
             scrub_interval: 4 weeks
 
@@ -922,23 +891,19 @@ content:
         name: big
         on_children_offline:
           - offline
-        on_appeared:
-          - online
         content:
 
           # the note from zmirror-bak-a/sysfs applies
           - !ZDev
             pool: zmirror-big
 
-            on_appeared:
-              - online
           
             on_scrubbed:
               - offline
 
             on_resilvered:
-              - snapshot-parent
               - offline
+              - snapshot-parent
 
             scrub_interval: 4 weeks
 
@@ -962,8 +927,6 @@ content:
         
         key_file: ./test/zmirror-key
 
-        on_appeared:
-          - online
 
         on_children_offline: 
           - offline
@@ -973,8 +936,6 @@ content:
           - !ZDev
             pool: zmirror-bak-b
           
-            on_appeared:
-              - online
 
             scrub_interval: 4 weeks
 
@@ -989,8 +950,6 @@ content:
         
         key_file: ./test/zmirror-key
 
-        on_appeared:
-          - online
 
         on_children_offline: 
           - offline
@@ -999,9 +958,6 @@ content:
 
           - !ZDev
             pool: zmirror-bak-b
-          
-            on_appeared:
-              - online
             
             scrub_interval: 4 weeks
 
@@ -1106,7 +1062,6 @@ content:
       - !ZFSVolume
         name: blubak-beta
         on_children_offline: 
-          - snapshot
           - offline
         content:
 
@@ -1120,8 +1075,8 @@ content:
               - offline
 
             on_resilvered:
-              - snapshot-parent
               - offline
+              - snapshot-parent
 
     # we want this pool to be imported if all necessary backing devices have appeared
     # This configuration is not dangerous, because the backing does not contain
@@ -1131,6 +1086,11 @@ content:
 
     # and for zmirror to do that, we need to tell it how the backing is layed out
     backed_by:
+    
+      # defining the backing devices is very important for a striped volume
+      # since zmirror assumes that mirrored devices need to resilver
+      # while simple devices do not resilver. And by configureing them
+      # thus, zmirror knows which are mirrored and which are simple.
       - "zmirror-blubak-beta-05a"
       - "zmirror-blubak-beta-05b"
 

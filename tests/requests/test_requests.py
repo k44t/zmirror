@@ -316,6 +316,7 @@ class Tests():
 
 
     assert_commands([
+      "udevadm settle",
       "zpool import zmirror-sysfs"
     ])
 
@@ -592,6 +593,7 @@ class Tests():
     trigger_event()
     
     assert_commands([
+      "udevadm settle",
       # we import the bak-a pool
       "zpool import zmirror-bak-a"
     ])

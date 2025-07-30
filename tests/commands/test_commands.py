@@ -361,7 +361,7 @@ class Tests():
     assert_commands([])
 
     assert zdev.last_online is None
-    
+
     trigger_event()
 
     assert zdev.last_online is not None
@@ -436,6 +436,7 @@ class Tests():
     trigger_event()
 
     assert_commands([
+      "udevadm settle",
       # now zmirror should import the zmirror-big pool
       "zpool import zmirror-big",
 
@@ -568,7 +569,8 @@ class Tests():
     trigger_event()
 
     assert_commands([
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-bak-a zmirror-bak-a --key-file ./test/zmirror-key"
+      # we would online the device, if the configuration contained the event handler
+      ## "cryptsetup open /dev/disk/by-partlabel/zmirror-bak-a zmirror-bak-a --key-file ./test/zmirror-key"
     ])
 
 
@@ -579,8 +581,9 @@ class Tests():
     trigger_event()
     
     assert_commands([
-      # we import the bak-a pool
-      "zpool import zmirror-bak-a"
+      # we would online the pool, if the configuration contained the event handler
+      ## "udevadm settle"
+      ## "zpool import zmirror-bak-a"
     ])
 
   def test_zpool_bak_a_online(self):
@@ -603,12 +606,12 @@ class Tests():
     # so that the respective udev events will be triggered
     # which then we process (in the next tests).
     assert_commands([
-
-      # the volmode for sysfs is set to none (this assuming that zmirror "offlined" the volume safely)
-      "zfs set volmode=full zmirror-bak-a/sysfs",
-
-      # the volmode is set to full (which means zmirror was not able to do its job the last time)
-      "zpool online zmirror-big zvol/zmirror-bak-a/big"
+      # we would online the device, if the configuration contained the event handler
+      ## 
+      ## the volmode for sysfs is set to none (this assuming that zmirror "offlined" the volume safely)
+      ### "zfs set volmode=full zmirror-bak-a/sysfs",
+      ## the volmode is set to full (which means zmirror was not able to do its job the last time)
+      ### "zpool online zmirror-big zvol/zmirror-bak-a/big"
     ])
 
 
@@ -632,7 +635,8 @@ class Tests():
     assert blockdev.state.what == EntityState.INACTIVE
 
     assert_commands([
-      "zpool online zmirror-sysfs zvol/zmirror-bak-a/sysfs"
+      # we would online the device, if the configuration contained the event handler
+      ## "zpool online zmirror-sysfs zvol/zmirror-bak-a/sysfs"
     ])
 
   
@@ -689,15 +693,15 @@ class Tests():
     trigger_event()
 
     assert_commands([
-      # we make a snapshot of the volume that backs it
-      re.compile(r"zfs snapshot zmirror-bak-a/sysfs@.*"),
 
       # and then we take it offline.
       #
       # It must be in this order
       # for zmirror to be able to react to the udev events
       # apropriately.
-      "zpool offline zmirror-sysfs zvol/zmirror-bak-a/sysfs"
+      "zpool offline zmirror-sysfs zvol/zmirror-bak-a/sysfs",
+      # we make a snapshot of the volume that backs it
+      re.compile(r"zfs snapshot zmirror-bak-a/sysfs@.*")
     ])
 
 
@@ -738,15 +742,16 @@ class Tests():
     trigger_event()
 
     assert_commands([
-      # we make a snapshot of the volume that backs it
-      re.compile(r"zfs snapshot zmirror-bak-a/big@.+"),
 
       # and then we take it offline.
       #
       # It must be in this order
       # for zmirror to be able to react to the udev events
       # apropriately.
-      "zpool offline zmirror-big zvol/zmirror-bak-a/big"
+      "zpool offline zmirror-big zvol/zmirror-bak-a/big",
+
+      # we make a snapshot of the volume that backs it
+      re.compile(r"zfs snapshot zmirror-bak-a/big@.+")
     ])
 
   # when the blockdev is being taken offline in the big pool
@@ -832,8 +837,8 @@ class Tests():
     trigger_event()
     
     assert_commands([
-      # we open the encrypted device
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-bak-b-alpha zmirror-bak-b-alpha --key-file ./test/zmirror-key"
+      # we would online the device, if the configuration contained the event handler
+      ## "cryptsetup open /dev/disk/by-partlabel/zmirror-bak-b-alpha zmirror-bak-b-alpha --key-file ./test/zmirror-key"
     ])
 
 
@@ -876,9 +881,8 @@ class Tests():
     trigger_event()
 
     assert_commands([
-
-      # we decrypt
-      "cryptsetup open /dev/disk/by-partlabel/zmirror-bak-b-beta zmirror-bak-b-beta --key-file ./test/zmirror-key"
+      # we would online the device, if the configuration contained the event handler
+      ## "cryptsetup open /dev/disk/by-partlabel/zmirror-bak-b-beta zmirror-bak-b-beta --key-file ./test/zmirror-key"
     ])
 
 
@@ -889,8 +893,8 @@ class Tests():
     
 
     assert_commands([
-      # we import because now all required backing disks are present
-      "zpool import zmirror-bak-b",
+      # we would online the zpool, if the configuration contained the event handler
+      ##"zpool import zmirror-bak-b",
 
       # the pool is not online, so the device cannot come online
       ## "zpool online zmirror-bak-b zmirror-bak-b-beta"
@@ -920,10 +924,12 @@ class Tests():
     assert blockdev_beta.state.what == EntityState.ONLINE
 
     assert_commands([
-      # zmirror virtually takes the volumes "online"
-      "zfs set volmode=full zmirror-bak-b/sysfs",
-      "zfs set volmode=full zmirror-bak-b/big"
+      # we would online the device, if the configuration contained the event handler
+      # zmirror would virtually take the volumes "online"
+      ## "zfs set volmode=full zmirror-bak-b/sysfs",
+      ## "zfs set volmode=full zmirror-bak-b/big"
     ])
+    # TODO: move this to requests, so it is at least tested
 
   # when bak-b-sysfs zfs_volume appears (udev: add) (caused by set volmode=full)
   def test_zfs_volume_bak_b_sysfs_online(self):
@@ -931,8 +937,8 @@ class Tests():
     trigger_event()
     
     assert_commands([
-      # we online it in the sysfs pool
-      "zpool online zmirror-sysfs zvol/zmirror-bak-b/sysfs"
+      # we would online the device, if the configuration contained the event handler
+      ## "zpool online zmirror-sysfs zvol/zmirror-bak-b/sysfs"
     ])
 
   # when bak-b-big zfs_volume appears (udev: add)
@@ -942,13 +948,12 @@ class Tests():
     
     assert_commands([
 
-      # we online it in the sysfs pool big pool
-      "zpool online zmirror-big zvol/zmirror-bak-b/big"
+      # we would online the device, if the configuration contained the event handler
+      ## "zpool online zmirror-big zvol/zmirror-bak-b/big"
     ])
 
 
 
-  # when bak-b-sysfs zfs_volume appears (udev: add) (caused by set volmode=full)
   def test_zdev_bak_b_big_online(self):
     
     trigger_event()
@@ -957,7 +962,6 @@ class Tests():
       # we do nothing
     ])
 
-  # when bak-b-big zfs_volume appears (udev: add)
   def test_zdev_bak_b_sysfs_online(self):
     
     trigger_event()
@@ -998,13 +1002,11 @@ class Tests():
 
     assert_commands([
       
+      # and then we take it offline.
+      "zpool offline zmirror-sysfs zvol/zmirror-bak-b/sysfs",
       
       # we make a snapshot of the volume that backs it
-      re.compile(r"zfs snapshot zmirror-bak-b/sysfs@.+"),
-
-      
-      # and then we take it offline.
-      "zpool offline zmirror-sysfs zvol/zmirror-bak-b/sysfs"
+      re.compile(r"zfs snapshot zmirror-bak-b/sysfs@.+")
     ])
 
 
@@ -1038,11 +1040,12 @@ class Tests():
     trigger_event()
 
     assert_commands([
-      # we make a snapshot of the volume that backs it
-      re.compile(r"zfs snapshot zmirror-bak-b/big@.+"),
 
       # and then we take it offline.
-      "zpool offline zmirror-big zvol/zmirror-bak-b/big"
+      "zpool offline zmirror-big zvol/zmirror-bak-b/big",
+
+      # we make a snapshot of the volume that backs it
+      re.compile(r"zfs snapshot zmirror-bak-b/big@.+")
     ])
 
   # when the blockdev disappears from the pool it backs
