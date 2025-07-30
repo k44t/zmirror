@@ -1,8 +1,9 @@
 --- !ZMirror
 
 
-# enable logging of the environment variables for all udev and zed events
-log_events: yes
+# enable logging of the environment variables for all udev and zed events for debugging purposes. 
+# defaults to: `no`
+log_events: no
 
 # If set to `no`, then zmirror never executes any commands 
 # but only logs the commands that it would execute. This is helpful when you
@@ -10,9 +11,10 @@ log_events: yes
 # interfering
 #
 # you can temporarily override this at runtime by running `zmirror enable-commands` or `zmirror disable-commands`
-enable_commands: no
+# defaults to: `yes`
+enable_commands: yes
 
-# the timeout for user requests after which the request will be considered failed 
+# the timeout in seconds for user requests after which the request will be considered failed 
 # and removed.
 #
 # Please note that this timeout will not affect requests that can be fulfilled
@@ -23,6 +25,8 @@ enable_commands: no
 # A `scrub` request however may be cancelled after the timeout, if the device is currently
 # offline and the `online` request that is automatically scheduled when you schedule a 
 # `scrub` cannot be fulfilled before the timeout ends.
+# 
+# defaults to: `60`
 timeout: 60
 
 
@@ -42,20 +46,23 @@ timeout: 60
 # `disable_commands: yes` when you do anything manual, so that it can ubdate its disk state information 
 # accordingly.
 
-# sets the default trim interval. May be overridden by setting `trim_interval` 
+# sets the global trim interval. May be overridden by setting `trim_interval` 
 # directly on a device.
 # 
 # you can also set the interval to `nil` which means that no interval is set. This is the application default.
+# defaults to: `nil` (no interval)
 trim_interval: 1 week
 
-# sets the default trim interval. May be overridden by setting `scrub_interval` 
+# sets the global trim interval. May be overridden by setting `scrub_interval` 
 # directly on a device.
 # 
 # you can also set the interval to `nil` which means that no interval is set. This is the application default.
+# defaults to: `nil` (no interval)
 scrub_interval: 4 weeks
 
 
 # we want our disks to be resilvered (updated) at least every 2 weeks
+# defaults to: `nil` (no interval)
 resilver_interval: 2 weeks
 
 
@@ -674,15 +681,16 @@ content:
         
         content:
 
-
-          # to be able to create such a disk layout as this, we have to trick zfs
-          # into not partitioning the blockdev /dev/zvol/zmirror-bak-a/sysfs.
+          # Warning: zmirror does not support partition tables within volumes.
+          # Partitions are only supported on physical disks. This is so because we do not want to
+          # overcomplicate the implementation of the event handler `on_children_offline`
+          # since ZDevs can be deactivated while a partition can only be there (ONLINE)
+          # or not (DISCONNECTED). Please not that in zmirror parlance OFFLINE denotes
+          # both DISCONNECTED and INACTIVE.
+          # 
           #
-          # Not partitioning the volume is important because otherwise we 
-          # would have to make zmirror's configuration more complicated and
-          # add the partitions to it.
-          #
-          # To trick zfs we use an unused loop device (in my case loop0 is unused):
+          # To trick zfs to not partition the blockdevice (/dev/zvol/zmirror-bak-a/sysfs) we 
+          # use an unused loop device (in my case loop0 is unused):
           #
           # :: losetup /dev/loop0 /dev/zvol/zmirror-bak-a/sysfs
           #
@@ -690,9 +698,7 @@ content:
           # 
           # :: zpool attach zmirror-sysfs zmirror-sysfs-a /dev/loop0
           #
-          # after resilvering we must export the pool.
-          #
-          # offlining won't be enough as zfs will keep insisting that loop0
+          # after resilvering we must export the pool. offlining won't be enough as zfs will keep insisting that loop0
           # is the device in the pool and will only realize on reimporting 
           # the pool that another device contain's the pools data.
           # 
@@ -711,6 +717,9 @@ content:
           # This is the ONLY name that zmirror can work with. And it also 
           # makes sense because human readable names make such a complex
           # disk layout manageable.
+          #
+          # If you want to CREATE a new zpool that is backed by ONLY ZFSVolumes
+          # you would create a loop device for each one of them before creating the pool.
           #
           - !ZDev
             pool: zmirror-sysfs

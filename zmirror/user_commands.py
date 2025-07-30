@@ -40,8 +40,12 @@ def request_overdue(op: Operation, entity):
   rqst: RequestType = request_for_zfs_operation[op]
   if isinstance(entity, ZDev):
     msg = f"{entity_id_string(entity)}: last {rqst.name} was {entity.last(op) or "NEVER"} (interval: {entity.effective_interval(op)})."
-    if entity.is_overdue(op):
-      msg += " OVERDUE."
+    overdue = entity.is_overdue(op)
+    if overdue:
+      if overdue.days > 356:
+        msg += " OVERDUE since more than a year."
+      else:
+        msg += f" OVERDUE since {overdue.days} days."
       if rqst not in entity.requested:
         msg += f" Requesting {rqst.name}"
         log.info(msg)

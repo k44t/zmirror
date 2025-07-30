@@ -100,7 +100,7 @@ def handle(env):
               handle_scrub_canceled(cache)
               event_handled = True
             elif zevent == "pool_import":
-              log.info(f"zdev {cache.pool}:{cache.name}: pool imported, device online")
+              log.debug(f"zdev {cache.pool}:{cache.name}: pool imported, device online")
               if "resilvering" in (match.group("operations") or ""):
                 handle_resilver_started(cache)
                 event_handled = True

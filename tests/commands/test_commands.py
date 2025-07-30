@@ -309,7 +309,9 @@ class Tests():
     assert crypt.state.what == EntityState.ONLINE
     assert zdev.state.what == EntityState.ONLINE
 
+
     trigger_event()
+
 
 
     assert disk.state.what == EntityState.DISCONNECTED
@@ -358,7 +360,11 @@ class Tests():
 
     assert_commands([])
 
+    assert zdev.last_online is None
+    
     trigger_event()
+
+    assert zdev.last_online is not None
 
 
     assert disk.state.what == EntityState.DISCONNECTED

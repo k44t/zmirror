@@ -160,7 +160,7 @@ class Request:
       log.debug(msg)
     elif reason in {Reason.DEPENDENCY_FAILED, Reason.DEPENDENCY_CANCELLED}:
       if self.enactment_level == sys.maxsize:
-        log.info(f"maxlevel: {msg}")
+        log.info(msg)
       else:
         log.debug(msg)
     else:

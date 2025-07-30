@@ -151,19 +151,6 @@ class Tests():
     ])
 
 
-  # partition of sysfs-s appears (udev: add)... 
-  # this is to test udev events appearing in a weird order (partition before disk)
-  def test_partition_sysfs_s_online(self):
-    trigger_event()
- 
-    assert_commands([
-      'echo unmap > /#/projects/zmirror/tests/requests/res/provisioning_mode.txt',
-      
-      # this should not happen, as the request should have already failed
-      ##  'cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-s zmirror-sysfs-s --key-file ./test/zmirror-key'
-    ])
-
-
   # physical device of sysfs-s gets plugged-in (by user)
   # disk of sysfs-a appears (udev: add)
   def test_disk_sysfs_s_online(self):
@@ -171,7 +158,20 @@ class Tests():
 
 
     assert_commands([
-      # nothing should happen
+      'echo unmap > /#/projects/zmirror/tests/requests/res/provisioning_mode.txt'
+    ])
+
+
+
+
+  # partition of sysfs-s appears (udev: add)... 
+  # this is to test udev events appearing in a weird order (partition before disk)
+  def test_partition_sysfs_s_online(self):
+    trigger_event()
+ 
+    assert_commands([
+      # this should not happen, as the request should have already failed
+      ##  'cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-s zmirror-sysfs-s --key-file ./test/zmirror-key'
     ])
 
 

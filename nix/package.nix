@@ -1,8 +1,10 @@
-{ lib, stdenv, zfs, python3Packages, writeShellScript, python3 }:
+{ lib, stdenv, zfs, python, writeShellScript }:
 let
 
 
-py = python3.withPackages (ptpkgs: [zmirror-core ptpkgs.pyyaml]);
+py = python.withPackages (pypkgs: [
+  (pypkgs.callPackage ./python-package.nix {})
+]);
 
 script = writeShellScript "zmirror" ''
   PATH=${zfs}/bin:$PATH ${py}/bin/python -m zmirror "$@"
@@ -13,12 +15,9 @@ trigger-script = writeShellScript "zmirror-trigger" ''
 
 # python -Xfrozen_modules=off -m debugpy --wait-for-client --listen localhost:8888 /#/projects/zmirror/src/zmirror.py "$@"
 
-zmirror-core = python3Packages.callPackage ./python-package.nix {};
-
-
 package = stdenv.mkDerivation rec {
   pname = "zmirror";
-  version = zmirror-core.version;
+  version = import ./version.nix;
 
   # this needs to be done so nix really copies all source files into the nix store (instead of symlinking)
   src = builtins.path { path = ./..; };
@@ -41,7 +40,7 @@ package = stdenv.mkDerivation rec {
   ];
 
   meta = with lib; {
-    description = "zmirror zfs backup sync service";
+    description = "ZFS-based backup service";
     license = licenses.mit;
     maintainers = with maintainers; [ ];
   };

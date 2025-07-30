@@ -573,7 +573,8 @@ class Children(Entity):
       self.handle_children_offline()
 
   def handle_child_online(self, _child, _prev_state):
-    handle_onlined(cached(self))
+    pass
+    # handle_onlined(cached(self))
 
 
 
@@ -702,15 +703,17 @@ class Partition(ManualChildren):
 
 
 def load_disk_or_partition_initial_state(self):
-  state = EntityState.DISCONNECTED
+  # state = EntityState.DISCONNECTED
   if config.dev_exists(self.dev_path()):
-    state = EntityState.INACTIVE
+    return EntityState.ONLINE
+  return EntityState.DISCONNECTED
+    #state = EntityState.INACTIVE
     # only the children being active can turn it into ONLINE
-    for c in self.content:
-      if cached(c).state.what == EntityState.ONLINE:
-        state = EntityState.ONLINE
-        break
-  return state
+    #for c in self.content:
+      # if cached(c).state.what == EntityState.ONLINE:
+      #  state = EntityState.ONLINE
+      #  break
+  #return state
 
 
 
@@ -1020,10 +1023,11 @@ class ZPool(Onlineable, Children):
 
     sufficient = self.run_on_backing(is_present_or_online)
     if sufficient:
-      log.info(f"sufficient backing devices available to import zpool {self.name}")
+      log.info(f"{human_readable_id(self)}: sufficient backing devices available, importing zpool.")
+      commands.add_command("udevadm settle")
       return commands.add_command(f"zpool import {self.name}", unless_redundant = True)
     else:
-      log.info(f"insufficient backing devices available to import zpool {self.name}")
+      log.info(f"{human_readable_id(self)}: insufficient backing devices available.")
 
 
   def run_on_backing(self, fn):
@@ -1308,31 +1312,30 @@ def cache_log_info(cache, message):
 
 # the device or zpool has been taken offline and is not even passively available (it must be reactivated somehow)
 def handle_disconnected(cache):
-  cache_log_info(cache, "disconnected")
   prev_state = set_cache_state(cache, EntityState.DISCONNECTED)
   if prev_state is not None:
+    cache_log_info(cache, "disconnected")
     uncached_handle_by_name(cache, "disconnected", prev_state)
 
 # the device is still passively available
 def handle_deactivated(cache):
-  cache_log_info(cache, "deactivated")
   prev_state = set_cache_state(cache, EntityState.INACTIVE)
   if prev_state is not None:
+    cache_log_info(cache, "deactivated")
     uncached_handle_by_name(cache, "deactivated", prev_state)
 
 # the device became passively available
 def handle_appeared(cache):
-  cache_log_info(cache, "appeared")
   prev_state = set_cache_state(cache, EntityState.INACTIVE)
   if prev_state is not None:
+    cache_log_info(cache, "appeared")
     uncached_handle_by_name(cache, "appeared", prev_state)
-
 
 # the device has activated
 def handle_onlined(cache):
-  cache_log_info(cache, "onlined")
   prev_state = set_cache_state(cache, EntityState.ONLINE)
   if prev_state is not None:
+    cache_log_info(cache, "onlined")
     uncached_handle_by_name(cache, "onlined", prev_state)
 
 
@@ -1478,7 +1481,10 @@ class ZDev(Onlineable, Embedded, Entity):
         if op == Operation.RESILVER:
           if cache.state.what == EntityState.ONLINE and cache.state.when is not None and cache.last_resilver is not None and (cache.state.when < cache.last_resilver):
             return False
-        return True
+        if last is None:
+          return allowed_delta - datetime.min
+        else:
+          return allowed_delta - last
     return False
 
   def handle_resilver_finished(self):

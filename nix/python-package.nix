@@ -1,18 +1,20 @@
-{ lib, buildPythonPackage, python3Packages, rsync, python3, poetry-core, zfs, tree }:
-let
+{ lib, rsync, poetry-core, zfs, tree, python, buildPythonPackage }:
 
-package = buildPythonPackage rec {
+
+buildPythonPackage rec {
   pname = "zmirror-core";
-  version = "0.1.2";
+  version = import ./version.nix;
+
+  disabled = python.pythonOlder "3.7";
 
   # this needs to be done so nix really copies all source files into the nix store (instead of symlinking)
   src = builtins.path { path = ./..; };
 
-  propagatedBuildInputs = with python3Packages; [
+  propagatedBuildInputs = with python.pkgs; [
     natsort
     pyyaml
     dateparser
-    python3Packages.systemd
+    systemd
     kpyutils
   ];
   
@@ -26,7 +28,7 @@ package = buildPythonPackage rec {
 
   
   unpackPhase = ''
-    rsync -av --exclude='.venv' --exclude='.vscode' --no-perms --no-group --no-owner ${src}/ ./
+    rsync -av --exclude='.venv' --exclude='.vscode' --exclude='.notifier' --no-perms --no-group --no-owner ${src}/ ./
   '';
 
 
@@ -37,11 +39,9 @@ package = buildPythonPackage rec {
   '';
 
   meta = with lib; {
-    description = "Your project description";
+    description = "ZFS Based Backup Solution";
     license = licenses.mit;
     maintainers = with maintainers; [ ];
   };
-};
+}
 
-
-in package
