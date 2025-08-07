@@ -1005,27 +1005,6 @@ content:
   - !ZPool
     name: zmirror-blubak
 
-    # This zpool should be taken online if all necessary backing devices
-    # have appeared. 
-    # 
-    # This will happen once I have powered the devices on via the shell
-    # command, as the respective udev events are being sent by the kernel.
-    #
-    # *WARNING*: This configuration is dangerous:
-    #
-    # ZFS uses the disk that is present when the pool was imported as its
-    # references point. If you then connect another disk, that was not yet
-    # present at pool import time, and if that other disk contained newer 
-    # data because it was last used, then that newer data WILL BE LOST.
-    # 
-    # So you should make sure that you always connect the disk first, that 
-    # has the newer data. Or to always have both disks connected, so that
-    # when the pool is exported, they always both contain the newest data.
-    # Then of course it makes no difference which you connect first.
-    on_backing_appeared: 
-      - online
-    
-    # for above event handling to work, we also need to configure the backing:
     backed_by:
       - !Mirror
         devices: 
@@ -1047,9 +1026,6 @@ content:
         
         key_file: ./test/zmirror-key
 
-        on_appeared:
-          - online
-
         on_children_offline: 
           - offline
 
@@ -1058,9 +1034,6 @@ content:
           - !ZDev
             pool: zmirror-blubak
           
-            on_appeared:
-              - online
-
 
 
   # The second element in the mirror backing zmirror-blubak is more complex.
@@ -1081,15 +1054,14 @@ content:
       
       - !ZFSVolume
         name: blubak-beta
+
         on_children_offline: 
           - offline
+
         content:
 
           - !ZDev
             pool: zmirror-blubak
-            
-            on_appeared:
-              - online
           
             on_scrubbed:
               - offline
@@ -1098,11 +1070,6 @@ content:
               - offline
               - snapshot-parent
 
-    # we want this pool to be imported if all necessary backing devices have appeared
-    # This configuration is not dangerous, because the backing does not contain
-    # zmirrors or raid-z.
-    on_backing_appeared: 
-      - online
 
     # and for zmirror to do that, we need to tell it how the backing is layed out
     backed_by:
@@ -1130,9 +1097,6 @@ content:
 
         key_file: ./test/zmirror-key
 
-        on_appeared:
-          - online
-
         on_children_offline: 
           - offline
 
@@ -1148,12 +1112,8 @@ content:
     content:
       - !DMCrypt
         name: zmirror-blubak-beta-05b
-
         
         key_file: ./test/zmirror-key
-
-        on_appeared:
-          - online
 
         on_children_offline: 
           - offline
