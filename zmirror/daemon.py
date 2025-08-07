@@ -331,8 +331,12 @@ def handle_events(event_queue):
         save_cache()
         break
       elif isinstance(event, UserEvent):
+        
         handle_command(event.event, event.con)
-        # handled = False
+
+        # different commands will result in cache_save and enact_requests or not
+        ## handled = False
+
       elif isinstance(event, TimerEvent):
         log.debug(f"timer event: ({config.timeout})")
         handled = event.action()
@@ -347,7 +351,7 @@ def handle_events(event_queue):
       try:
         log.error(f"failed to handle event: {json.dumps(event, indent=2)}")
         log.error(f"Exception : {traceback.format_exc()} --- {str(ex)}")
-      except:
+      except: 
         pass
     # print("event loop has run")
     

@@ -1238,11 +1238,26 @@ def uncached_userevent_by_name(cache, name):
   uncached(cache, do)
 
 
+# zmirror assumes a mirrored device that was just onlined (via zpool online)
+# is in "resilvering" state right away. This assumption is a simplification
+# so that zmirror does not assume that other operations can be run (e.g. scrub).
+#
+# It is a simplification because ZFS itself only starts a resilver some seconds
+# after the device was onlined.
+#
+# We could also have implemented another state named BEFORE_RESILVER
+# but that would have complicated the zmirror's application logic tremendously.
+#
+# Also we would have to distinguish between mirrored and non-mirrored devices
+# anyways, because a non-mirrored device should never enter the BEFORE_RESILVER
+# state.
+#
+# So the simplification is warrented.
 def handle_resilver_started(cache):
-  if not since_in(Operation.RESILVER, cache.operations):  
+  if not since_in(Operation.RESILVER, cache.operations):
     cache.operations.append(Since(Operation.RESILVER, datetime.now()))
-  handle_onlined(cache)
-  cache_log_info(cache, "resilver started")
+    handle_onlined(cache)
+    cache_log_info(cache, "resilver started")
 
 
 def handle_resilver_finished(cache):

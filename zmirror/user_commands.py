@@ -418,6 +418,7 @@ def make_send_daemon_wrapper(fn):
   return do
 
 
+
 def make_send_set_property_daemon_command(property, value=None):
   def do(args):
     r = {"command": "set", "property": property}
@@ -427,6 +428,8 @@ def make_send_set_property_daemon_command(property, value=None):
       r["value"] = args.value
     return r
   return make_send_daemon_wrapper(do)
+
+
 
 def make_send_get_property_daemon_command(property, value=None):
   def do(args):

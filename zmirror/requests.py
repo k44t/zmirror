@@ -51,10 +51,12 @@ class Reason(KiEnum):
   NOT_CONFIGURED = 16
 
 
-last_enactment_id = 0
+last_enactment_id = 0 #pylint: disable=invalid-name
+
+
 
 def next_enactment_id():
-  global last_enactment_id
+  global last_enactment_id #pylint: disable=global-statement
   if last_enactment_id == sys.maxsize:
     last_enactment_id = 0
   else:
