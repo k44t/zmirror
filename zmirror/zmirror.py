@@ -102,19 +102,19 @@ def main(args=None):
 
   shared_parser = argparse.ArgumentParser(add_help=False)
 
-  shared_parser.add_argument("--config-path", type=str, help="the path to the config file", default=env_var_or("ZMIRROR_CONFIG_PATH", ZMIRROR_CONFIG_PATH_DEFAULT))
+  shared_parser.add_argument("--config-path", type=str, help=f"the path to the config file. May be set via the environment variable `ZMIRROR_CONFIG_PATH`. Defaults to `{ZMIRROR_CONFIG_PATH_DEFAULT}`", default=env_var_or("ZMIRROR_CONFIG_PATH", ZMIRROR_CONFIG_PATH_DEFAULT))
 
-  shared_parser.add_argument("--cache-path", type=str, help="the path to the cache file in which zmirror stores device state", default=env_var_or("ZMIRROR_CACHE_PATH", ZMIRROR_CACHE_PATH_DEFAULT))
+  shared_parser.add_argument("--cache-path", type=str, help=f"the path to the cache file in which zmirror stores device state. May be set via the environment variable `ZMIRROR_CACHE_PATH`. Defaults to `{ZMIRROR_CACHE_PATH_DEFAULT}`", default=env_var_or("ZMIRROR_CACHE_PATH", ZMIRROR_CACHE_PATH_DEFAULT))
 
   socket_parser = argparse.ArgumentParser(add_help=False)
-  socket_parser.add_argument("--socket-path", type=str, help="the path to the unix socket on which `zmirror daemon` listens, to which zmirror-trigger sends UDEV and ZED events, and to which commands are sent when you invoke `zmirror <command>`.", default=env_var_or("ZMIRROR_SOCKET_PATH", ZMIRROR_SOCKET_PATH_DEFAULT))
+  socket_parser.add_argument("--socket-path", type=str, help=f"the path to the unix socket on which `zmirror daemon` listens, to which `zmirror-trigger` sends UDEV and ZED events, and to which commands are sent when you invoke `zmirror <command>`. May be set via the environment variable `ZMIRROR_SOCKET_PATH`. Defaults to `{ZMIRROR_SOCKET_PATH_DEFAULT}`", default=env_var_or("ZMIRROR_SOCKET_PATH", ZMIRROR_SOCKET_PATH_DEFAULT))
 
   # shared_parser.add_argument("runtime-dir", type=str, help="the path to the runtime directory", default= "/var/run/zmirror")
 
   cancel_parser = argparse.ArgumentParser(add_help=False)
   cancel_parser.add_argument("--cancel", action="store_true")
 
-  daemon_parser = subs.add_parser('daemon', parents=[shared_parser, socket_parser], help="starts the zmirror daemon")
+  daemon_parser = subs.add_parser('daemon', parents=[shared_parser, socket_parser], help="starts zmirror in daemon mode")
   daemon_parser.set_defaults(func=daemon)
 
 
@@ -130,24 +130,24 @@ def main(args=None):
     subpsr.set_defaults(func=make_send_simple_daemon_command(command))
 
 
-  subcmd("clear-cache", help="clears the cache and removes the cache file. Triggers a configuration reload.")
-  subcmd("reload-config", help="reloads the configuration")
+  subcmd("clear-cache", help="clears the cache and removes the cache file (which stores the dates of when the maintenance tasks were last run). Triggers a configuration reload.")
+  subcmd("reload-config", help="reloads the configuration.")
 
-  subcmd("scrub-all", cancel=True, help="requests all configured zdevs to be scrubbed")
-  subcmd("scrub-overdue", help="requests all configured zdevs to be scrubbed if they are behind their configured scrub_interval.")
+  subcmd("scrub-all", cancel=True, help="requests all configured zdevs to be scrubbed. This will bring all necessary and available parent devices (i.e. dm-crypts) online.")
+  subcmd("scrub-overdue", help="requests zdevs to be scrubbed if they are behind their configured scrub_interval. This will bring all necessary and available parent devices (i.e. dm-crypts) online.")
 
-  subcmd("resilver-overdue", help="requests all configured zdevs to be resilvered if they are behind their configured resilver_interval. Since a resilver happens whenever a mirrored device is brought online, this really does nothing but (try to) online the devices.")
+  subcmd("resilver-overdue", help="requests zdevs to be resilvered if they are behind their configured resilver_interval. Since a resilver happens whenever a mirrored device is brought online, this really does nothing but (try to) online the respective devices.")
 
-  subcmd("trim-all", cancel=True, help="requests all configured zdevs to be trimmed")
-  subcmd("trim-overdue", help="requests all configured zdevs to be trimmed if they are behind their configured trim_interval.")
+  subcmd("trim-all", cancel=True, help="requests all configured zdevs to be trimmed. This will bring all necessary and available parent devices (i.e. dm-crypts) online.")
+  subcmd("trim-overdue", help="requests zdevs to be trimmed if they are behind their configured trim_interval. This will bring all necessary and available parent devices (i.e. dm-crypts) online.")
 
 
   subcmd("online-all", cancel=True, help="requests all configured devices to be onlined.")
 
   subcmd("status-all", help="shows the status of all configured devices")
-  subcmd("daemon-version", help="shows the version of the zmirror daemon")
+  subcmd("daemon-version", help="shows the version of the (currently running) zmirror daemon")
 
-  subcmd("maintenance", help="triggers all maintenance tasks (scrub and trim as scheduled). Usually called by a cronjob or a systemd timer. This should be done at night on a day where there is not much load on your machine. This will online all devices that are present and need maintenance. Whether they will be offlined afterwards depends on your zmirror configuration.")
+  subcmd("maintenance", help="triggers all maintenance tasks (scrub and trim as scheduled as well as onlining devices that should be brought up to date [resilvered]). This is what you want to schedule via a cronjob or a systemd timer. It makes sense to do this at night on a weekday where there is not much load on your machine. This will online all devices that are present and need maintenance. The devices will only be taken offline afterwards if you have configured the respective event timers to take them offline (i.e. `on_resilvered` set to `offline`).")
 
 
   # scrub_parser = subs.add_parser('scrub-overdue', parents=[], help='scrub devices that have not been scrubbed for too long')
@@ -171,7 +171,7 @@ def main(args=None):
   enable_subs = subs.add_parser('enable', parents=[socket_parser], help='enable zmirror daemon property').add_subparsers(required=True)
   disable_subs = subs.add_parser('disable', parents=[socket_parser], help='disable zmirror daemon property').add_subparsers(required=True)
   set_subs = subs.add_parser('set', parents=[socket_parser], help='set zmirror daemon property to value').add_subparsers(required=True)
-  get_subs = subs.add_parser('get', parents=[socket_parser], help='get zmirror daemon property').add_subparsers(required=True)
+  get_subs = subs.add_parser('get', parents=[socket_parser], help='get zmirror daemon property value').add_subparsers(required=True)
 
   def add_enable_disable_parsers(name, help=None):
     enable_parser = enable_subs.add_parser(name, help=f"enable {help}")
@@ -193,7 +193,7 @@ def main(args=None):
     set_parser.set_defaults(func=make_send_set_property_daemon_command(name))
     get_subs.add_parser(name, help=get_help).set_defaults(func=make_send_get_property_daemon_command(name))
 
-  add_set_property_parser("log-level", "set log level to one of: debug | info | warning | error | critical")
+  add_set_property_parser("log-level", "set log level to one of: trace | debug | verbose | info | warning | error | critical")
   add_set_property_parser("timeout", "set request timeout in seconds")
 
   def make_onlineable_commands(typ):

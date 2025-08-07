@@ -34,9 +34,11 @@ def init_config(cache_path, config_path):
 
 
   require_path(config.config_path, "config file does not exist")
-  config.config_root = load_yaml_config(config.config_path)
+  log.info(f"loading config from: {config_path}")
+  config.config_root = load_yaml_config(config_path)
 
   config.set_log_level(config.config_root.log_level)
+  log.info(f"log-level: {config.name_for_log_level[config.log_level]}")
 
 
   config.timeout = int(config.config_root.timeout)
@@ -44,7 +46,7 @@ def init_config(cache_path, config_path):
   config.log_events = config.config_root.log_events
 
   os.makedirs(os.path.dirname(cache_path), exist_ok = True)
-  log.info(f"loading cache from: f{cache_path}")
+  log.info(f"loading cache from: {cache_path}")
   config.cache_dict = load_yaml_cache(cache_path)
   if config.cache_dict is None:
     config.cache_dict = dict()
@@ -165,10 +167,22 @@ def get_zfs_volume_mode(zfs_path):
 def remove_cache(cache_path):
   remove_yaml_cache(cache_path)
 
+
+
+
+cache_save_timer = None
+
+# the cache is only saved every 
 def save_cache():
-  if config.cache_dict is None:
-    raise ValueError("init() was not called")
-  save_yaml_cache(config.cache_dict, config.cache_path)
+  global cache_save_timer
+  if cache_save_timer is None:
+    def action():
+      global cache_save_timer
+      # if config.cache_dict is None:
+      #  raise ValueError("init() was not called")
+      save_yaml_cache(config.cache_dict, config.cache_path)
+      cache_save_timer = None
+    cache_save_timer = start_event_queue_timer(config.cache_save_timeout, action)
 
 
 

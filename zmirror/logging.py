@@ -1,5 +1,6 @@
 
 import logging
+from logging import addLevelName
 import logging.handlers
 import os
 import sys
@@ -28,6 +29,8 @@ def log_func_end():
 
 
 
+VERBOSE = 15
+TRACE = 5
 
 
 
@@ -132,8 +135,29 @@ def __init__():
   logger.warning = customized_warning
   logger.critical = customized_critical
 
+  def verbose(msg, *args, **kwargs):
+    """
+    Delegate a debug call to the underlying logger.
+    """
+    logger.log(VERBOSE, msg, *args, **kwargs)
+  logger.verbose = verbose
+
+  def trace(msg, *args, **kwargs):
+    """
+    Delegate a debug call to the underlying logger.
+    """
+    logger.log(TRACE, msg, *args, **kwargs)
+  logger.trace = trace
+
+
+
+
+
   return logger
 
+
+addLevelName(VERBOSE, "VERBOSE")
+addLevelName(TRACE, "TRACE")
 
 log = __init__()
 log.func_start = log_func_start

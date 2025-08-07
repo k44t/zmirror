@@ -27,7 +27,7 @@ from kpyutils.kiify import yaml_data, yaml_enum, KiEnum, KdStream, yes_no_absent
 from .logging import log
 from . import commands as commands
 from . import config as config
-from .config import iterate_content_tree3_depth_first, TimerEvent
+from .config import iterate_content_tree3_depth_first, TimerEvent, start_event_queue_timer
 
 
 class Reason(KiEnum):
@@ -263,16 +263,7 @@ class Request:
 
   def start_timer(self):
     if self.timer is None:
-      def timeout():
-        try:
-          config.timers.remove(self.timer)
-        except:
-          pass
-        config.event_queue.put(TimerEvent(self.timer_finished))
-      if self.timer is not False:
-        self.timer = Timer(config.timeout, timeout)
-        config.timers.append(self.timer)
-        self.timer.start()
+      self.timer = start_event_queue_timer(config.timeout, self.timer_finished)
 
   def restart_timer(self):
     self.stop_timer()

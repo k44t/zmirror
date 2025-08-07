@@ -283,6 +283,11 @@ def handle_daemon_version_command(out):
 
 def handle_command(command, con):
   try:
+
+    name = command["command"]
+    
+    log.info(f"handling zmirror command: {name}")
+
     stream = con.makefile('w')
     handler = logging.StreamHandler(stream)
 
@@ -292,9 +297,7 @@ def handle_command(command, con):
     log.addHandler(handler)
 
 
-    name = command["command"]
 
-    log.info(f"handling zmirror command: {name}")
 
     if name == "status-all":
       handle_status_all_command(stream)

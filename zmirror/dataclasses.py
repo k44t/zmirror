@@ -1322,7 +1322,7 @@ def cache_log_info(cache, message):
   if entity is not None:
     log.info(f"{human_readable_id(entity)}: {message}")
   else:
-    log.info(f"{entity_id_string(cache)} (unconfigured): {message}")
+    log.verbose(f"{entity_id_string(cache)} (unconfigured): {message}")
 
 
 # the device or zpool has been taken offline and is not even passively available (it must be reactivated somehow)

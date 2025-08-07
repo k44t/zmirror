@@ -1,16 +1,22 @@
 --- !ZMirror
 
 
-# enable logging of the environment variables for all udev and zed events for debugging purposes. 
+# enable logging of the environment variables for all udev and ZED events for debugging purposes. 
 # defaults to: `no`
 log_events: no
+
+# trace | debug | verbose | info | warning | error | critical
+#
+# defaults to `info`
+log_level: info
 
 # If set to `no`, then zmirror never executes any commands 
 # but only logs the commands that it would execute. This is helpful when you
 # want to test things and/or manually interact with the devices without zmirror 
-# interfering
+# interfering (but still keeping track of state changes).
 #
-# you can temporarily override this at runtime by running `zmirror enable-commands` or `zmirror disable-commands`
+# you can temporarily override this at runtime by running `zmirror enable commands` or `zmirror disable commands`
+#
 # defaults to: `yes`
 enable_commands: yes
 
@@ -197,7 +203,7 @@ content:
   - !Disk
 
     # the uuid of the gpt partition table
-    uuid: 00000000-0000-0000-0000-000000000002
+    uuid: 00000000-0000-0000-0000-000000000002 #uuid of b
 
     # since disks have no names, the info field will be printed in zmirror logs for better usability
     info: zmirror-sysfs-b
@@ -254,8 +260,13 @@ content:
     #
     # :: dmsetup table zmirror-sysfs-a
     #
+    # It must be noted, that (force) enabling TRIM must be done (by zmirror) before the dm-crypt is opened
+    # and before the zdev is taken online inside a pool. Otherwise ZFS will believe that
+    # the zdev cannot be trimmed. zmirror will enable TRIM on a disk that is already connected and active
+    # but for ZFS to become aware of the ability to TRIM the dm-crypt must be reopened and the zdev reonlined.
+    #
     # *WARNING*: ONLY set this to true if you absolutely know that your device supports
-    # trim.
+    # trim. This might damage your enclosure or disk.
     force_enable_trim: yes
     # 
     # what zmirror does to enable trim is catch every udev add or change event for 
@@ -322,8 +333,9 @@ content:
   # speed, so they are just as fast as the internal NVMe drive.
   - !Disk
 
-    # the uuid of the gpt partition table. zmirror currently only supports GPT formatted disks.
-    uuid: 00000000-0000-0000-0000-000000000003
+    # the uuid of the gpt partition table. zmirror currently only supports force enabling trim on
+    # GPT formatted disks.
+    uuid: 00000000-0000-0000-0000-000000000003 #uuid of c
 
     # since disks have no names, the info field will be printed in zmirror logs for better usability
     info: zmirror-sysfs-c
@@ -391,7 +403,7 @@ content:
   - !Disk
 
     # the uuid of the gpt partition table
-    uuid: 00000000-0000-0000-0000-000000000004
+    uuid: 00000000-0000-0000-0000-000000000004 #uuid of s
 
     # since disks have no names, the info field will be printed in zmirror logs for better usability
     info: zmirror-sysfs-s
@@ -495,6 +507,14 @@ content:
 
 
 
+  # big-a is a non-NVMe external USB-Connected SSD drive. 
+  #
+  # The linux kernel correctly recognizes that the the SSD and the USB Enclosure
+  # support the TRIM command. Hence zmirror does not need to force enable TRIM
+  # on the Disk.
+  #
+  # Consequently it is enough for me to configure the Partition at the top-level.
+  # The Disk has no relevance for me.
   - !Partition
 
     name: zmirror-big-a
@@ -526,8 +546,7 @@ content:
 
 
 
-
-
+  # big-b is a non-NVMe external USB-Connected SSD drive, exactly like big-a.
   - !Partition
 
     name: zmirror-big-b
@@ -625,7 +644,7 @@ content:
     
 
     # This zpool will not be imported automatically. Instead scheduled
-    # `zmirror maintenance` will bring it online if needed and the backing is
+    # `zmirror maintenance` will bring it online if needed and if the backing is
     # connected.
     #
     # on_backing_appeared:
@@ -1010,8 +1029,9 @@ content:
     backed_by:
       - !Mirror
         devices: 
-          - zmirror-blubak-alpha
-          - zmirror-blubak-beta
+          - zvol/zmirror-blubak-alpha/blubak
+          - zvol/zmirror-blubak-beta/blubak
+          - zvol/zmirror-blubak-gamma/blubak
 
 
 
@@ -1091,8 +1111,8 @@ content:
       # since zmirror assumes that mirrored devices need to resilver
       # while simple devices do not resilver. And by configureing them
       # thus, zmirror knows which are mirrored and which are simple.
-      - "zmirror-blubak-beta-05a"
-      - "zmirror-blubak-beta-05b"
+      - zmirror-blubak-beta-05a
+      - zmirror-blubak-beta-05b
 
 
 

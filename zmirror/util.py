@@ -226,7 +226,7 @@ def remove_yaml_cache(cache_file_path):
 
 
 def save_yaml_cache(cache_dict, cache_file_path):
-  log.info("writing cache")
+  log.verbose("writing cache")
   with open(cache_file_path, 'w', encoding="utf-8") as stream:
     yaml.dump(cache_dict, stream)
   log.debug("cache written.")

@@ -47,9 +47,9 @@ in with lib; with types; {
           [ -f "''${ZED_ZEDLET_DIR}/zed.rc" ] && . "''${ZED_ZEDLET_DIR}/zed.rc"
             . "''${ZED_ZEDLET_DIR}/zed-functions.sh"
 
-          zed_log_msg "zmirror-trigger: sending event to zmirror daemon"
           ${pkgs.zmirror}/bin/zmirror-trigger
         '';
+        # zed_log_msg "zmirror-trigger: sending event to zmirror daemon"
       };
       "zmirror/zmirror.yml" = lib.mkIf (cfg.config-file != null) {
         mode = "0444";
@@ -62,8 +62,10 @@ in with lib; with types; {
       timers = lib.mkIf (cfg.maintenance-schedule != null) {
         "zmirror-maintenance" = {
           wantedBy = [ "timers.target" ];
-          timerConfig.OnCalendar = "03:00";
-          timerConfig.Persistent = true;
+          timerConfig.OnCalendar = cfg.maintenance-schedule;
+          
+          # this would make the timer trigger once at the next reboot if the appointed time was missed.
+          ## timerConfig.Persistent = true;
         };
       };
       services = {

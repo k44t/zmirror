@@ -3,6 +3,7 @@ from datetime import datetime
 from threading import Timer
 import logging
 from .logging import log
+from . import logging as zmirror_logging
 
 lvm_physical_volumes = dict()
 zfs_blockdevs = dict()
@@ -19,6 +20,7 @@ log_level = logging.INFO
 event_queue = None
 timeout = None
 timers = []
+cache_save_timeout = 4 # seconds
 
 
 is_daemon = False
@@ -70,13 +72,17 @@ def find_config(typ, **args):
 
 
 log_level_for_name = {
-  "trace": 5,
+  "trace": zmirror_logging.TRACE,
   "debug": logging.DEBUG,
+  "verbose": zmirror_logging.VERBOSE,
   "info": logging.INFO,
   "warning": logging.WARNING,
   "error": logging.ERROR,
   "critical": logging.CRITICAL,
 }
+
+name_for_log_level = {value: key for key, value in log_level_for_name.items()}
+
 
 
 
@@ -122,3 +128,14 @@ def iterate_content_tree(o, fn):
         rlst = iterate_content_tree(e, fn)
         result = result + rlst
   return result
+
+
+
+def start_event_queue_timer(duration, action):
+  def do():
+    timers.remove(timer)
+    event_queue.put(TimerEvent(action))
+  timer = Timer(duration, do)
+  timers.append(timer)
+  timer.start()
+  return timer
