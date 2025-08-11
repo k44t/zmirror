@@ -57,6 +57,8 @@ def init_config(cache_path, config_path):
 
   config.find_config = find_config
 
+  log.info("loading initial state...")
+
   iterate_content_tree3(config.config_root, index_entities, None, None)
   iterate_content_tree3_depth_first(config.config_root, load_initial_state, None, None)
   iterate_content_tree3_depth_first(config.config_root, update_initial_state, None, None)
@@ -67,6 +69,8 @@ def init_config(cache_path, config_path):
   log.info(f"command execution enabled: {to_yes(config.commands_enabled)}")
 
   commands.execute_commands()
+
+  log.info("configuration initialized")
 
 def finalize_init(entity, _parent, _ignored):
   if isinstance(entity, Entity):
@@ -160,7 +164,7 @@ def simple_string_command(command, error, logfn=log.error):
     return None
   
 def get_zfs_volume_mode(zfs_path):
-  return simple_string_command(f"zfs get volmode {zfs_path}", f"failed to get volmode of zfs volume {zfs_path}", log.debug)
+  return simple_string_command(f"zfs get volmode {zfs_path} -o value -H", f"failed to get volmode of zfs volume {zfs_path}", log.debug)
 
 
 

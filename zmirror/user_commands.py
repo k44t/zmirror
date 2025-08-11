@@ -86,7 +86,7 @@ def daemon_request(rqst, cancel, typ, ids):
 
       log.info(f"executed user command `cancel {rqst.name.lower()}` for {make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} cancelled successfully")
     else:
-      log.info(f"execuded user command `cancel {rqst.name.lower()}` for {make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} was not scheduled, and could not be cancelled")
+      log.info(f"executed user command `cancel {rqst.name.lower()}` for {make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} was not scheduled, and could not be cancelled")
   else:
     if entity.request(rqst):
       config.last_request_at = datetime.now()
@@ -94,7 +94,7 @@ def daemon_request(rqst, cancel, typ, ids):
     else:
       log.error(f"executed user command `{rqst.name.lower()}` for {make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} failed. See previous error messages.")
       return
-    log.info(f"execuded user command `{rqst.name.lower()}` for {make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} scheduled successfully.")
+    log.info(f"executed user command `{rqst.name.lower()}` for {make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} scheduled successfully.")
 
 
 

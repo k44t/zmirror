@@ -26,14 +26,15 @@ enable_commands: yes
 # Please note that this timeout will not affect requests that can be fulfilled
 # at a later time in respect to the current state. For example if you request a `scrub`
 # while a `resilver` is in progress, then zmirror considers the `scrub` to be 
-# fulfillable once the `resilver` has finished. The same holds for `trim`.
+# fulfillable once the `resilver` has finished.
 #
 # A `scrub` request however may be cancelled after the timeout, if the device is currently
 # offline and the `online` request that is automatically scheduled when you schedule a 
 # `scrub` cannot be fulfilled before the timeout ends.
 # 
-# defaults to: `60`
-timeout: 60
+# defaults to: `300` (because a `zpool import` after certain failures might take quite long
+# before succeeding, and so do some other zpool commands)
+timeout: 300
 
 
 
@@ -541,8 +542,6 @@ content:
             on_appeared:
               - online
 
-            scrub_interval: 4 weeks
-
 
 
 
@@ -576,7 +575,6 @@ content:
             on_appeared:
               - online
 
-            scrub_interval: 4 weeks
 
 
 
@@ -805,7 +803,6 @@ content:
               - offline
               - snapshot-parent
 
-            scrub_interval: 4 weeks
 
 
 
@@ -855,6 +852,10 @@ content:
           - !ZDev
             
             pool: zmirror-bak-a
+
+
+            # its a HDD it does not support trim
+            trim_interval: nil
           
 
 
@@ -904,7 +905,6 @@ content:
               - offline
               - snapshot-parent
       
-            scrub_interval: 4 weeks
 
       - !ZFSVolume
         name: big
@@ -924,7 +924,6 @@ content:
               - offline
               - snapshot-parent
 
-            scrub_interval: 4 weeks
 
 
 
@@ -954,9 +953,11 @@ content:
 
           - !ZDev
             pool: zmirror-bak-b
+
+            # its a HDD it does not support trim
+            trim_interval: nil
           
 
-            scrub_interval: 4 weeks
 
 
   # this is the main partition of the second disk that is backing zmirror-bak-b
@@ -977,8 +978,10 @@ content:
 
           - !ZDev
             pool: zmirror-bak-b
+
+            # its a HDD it does not support trim
+            trim_interval: nil
             
-            scrub_interval: 4 weeks
 
 
 
@@ -1008,21 +1011,51 @@ content:
     backed_by:
       - !Mirror
         devices: 
+
+          # to ensure that the zpool knows the devices by these paths, you simply need
+          # to import it once using the following command (in which the parent paths are
+          # specified where zdevs are looked for):
+          #
+          # :: ZPOOL_IMPORT_PATH=/dev/zvol/zmirror-blubak-alpha:/dev/zvol/zmirror-blubak-beta:/dev/zvol/zmirror-blubak-gamma zpool import blubak
+          #
           - zvol/zmirror-blubak-alpha/blubak
           - zvol/zmirror-blubak-beta/blubak
-          - zvol/zmirror-blubak-gamma/blubak
+          # - zvol/zmirror-blubak-gamma/blubak
 
 
 
 
   # this is the main partition of the first (the big) disk that is backing 
   # the zpool zmirror-blubak
+
+
+
   - !Partition
-    name: zmirror-blubak-alpha
+    name: zmirror-blubak-alpha-a
 
     content:
       - !DMCrypt
-        name: zmirror-blubak-alpha
+        name: zmirror-blubak-alpha-a
+
+        key_file: ./test/zmirror-key
+
+        on_children_offline: 
+          - offline
+
+        content: 
+
+          - !ZDev
+            pool: zmirror-blubak-alpha
+
+            # its a HDD it does not support trim
+            trim_interval: nil
+
+  - !Partition
+    name: zmirror-blubak-alpha-b
+
+    content:
+      - !DMCrypt
+        name: zmirror-blubak-alpha-b
         
         key_file: ./test/zmirror-key
 
@@ -1032,8 +1065,12 @@ content:
         content: 
 
           - !ZDev
-            pool: zmirror-blubak
-          
+            pool: zmirror-blubak-alpha
+
+            # its a HDD it does not support trim
+            trim_interval: nil
+
+
 
 
   # The second element in the mirror backing zmirror-blubak is more complex.
@@ -1048,12 +1085,12 @@ content:
   # not big enough, to together provide a single mirror of a newer disk that
   # is big enough.
   - !ZPool
-    name: zmirror-blubak-beta
+    name: zmirror-blubak-alpha
 
     content:
       
       - !ZFSVolume
-        name: blubak-beta
+        name: blubak
 
         on_children_offline: 
           - offline
@@ -1064,11 +1101,54 @@ content:
             pool: zmirror-blubak
           
             on_scrubbed:
-              - offline
+              # - offline
 
             on_resilvered:
-              - offline
-              - snapshot-parent
+              # - offline
+              # - snapshot-parent
+            
+            # scrubbing and will be done on the underlaying zpool only
+            # (not on blubak but on blubak-alpha and blubak-beta)
+            scrub_interval: nil
+
+    # and for zmirror to do that, we need to tell it how the backing is layed out
+    backed_by:
+    
+      # defining the backing devices is very important for a striped volume
+      # since zmirror assumes that mirrored devices need to resilver
+      # while simple devices do not resilver. And by configureing them
+      # thus, zmirror knows which are mirrored and which are simple.
+      - zmirror-blubak-alpha-a
+      - zmirror-blubak-alpha-b
+
+
+
+  - !ZPool
+    name: zmirror-blubak-beta
+
+    content:
+      
+      - !ZFSVolume
+        name: blubak
+
+        on_children_offline: 
+          - offline
+
+        content:
+
+          - !ZDev
+            pool: zmirror-blubak
+          
+            on_scrubbed:
+              # - offline
+
+            on_resilvered:
+              # - offline
+              # - snapshot-parent
+
+            # scrubbing will be done on the underlaying zpool only
+            # (not on blubak but on blubak-alpha and blubak-beta)
+            scrub_interval: nil
 
 
     # and for zmirror to do that, we need to tell it how the backing is layed out
@@ -1078,8 +1158,8 @@ content:
       # since zmirror assumes that mirrored devices need to resilver
       # while simple devices do not resilver. And by configureing them
       # thus, zmirror knows which are mirrored and which are simple.
-      - zmirror-blubak-beta-05a
-      - zmirror-blubak-beta-05b
+      - zmirror-blubak-beta-a
+      - zmirror-blubak-beta-b
 
 
 
@@ -1089,11 +1169,11 @@ content:
   # the speciality of the second and third disk is, that they are (about) half as 
   # big as the first disk, and so we combined them into a striped raid0.
   - !Partition
-    name: zmirror-blubak-beta-05a
+    name: zmirror-blubak-beta-a
 
     content:
       - !DMCrypt
-        name: zmirror-blubak-beta-05a
+        name: zmirror-blubak-beta-a
 
         key_file: ./test/zmirror-key
 
@@ -1105,13 +1185,16 @@ content:
           - !ZDev
             pool: zmirror-blubak-beta
 
+            # its a HDD it does not support trim
+            trim_interval: nil
+
 
   - !Partition
-    name: zmirror-blubak-beta-05b
+    name: zmirror-blubak-beta-b
 
     content:
       - !DMCrypt
-        name: zmirror-blubak-beta-05b
+        name: zmirror-blubak-beta-b
         
         key_file: ./test/zmirror-key
 
@@ -1123,3 +1206,6 @@ content:
           - !ZDev
             pool: zmirror-blubak-beta
 
+
+            # its a HDD it does not support trim
+            trim_interval: nil

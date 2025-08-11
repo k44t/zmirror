@@ -68,7 +68,7 @@ def handle(env):
       event_handled = True
     # zpool event
     elif zevent in ["scrub_finish", "scrub_start", "scrub_abort", "pool_import", "pool_create"]:
-      log.info(f"zpool {zpool}: {zevent}")
+      log.debug(f"zpool {zpool}: {zevent}")
       zpool_status = config.get_zpool_status(zpool)
 
 

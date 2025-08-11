@@ -422,9 +422,11 @@ class Entity:
 
 
 def run_actions(self, event_name, excepted=None):
-  for event in getattr(self, "on_" + event_name):
-    if event != excepted:
-      run_action(self, event)
+  handlers = getattr(self, "on_" + event_name)
+  if handlers:
+    for event in handlers:
+      if event != excepted:
+        run_action(self, event)
 
 
 
@@ -1098,7 +1100,7 @@ class ZFSVolume(Children):
   def load_initial_state(self):
     state = EntityState.DISCONNECTED
     mode = config.get_zfs_volume_mode(f"{self.get_pool()}/{self.name}")
-    if mode == "full":
+    if mode in {"full", "default"}:
       state = EntityState.ONLINE
     if mode == "none":
       state = EntityState.INACTIVE
