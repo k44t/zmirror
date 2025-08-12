@@ -15,7 +15,8 @@ log_level: info
 # want to test things and/or manually interact with the devices without zmirror 
 # interfering (but still keeping track of state changes).
 #
-# you can temporarily override this at runtime by running `zmirror enable commands` or `zmirror disable commands`
+# you can temporarily override this at runtime by running `zmirror enable commands` 
+# or `zmirror disable commands`
 #
 # defaults to: `yes`
 enable_commands: yes
@@ -55,22 +56,31 @@ timeout: 300
 
 # sets the global trim interval. May be overridden by setting `trim_interval` 
 # directly on a device.
+#
+# please note that this interval will be inherited by all zdevs, even those that
+# are on HDDs, which means that zmirror will try to trim them (and fail). If you set
+# the global trim_interval to anything other than `nil`, you need to set it to
+# `nil` for all HDDs.
 # 
-# you can also set the interval to `nil` which means that no interval is set. This is the application default.
+# you can also set the interval to `nil` which means that no interval is set.
 # defaults to: `nil` (no interval)
-trim_interval: 1 week
+trim_interval: nil # 1 week
 
 # sets the global trim interval. May be overridden by setting `scrub_interval` 
 # directly on a device.
 # 
-# you can also set the interval to `nil` which means that no interval is set. This is the application default.
+# you can also set the interval to `nil` which means that no interval is set.
 # defaults to: `nil` (no interval)
-scrub_interval: 4 weeks
+scrub_interval: nil # 4 weeks
 
 
-# we want our disks to be resilvered (updated) at least every 2 weeks
+# we want our disks to be updated at least every 2 weeks.
+#
+# to update here means that either the zdev be either be resilvered from a more
+# up to date mirror, or that it simply was online (and up to date) during this interval.
+#
 # defaults to: `nil` (no interval)
-resilver_interval: 2 weeks
+update_interval: nil # 2 weeks
 
 
 # under here all top-level entities (such as disks, partitions, lvm volume groups
@@ -90,7 +100,10 @@ content:
     backed_by:
 
 
-      # zmirror only supports Mirror or single-device backing. This is due to a simplification in the programming logic, which assumes that when a device is onlined it always needs to resilver first (which only mirrored devices do).
+      # zmirror only supports Mirror or single-device backing. 
+      # This is due to a simplification in the programming logic, which assumes 
+      # that when a device is onlined it always needs to resilver first 
+      # (which only mirrored devices do).
       - !Mirror
         devices: 
           - zmirror-sysfs-a
@@ -315,7 +328,6 @@ content:
               on_scrubbed:
                 - trim
 
-              scrub_interval: 4 weeks
 
 
 
@@ -381,8 +393,6 @@ content:
 
               on_scrubbed:
                 - trim
-
-              scrub_interval: 4 weeks
 
 
 
@@ -1100,11 +1110,9 @@ content:
           - !ZDev
             pool: zmirror-blubak
           
-            on_scrubbed:
-              # - offline
 
             on_resilvered:
-              # - offline
+              - offline
               # - snapshot-parent
             
             # scrubbing and will be done on the underlaying zpool only
@@ -1139,11 +1147,9 @@ content:
           - !ZDev
             pool: zmirror-blubak
           
-            on_scrubbed:
-              # - offline
 
             on_resilvered:
-              # - offline
+              - offline
               # - snapshot-parent
 
             # scrubbing will be done on the underlaying zpool only

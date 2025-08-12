@@ -139,15 +139,25 @@ def set_cache_state(o, st, since_unknown=False):
   ost = o.state.what
   now = None
   if not since_unknown:
-    now = datetime.now()
+    now = inaccurate_now()
   if st == EntityState.INACTIVE or st == EntityState.DISCONNECTED:
     if o.state is not None and o.state.what == EntityState.ONLINE:
       o.last_online = now
+      if Operation.RESILVER not in o.operations:
+        o.last_update = now
   if ost != st:
     o.state = Since(st, now)
     return ost
 
 
+property_name_for_operation = {
+  Operation.RESILVER: "update",
+  Operation.SCRUB: enum_command_name(Operation.SCRUB),
+  Operation.TRIM: enum_command_name(Operation.TRIM)
+}
+
+def get_last_property_name_for_operation(op: Operation):
+  return f"last_{property_name_for_operation[op]}"
 
 request_for_zfs_operation = {
   Operation.RESILVER: RequestType.ONLINE,
@@ -171,7 +181,7 @@ class ZMirror:
   notes: str = None
 
 
-  resilver_interval: str = None
+  update_interval: str = None
   scrub_interval: str = None
   trim_interval: str = None
 
@@ -308,7 +318,7 @@ class Entity:
 
     if cache.state.what is not EntityState.ONLINE:
       kdstream.newline()
-      kdstream.print_property(cache, "last_online")
+      kdstream.print_property(cache, "last_online", nil="#never")
 
   def handle_onlined(self, prev_state):
     succeed_request(self, RequestType.ONLINE)
@@ -1113,7 +1123,7 @@ class ZFSVolume(Children):
     return commands.add_command(f"zfs set volmode=none {self.parent.name}/{self.name}")
 
   def enact_snapshot(self):
-    return commands.add_command(f"zfs snapshot {self.parent.name}/{self.name}@zmirror-{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}")
+    return commands.add_command(f"zfs snapshot {self.parent.name}/{self.name}@zmirror-{inaccurate_now().strftime("%Y-%m-%d_%H-%M-%S")}")
 
 
   def dev_path(self):
@@ -1239,6 +1249,9 @@ def uncached_userevent_by_name(cache, name):
     run_actions(entity, name)
   uncached(cache, do)
 
+def inaccurate_now():
+  return datetime.now().replace(microsecond=0)
+
 
 # zmirror assumes a mirrored device that was just onlined (via zpool online)
 # is in "resilvering" state right away. This assumption is a simplification
@@ -1257,21 +1270,21 @@ def uncached_userevent_by_name(cache, name):
 # So the simplification is warrented.
 def handle_resilver_started(cache):
   if not since_in(Operation.RESILVER, cache.operations):
-    cache.operations.append(Since(Operation.RESILVER, datetime.now()))
+    cache.operations.append(Since(Operation.RESILVER, inaccurate_now()))
     handle_onlined(cache)
     cache_log_info(cache, "resilver started")
 
 
 def handle_resilver_finished(cache):
-  cache_log_info(cache, "resilvered")
-  cache.last_resilver = datetime.now()
+  cache_log_info(cache, "resilvered (updated)")
+  cache.last_update = inaccurate_now()
   since_remove(Operation.RESILVER, cache.operations)
   uncached_operation_handle_by_name(cache, "resilver_finished")
 
 
 def handle_scrub_started(cache):
   cache_log_info(cache, "scrub started")
-  since_insert_if_not_in(Since(Operation.SCRUB, datetime.now()), cache.operations)
+  since_insert_if_not_in(Since(Operation.SCRUB, inaccurate_now()), cache.operations)
   def do(entity):
     entity.handle_scrub_started()
   uncached(cache, do)
@@ -1279,7 +1292,7 @@ def handle_scrub_started(cache):
 
 def handle_scrub_finished(cache):
   cache_log_info(cache, "scrubbed")
-  now = datetime.now()
+  now = inaccurate_now()
   since_remove(Operation.SCRUB, cache.operations)
   cache.last_scrub = now
   def do(entity):
@@ -1290,7 +1303,7 @@ def handle_scrub_finished(cache):
 
 def handle_trim_started(cache):
   cache_log_info(cache, "trim started")
-  since_insert_if_not_in(Since(Operation.TRIM, datetime.now()), cache.operations)
+  since_insert_if_not_in(Since(Operation.TRIM, inaccurate_now()), cache.operations)
   def do(entity):
     entity.handle_trim_started()
   uncached(cache, do)
@@ -1298,7 +1311,7 @@ def handle_trim_started(cache):
 
 def handle_trim_finished(cache):
   cache_log_info(cache, "trimmed")
-  now = datetime.now()
+  now = inaccurate_now()
   since_remove(Operation.TRIM, cache.operations)
   cache.last_trim = now
   def do(entity):
@@ -1426,7 +1439,7 @@ class ZDev(Onlineable, Embedded, Entity):
   operations: list = field(default_factory=list)
 
   last_online: datetime = None
-  last_resilver: datetime = None
+  last_update: datetime = None
   last_scrub: datetime = None
   last_trim: datetime = None
 
@@ -1439,7 +1452,7 @@ class ZDev(Onlineable, Embedded, Entity):
 
   scrub_interval: str = None
   trim_interval: str = None
-  resilver_interval: str = None
+  update_interval: str = None
 
   @classmethod
   def id_fields(cls):
@@ -1466,7 +1479,7 @@ class ZDev(Onlineable, Embedded, Entity):
   
   def finalize_init(self):
     for op in Operation:
-      prop_name = f"{op.name.lower()}_interval"
+      prop_name = f"{property_name_for_operation[op]}_interval"
       val = getattr(self, prop_name)
       if val is None:
         val = getattr(config.config_root, prop_name)
@@ -1479,11 +1492,12 @@ class ZDev(Onlineable, Embedded, Entity):
   
 
   def configured_interval(self, op: Operation):
-    return getattr(self, f"{op.name.lower()}_interval")
+    return getattr(self, f"{property_name_for_operation[op]}_interval")
   
   def last(self, op: Operation):
     cache = cached(self)
-    return getattr(cache, f"last_{op.name.lower()}")
+    name = get_last_property_name_for_operation(op)
+    return getattr(cache, name)
 
   
   def is_overdue(self, op: Operation):
@@ -1493,10 +1507,10 @@ class ZDev(Onlineable, Embedded, Entity):
       # parsing the schedule delta will result in a timestamp calculated from now
       allowed_delta = dateparser.parse(interval)
           # this means that allowed_delta is a timestamp in the past
-      last = getattr(cache, f"last_{op.name.lower()}")
+      last = getattr(cache, get_last_property_name_for_operation(op))
       if last is None or allowed_delta > last:
         if op == Operation.RESILVER:
-          if cache.state.what == EntityState.ONLINE and cache.state.when is not None and cache.last_resilver is not None and (cache.state.when < cache.last_resilver):
+          if cache.state.what == EntityState.ONLINE and Operation.RESILVER not in cache.operations:
             return False
         if last is None:
           return allowed_delta - datetime.min
@@ -1513,14 +1527,15 @@ class ZDev(Onlineable, Embedded, Entity):
     Entity.print_status(self, kdstream)
     cache = cached(self)
     
-    kdstream.newline()
     
     for op in Operation:
-      name = enum_command_name(op)
-      kdstream.print_property(cache, f"last_{name}")
+      if op == Operation.RESILVER and cache.state.what == EntityState.ONLINE and Operation.RESILVER not in cache.operations:
+        continue
+      kdstream.newline()
+      kdstream.print_property(cache, get_last_property_name_for_operation(op), nil="#never")
       if self.is_overdue(op):
         kdstream.print_raw(" # OVERDUE")
-      kdstream.print_property(self, f"{name}_interval")
+      kdstream.print_property(self, f"{property_name_for_operation[op]}_interval", hide_if_empty=True)
 
     if cache.operations:
       kdstream.newline()
@@ -1649,4 +1664,4 @@ class ZDev(Onlineable, Embedded, Entity):
     return commands.add_command(f"zpool trim -s {self.pool} {self.dev_name()}", unless_redundant = True)
 
   def __kiify__(self, kd_stream: KdStream):
-    kd_stream.print_partial_obj(self, ["pool", "dev", "state", "operations", "last_resilvered", "last_scrubbed"])
+    kd_stream.print_partial_obj(self, ["pool", "dev", "state", "operations", "last_online", "last_update", "last_scrub", "last_trim"])
