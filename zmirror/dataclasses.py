@@ -246,8 +246,8 @@ class Entity:
   parent = None
   cache = None
   requested: dict = field(default_factory=dict)
-  state: Since = field(default_factory=state_since_factory)
-  last_online: datetime = None
+  state: Since = field(default_factory=state_since_factory, metadata={"db": True})
+  last_online: datetime = field(metadata={"db": True}, default=None)
   notes: str = None
 
 
@@ -394,8 +394,6 @@ class Entity:
     tell_parent_child_offline(self.parent, self, prev_state)
     if isinstance(self.parent, Entity):
       if cached(self.parent).state.what == EntityState.DISCONNECTED:
-        # TODO I changed this line from handle_deactivated to handle_disconnected.
-        # did I introduce a bug?
         handle_disconnected(cached(self))
 
 
@@ -842,6 +840,9 @@ class Mirror(DevicesAgregate):
 
   def init(self, pool, blockdevs):
     init_backing(self, pool, blockdevs)
+    for d in self.devices:
+      if isinstance(d, BackingDevice):
+        d.device.is_mirror = True
 
   def get_state(self):
     one_online = False
@@ -1275,6 +1276,19 @@ def handle_resilver_started(cache):
     cache_log_info(cache, "resilver started")
 
 
+# used for zdevs when brought online via zpool online (instead of zpool import)
+def handle_zdev_onlined(cache):
+  zdev = uncached(cache)
+  if not zdev:
+    log.debug(f"{human_readable_id(zdev)}: unconfigured, not assuming that it starts resilvering.")
+    handle_onlined(cache)
+  else:
+    if zdev.is_mirror:
+      handle_resilver_started(cache)
+    else:
+      handle_onlined(cache)
+
+
 def handle_resilver_finished(cache):
   cache_log_info(cache, "resilvered (updated)")
   cache.last_update = inaccurate_now()
@@ -1430,18 +1444,18 @@ def succeed_request(self, request_type):
 
 @yaml_data
 class ZDev(Onlineable, Embedded, Entity):
-  pool: str = None
-  name: str = None
+  pool: str = field(metadata={"db": True}, default=None)
+  name: str = field(metadata={"db": True}, default=None)
 
 
   on_appeared: list = field(default_factory=list)
 
-  operations: list = field(default_factory=list)
+  operations: list = field(metadata={"db": True}, default_factory=list)
 
-  last_online: datetime = None
-  last_update: datetime = None
-  last_scrub: datetime = None
-  last_trim: datetime = None
+  last_online: datetime = field(metadata={"db": True}, default=None)
+  last_update: datetime = field(metadata={"db": True}, default=None)
+  last_scrub: datetime = field(metadata={"db": True}, default=None)
+  last_trim: datetime = field(metadata={"db": True}, default=None)
 
 
   on_trimmed: list = field(default_factory=list)
@@ -1453,6 +1467,8 @@ class ZDev(Onlineable, Embedded, Entity):
   scrub_interval: str = None
   trim_interval: str = None
   update_interval: str = None
+
+  is_mirror: bool = False
 
   @classmethod
   def id_fields(cls):

@@ -1,0 +1,5 @@
+{
+  "ZEVENT_SUBCLASS": "vdev_online",
+  "ZEVENT_VDEV_PATH": "/dev/mapper/zmirror-blubak-beta-a",
+  "ZEVENT_POOL": "zmirror-blubak-beta"
+}

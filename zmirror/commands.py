@@ -1,4 +1,4 @@
-from .util import myexec as exec#pylint: disable=redefined-builtin
+from .util import myexec as myexec #pylint: disable=redefined-builtin
 from .logging import log
 from . import config as config
 from dataclasses import field, dataclass
@@ -11,7 +11,7 @@ class Command:
 
   def execute(self):
     log.info(f"executing command: {self.command}")
-    returncode, results, _, errors = exec(self.command) #pylint: disable=exec-used
+    returncode, results, _, errors = myexec(self.command) #pylint: disable=exec-used
     for h in self.on_execute:
       h(self, returncode, results, errors)
 

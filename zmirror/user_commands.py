@@ -56,8 +56,6 @@ def request_overdue(op: Operation, entity):
         msg += f" {rqst.name} already requested."
         log.debug(msg)
     else:
-      # TODO: fix the bug that results in zmirror believing that the scrub is not yet overdue
-      # while believing that the trim is overdue.
       log.debug(f"{msg} NOT overdue.")
   return result
 

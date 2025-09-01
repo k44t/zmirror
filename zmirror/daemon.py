@@ -116,10 +116,6 @@ def handle(env):
 
       if found_online is False:
         log.error("likely bug: zpool event but no devices online")
-    # TODO: add to docs that the admin must ensure that zpool import
-    # uses /dev/mapper (dm) and /dev/vg/lv (lvm) and /dev/disk/by-partlabel (partition)
-      # zpool import -d /dev/mapper -d /dev/vg/lv -d /dev/disk/by-partlabel
-      # zpool create my-pool mirror /dev/vg-my-vg/my-lv /dev/disk/by-partlabel/my-partition /dev/mapper/my-dm-crypt
 
     # zpool-vdev event
     elif zevent in ["vdev_online", "statechange", "trim_start", "trim_finish", "trim_suspend", "trim_resume"]:
@@ -135,7 +131,7 @@ def handle(env):
         # we have no event by witch we can reliably capture that a resilver started for a zdev
         # (resilver_started is a pool event). Hence we automatically assume that a zdev
         # that has been onlined in an active pool will resilver
-        handle_resilver_started(cache)
+        handle_zdev_onlined(cache)
         event_handled = True
       elif zevent == "statechange":
         new_state = env["ZEVENT_VDEV_STATE_STR"]
@@ -246,7 +242,7 @@ def handle(env):
           udev_event_action(cache, action, now)
           event_handled = True
     
-    # TODO: figure out what this event actually is.
+    # this UDEV event means that the DMCrypt was `open`ed
     elif action == "change" and "DM_ACTIVATION" in env and env["DM_ACTIVATION"] == "1":
       devlinks = env["DEVLINKS"].split(" ")
       for devlink in devlinks:
@@ -447,7 +443,6 @@ def daemon(args):# pylint: disable=unused-argument
   # Create a thread-safe list
   handle_event_thread = threading.Thread(target=handle_events,args=(event_queue,))
   handle_event_thread.start()
-  # TODO: closing the handle event thread is not implemented
 
 
   # we load the config after we have started the server, so that we cannot miss any events that might change the config while it is being loaded

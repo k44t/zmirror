@@ -1,0 +1,7 @@
+
+TODO: add to docs that the admin must ensure that zpool import
+uses /dev/mapper (dm) and /dev/vg/lv (lvm) and /dev/disk/by-partlabel (partition)
+
+::
+  zpool import -d /dev/mapper -d /dev/vg/lv -d /dev/disk/by-partlabel
+  zpool create my-pool mirror /dev/vg-my-vg/my-lv /dev/disk/by-partlabel/my-partition /dev/mapper/my-dm-crypt

@@ -1026,11 +1026,11 @@ content:
           # to import it once using the following command (in which the parent paths are
           # specified where zdevs are looked for):
           #
-          # :: ZPOOL_IMPORT_PATH=/dev/zvol/zmirror-blubak-alpha:/dev/zvol/zmirror-blubak-beta:/dev/zvol/zmirror-blubak-gamma zpool import blubak
+          # :: ZPOOL_IMPORT_PATH=/dev/mapper:/dev/zvol/zmirror-blubak-beta:/dev/zvol/zmirror-blubak-gamma zpool import blubak
           #
-          - zvol/zmirror-blubak-alpha/blubak
-          - zvol/zmirror-blubak-beta/blubak
           - blubak-alpha
+          - zvol/zmirror-blubak-beta/blubak
+          - zvol/zmirror-blubak-gamma/blubak
 
 
 

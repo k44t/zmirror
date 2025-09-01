@@ -4,7 +4,7 @@ import re
 import logging
 
 from .util import load_yaml_cache, load_yaml_config, save_yaml_cache, remove_yaml_cache, require_path
-from .util import myexec as exec#pylint: disable=redefined-builtin
+from .util import myexec as myexec #pylint: disable=redefined-builtin
 from .dataclasses import *
 
 from .logging import log
@@ -156,7 +156,7 @@ def get_zpool_status(zpool_name):
 
 
 def simple_string_command(command, error, logfn=log.error):
-  rcode, zpool_status, _, _ = exec(command)#pylint: disable=exec-used
+  rcode, zpool_status, _, _ = myexec(command)#pylint: disable=exec-used
   if rcode == 0:
     return "\n".join(zpool_status)
   else:

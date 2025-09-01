@@ -1159,6 +1159,18 @@ class Tests():
     assert_commands([
       # we do nothing
     ])
+  
+  # when a striped zdev comes online (it is not assumed to be resilvering)
+  def test_zdev_blubak_beta_a_online(self):
+    trigger_event()
+
+    zdev = config.cache_dict["ZDev|pool:zmirror-blubak-beta|name:zmirror-blubak-beta-a"]
+
+    assert Operation.RESILVER not in zdev.operations
+
+    assert_commands([
+
+    ])
 
   # this is necessary because we have not allowed all requests to be fulfilled
   # and we don't want the testing process to run until the timers have finished

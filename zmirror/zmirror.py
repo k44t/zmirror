@@ -21,61 +21,10 @@ from . import operations as operations
 
 from .defaults import *
 
-#alexTODO: delete this
-#def my_constructor(loader, node):
-#  return loader.construct_yaml_object(node, Partition)
-#alexTODO: delete this END
-
-# zpool scrub eva
-# systemctl zfs-auto-scrub-daily.interval
-
-
-
-# objects from config
-# objects from cache
-# for o in config
-#    if exists cache obj
-#        take data from cache and copy to config
-
-
-# {:
-#   "DM_Crypt:eva-a-main": DM_Crypt
-#     ohne content
-#     ohne name
-#     last-online: 2024...
-#
-
-# event
-#   which object is concerned?
-# for event in config
-#
-#    find event in cache
-#
-
-
-
-# zmirror trim-cache
 
 
 
 
-
-
-# yaml.dump(config)
-
-
-
-
-
-
-
-
-
-
-# we are overriding python's internal exec, which would execute python code dynamically, because we don't need nor like it
-
-pyexec = exec
-exec = myexec#pylint: disable=redefined-builtin
 
 
 
