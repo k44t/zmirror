@@ -143,7 +143,7 @@ def set_cache_state(o, st, since_unknown=False):
   if st == EntityState.INACTIVE or st == EntityState.DISCONNECTED:
     if o.state is not None and o.state.what == EntityState.ONLINE:
       o.last_online = now
-      if Operation.RESILVER not in o.operations:
+      if hasattr(o, "operations") and Operation.RESILVER not in o.operations:
         o.last_update = now
   if ost != st:
     o.state = Since(st, now)
@@ -1507,7 +1507,7 @@ class ZDev(Onlineable, Embedded, Entity):
       # parsing the schedule delta will result in a timestamp calculated from now
       allowed_delta = dateparser.parse(interval)
           # this means that allowed_delta is a timestamp in the past
-      last = getattr(cache, get_last_property_name_for_operation(op))
+      last = self.last(op)
       if last is None or allowed_delta > last:
         if op == Operation.RESILVER:
           if cache.state.what == EntityState.ONLINE and Operation.RESILVER not in cache.operations:

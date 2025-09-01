@@ -79,6 +79,12 @@ class Tests():
         entity.state.what = EntityState.ONLINE
       elif type(entity) in {DMCrypt}:
         entity.state.what = EntityState.INACTIVE
+      
+    for entity in config.config_dict.values():
+      if type(entity) == ZDev:
+        entity.scrub_interval = "4 weeks"
+        entity.trim_interval = "4 weeks"
+        entity.update_interval = "4 weeks"
 
     
     zpool = config.config_dict["ZPool|name:zmirror-sysfs"]
@@ -113,7 +119,7 @@ class Tests():
   def test_resilver_not_overdue(self):
 
     s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
-    cached(s).last_resilver = datetime.now()
+    cached(s).last_update = datetime.now()
     
     rqst = request_overdue(Operation.RESILVER, s)
 
@@ -123,7 +129,7 @@ class Tests():
   def test_resilver_overdue(self):
 
     s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
-    cached(s).last_resilver = datetime.now() - timedelta(weeks=6)
+    cached(s).last_update = datetime.now() - timedelta(weeks=6)
     
     rqst = request_overdue(Operation.RESILVER, s)
 

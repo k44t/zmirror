@@ -1030,7 +1030,7 @@ content:
           #
           - zvol/zmirror-blubak-alpha/blubak
           - zvol/zmirror-blubak-beta/blubak
-          # - zvol/zmirror-blubak-gamma/blubak
+          - blubak-alpha
 
 
 
@@ -1040,12 +1040,13 @@ content:
 
 
 
+
   - !Partition
-    name: zmirror-blubak-alpha-a
+    name: zmirror-blubak-alpha
 
     content:
       - !DMCrypt
-        name: zmirror-blubak-alpha-a
+        name: zmirror-blubak-alpha
 
         key_file: ./test/zmirror-key
 
@@ -1055,30 +1056,13 @@ content:
         content: 
 
           - !ZDev
-            pool: zmirror-blubak-alpha
+            pool: zmirror-blubak
 
             # its a HDD it does not support trim
             trim_interval: nil
 
-  - !Partition
-    name: zmirror-blubak-alpha-b
 
-    content:
-      - !DMCrypt
-        name: zmirror-blubak-alpha-b
-        
-        key_file: ./test/zmirror-key
 
-        on_children_offline: 
-          - offline
-
-        content: 
-
-          - !ZDev
-            pool: zmirror-blubak-alpha
-
-            # its a HDD it does not support trim
-            trim_interval: nil
 
 
 
@@ -1094,43 +1078,6 @@ content:
   # This kind of configuration allows you to use a set of old disks that are 
   # not big enough, to together provide a single mirror of a newer disk that
   # is big enough.
-  - !ZPool
-    name: zmirror-blubak-alpha
-
-    content:
-      
-      - !ZFSVolume
-        name: blubak
-
-        on_children_offline: 
-          - offline
-
-        content:
-
-          - !ZDev
-            pool: zmirror-blubak
-          
-
-            on_resilvered:
-              - offline
-              # - snapshot-parent
-            
-            # scrubbing and will be done on the underlaying zpool only
-            # (not on blubak but on blubak-alpha and blubak-beta)
-            scrub_interval: nil
-
-    # and for zmirror to do that, we need to tell it how the backing is layed out
-    backed_by:
-    
-      # defining the backing devices is very important for a striped volume
-      # since zmirror assumes that mirrored devices need to resilver
-      # while simple devices do not resilver. And by configureing them
-      # thus, zmirror knows which are mirrored and which are simple.
-      - zmirror-blubak-alpha-a
-      - zmirror-blubak-alpha-b
-
-
-
   - !ZPool
     name: zmirror-blubak-beta
 
@@ -1152,8 +1099,8 @@ content:
               - offline
               # - snapshot-parent
 
-            # scrubbing will be done on the underlaying zpool only
-            # (not on blubak but on blubak-alpha and blubak-beta)
+            # scrubbing will be done on the overlaying zpool only
+            # (not on blubak but on blubak-gamma and blubak-beta)
             scrub_interval: nil
 
 
