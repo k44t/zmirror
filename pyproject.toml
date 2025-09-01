@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "zmirror"
-version = "0.1.6-alpha"
+version = "0.1.7-alpha"
 description = ""
 authors = ["devvythelopper"]
 readme = "README.md"

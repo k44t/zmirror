@@ -46,10 +46,13 @@ def init_config(cache_path, config_path):
   config.log_events = config.config_root.log_events
 
   os.makedirs(os.path.dirname(cache_path), exist_ok = True)
-  log.info(f"loading cache from: {cache_path}")
-  config.cache_dict = load_yaml_cache(cache_path)
-  if config.cache_dict is None:
-    config.cache_dict = dict()
+  log.info(f"loading cache from: {cache_path}") 
+  config.cache_dict = dict()
+  cache_entities = load_yaml_cache(cache_path)
+  if cache_entities:
+    for cache in cache_entities:
+      config.cache_dict[entity_id_string(cache)] = cache
+    
   config.config_dict = dict()
   config.lvm_physical_volumes = dict()
   config.zfs_blockdevs = dict()
@@ -184,11 +187,13 @@ def save_cache():
       global cache_save_timer
       # if config.cache_dict is None:
       #  raise ValueError("init() was not called")
-      save_yaml_cache(config.cache_dict, config.cache_path)
+      save_cache_now()
       cache_save_timer = None
     cache_save_timer = start_event_queue_timer(config.cache_save_timeout, action)
 
 
+def save_cache_now():
+  save_yaml_cache(list(config.cache_dict.values()), config.cache_path)
 
 
 def get_zpool_backing_device_state(zpool, dev):

@@ -2,14 +2,13 @@
 import socket
 import dateparser
 
-from zmirror.defaults import VERSION
 from zmirror.entities import *
 from . import config
 from .config import *
 
 from .logging import log
 from .dataclasses import *
-from .util import myexec, outs, copy_attrs, require_path
+from .util import get_version, myexec, outs, copy_attrs, require_path
 from . import commands as commands
 from kpyutils.kiify import KdStream, is_yes_or_true, to_yes
 
@@ -276,7 +275,7 @@ def handle_get_command(command, stream):
 
 
 def handle_daemon_version_command(out):
-  out.write(VERSION)
+  out.write(get_version())
   out.write("\n")
 
 def handle_command(command, con):

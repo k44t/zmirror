@@ -251,6 +251,17 @@ class Entity:
   notes: str = None
 
 
+  # these are the fields we want serialized on change
+  def __getstate__(self):
+    r = {}
+    for i in type(self).id_fields():
+      r[i] = getattr(self, i)
+    for n, f in type(self).__dataclass_fields__.items():
+      if f.metadata and "db" in f.metadata and f.metadata["db"] == True:
+        r[n] = getattr(self, n)
+    return r
+
+
 
   @classmethod
   def id_fields(cls):
@@ -1444,8 +1455,8 @@ def succeed_request(self, request_type):
 
 @yaml_data
 class ZDev(Onlineable, Embedded, Entity):
-  pool: str = field(metadata={"db": True}, default=None)
-  name: str = field(metadata={"db": True}, default=None)
+  pool: str = field(default=None)
+  name: str = field(default=None)
 
 
   on_appeared: list = field(default_factory=list)

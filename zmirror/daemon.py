@@ -15,7 +15,9 @@ import signal
 import sys
 
 from zmirror.user_commands import cancel_requests_for_timeout, enact_requests, handle_command
+from zmirror.util import get_version
 
+from . import defaults
 
 
 from . import commands
@@ -315,7 +317,6 @@ def handle_client(con: socket.socket, client_address, event_queue: queue.Queue):
     # print("registered event")
   except Exception:
     log.error("communication error", exc_info=config.log_level <= logging.DEBUG)
-    
 
 
 def handle_events(event_queue):
@@ -324,7 +325,8 @@ def handle_events(event_queue):
     try:
       event = event_queue.get()
       if event is None:
-        save_cache()
+        # this is the SHUTDOWN, shutting down
+        save_cache_now()
         break
       elif isinstance(event, UserEvent):
         
@@ -385,7 +387,9 @@ def is_socket_active(socket_path):
 # so this is just a description for the next milestone
 def daemon(args):# pylint: disable=unused-argument
 
-  log.info("zmirror daemon starting")
+ 
+
+  log.info(f"zmirror daemon version {get_version()} starting")
 
   config.is_daemon = True
 

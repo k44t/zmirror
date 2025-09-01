@@ -10,6 +10,13 @@ from .logging import log
 from kpyutils.kiify import TabbedShiftexStream, KdStream
 
 
+from importlib.metadata import version
+
+
+def get_version():
+  return version('zmirror')
+
+
 
 def read_file(path, encoding="utf-8"):
   try:
@@ -149,18 +156,24 @@ def myexec(command):
 
 
 def load_yaml_cache(cache_file_path):
+  cache_list = None
   try:
     with open(cache_file_path, encoding="utf-8") as stream:
-      cache_dict = yaml.full_load(stream)
-      if not isinstance(cache_dict, dict):
-        cache_dict = dict()
+      cache_list = yaml.full_load(stream)
   except FileNotFoundError:
     log.warning("failed to load cache: cache file does not exist")
-    cache_dict = dict()
   except BaseException:
     log.warning("failed to load cache")
-    cache_dict = dict()
-  return cache_dict
+  return cache_list
+
+
+
+def save_yaml_cache(cache_list, cache_file_path):
+  log.verbose("writing cache")
+  with open(cache_file_path, 'w', encoding="utf-8") as stream:
+    yaml.dump(cache_list, stream)
+  log.debug("cache written.")
+
 
 
 def find_or_create_cache(cache_dict, typ, create_args=None, identifier_prefix=None, **kwargs):
@@ -223,13 +236,6 @@ def remove_yaml_cache(cache_file_path):
     os.remove(cache_file_path)
   except Exception as exception:
     log.error(f"failed to remove {cache_file_path}. {str(exception)}")
-
-
-def save_yaml_cache(cache_dict, cache_file_path):
-  log.verbose("writing cache")
-  with open(cache_file_path, 'w', encoding="utf-8") as stream:
-    yaml.dump(cache_dict, stream)
-  log.debug("cache written.")
 
 
 def copy_attrs(lft, rgt):
