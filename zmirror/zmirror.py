@@ -38,7 +38,7 @@ def main(args=None):
 
 
   parser = argparse.ArgumentParser(prog="zmirror")
-  parser.add_argument('--version', action='version', version=f'zmirror {get_version()}')
+  parser.add_argument('--version', action='version', version=get_version())
   subs = parser.add_subparsers(required=True)
 
 
