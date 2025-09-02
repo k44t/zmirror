@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="dcterms.date" content="2025-09-02" />
+  <title>ZMIRROR</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">ZMIRROR</h1>
+<p class="date">2025-09-02</p>
+</header>
+<h1>NAME</h1>
+<p>zmirror</p>
+<h1>SYNOPSIS</h1>
+<p><strong>zmirror</strong> [-h] [--version]
+{daemon,clear-cache,reload-config,scrub-all,scrub-overdue,resilver-overdue,trim-all,trim-overdue,online-all,status-all,daemon-version,maintenance,online,offline,status,trim,scrub,list,enable,disable,set,get}
+...</p>
+<h1>POSITIONAL ARGUMENTS</h1>
+<dl>
+<dt><strong>zmirror</strong> <em>daemon</em></dt>
+<dd>
+<p>starts zmirror in daemon mode</p>
+</dd>
+<dt><strong>zmirror</strong> <em>clear-cache</em></dt>
+<dd>
+<p>clears the cache and removes the cache file (which stores the dates
+of when the maintenance tasks were last run). Triggers a configuration
+reload.</p>
+</dd>
+<dt><strong>zmirror</strong> <em>reload-config</em></dt>
+<dd>
+<p>reloads the configuration.</p>
+</dd>
+<dt><strong>zmirror</strong> <em>scrub-all</em></dt>
+<dd>
+<p>requests all configured zdevs to be scrubbed. This will bring all
+necessary and available parent devices (i.e. dm-crypts) online.</p>
+</dd>
+<dt><strong>zmirror</strong> <em>scrub-overdue</em></dt>
+<dd>
+<p>requests zdevs to be scrubbed if they are behind their configured
+scrub_interval. This will bring all necessary and available parent
+devices (i.e. dm-crypts) online.</p>
+</dd>
+<dt><strong>zmirror</strong> <em>resilver-overdue</em></dt>
+<dd>
+<p>requests zdevs to be resilvered if they are behind their configured
+resilver_interval. Since a resilver happens whenever a mirrored device
+is brought online, this really does nothing but (try to) online the
+respective devices.</p>
+</dd>
+<dt><strong>zmirror</strong> <em>trim-all</em></dt>
+<dd>
+<p>requests all configured zdevs to be trimmed. This will bring all
+necessary and available parent devices (i.e. dm-crypts) online.</p>
+</dd>
+<dt><strong>zmirror</strong> <em>trim-overdue</em></dt>
+<dd>
+<p>requests zdevs to be trimmed if they are behind their configured
+trim_interval. This will bring all necessary and available parent
+devices (i.e. dm-crypts) online.</p>
+</dd>
+<dt><strong>zmirror</strong> <em>online-all</em></dt>
+<dd>
+<p>requests all configured devices to be onlined.</p>
+</dd>
+<dt><strong>zmirror</strong> <em>status-all</em></dt>
+<dd>
+<p>shows the status of all configured devices</p>
+</dd>
+<dt><strong>zmirror</strong> <em>daemon-version</em></dt>
+<dd>
+<p>shows the version of the (currently running) zmirror daemon</p>
+</dd>
+<dt><strong>zmirror</strong> <em>maintenance</em></dt>
+<dd>
+<p>triggers all maintenance tasks (scrub and trim as scheduled as well
+as onlining devices that should be brought up to date [resilvered]).
+This is what you want to schedule via a cronjob or a systemd timer. It
+makes sense to do this at night on a weekday where there is not much
+load on your machine. This will online all devices that are present and
+need maintenance. The devices will only be taken offline afterwards if
+you have configured the respective event timers to take them offline
+(i.e. `on_resilvered` set to `offline`).</p>
+</dd>
+<dt><strong>zmirror</strong> <em>online</em></dt>
+<dd>
+<p>request device to go online</p>
+</dd>
+<dt><strong>zmirror</strong> <em>offline</em></dt>
+<dd>
+<p>request device to go offline</p>
+</dd>
+<dt><strong>zmirror</strong> <em>status</em></dt>
+<dd>
+<p>show device status</p>
+</dd>
+<dt><strong>zmirror</strong> <em>trim</em></dt>
+<dd>
+<p>request device trim</p>
+</dd>
+<dt><strong>zmirror</strong> <em>scrub</em></dt>
+<dd>
+<p>request device to be scrubbed</p>
+</dd>
+<dt><strong>zmirror</strong> <em>list</em></dt>
+<dd>
+<p>list devices fulfilling conditions</p>
+</dd>
+<dt><strong>zmirror</strong> <em>enable</em></dt>
+<dd>
+<p>enable zmirror daemon property</p>
+</dd>
+<dt><strong>zmirror</strong> <em>disable</em></dt>
+<dd>
+<p>disable zmirror daemon property</p>
+</dd>
+<dt><strong>zmirror</strong> <em>set</em></dt>
+<dd>
+<p>set zmirror daemon property to value</p>
+</dd>
+<dt><strong>zmirror</strong> <em>get</em></dt>
+<dd>
+<p>get zmirror daemon property value</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> daemon'</h1>
+<p>usage: zmirror daemon [-h] [--config-path CONFIG_PATH] [--cache-path
+CACHE_PATH] [--socket-path SOCKET_PATH]</p>
+<h1>OPTIONS <em>'zmirror</em> daemon'</h1>
+<dl>
+<dt><strong>--config-path</strong> <em>CONFIG_PATH</em></dt>
+<dd>
+<p>the path to the config file. May be set via the environment variable
+`ZMIRROR_CONFIG_PATH`. Defaults to `/etc/zmirror/zmirror-config.yml`</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>--cache-path</strong> <em>CACHE_PATH</em></dt>
+<dd>
+<p>the path to the cache file in which zmirror stores device state. May
+be set via the environment variable `ZMIRROR_CACHE_PATH`. Defaults to
+`/var/lib/zmirror/zmirror-cache.yml`</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> clear-cache'</h1>
+<p>usage: zmirror clear-cache [-h] [--socket-path SOCKET_PATH]</p>
+<h1>OPTIONS <em>'zmirror</em> clear-cache'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> reload-config'</h1>
+<p>usage: zmirror reload-config [-h] [--socket-path SOCKET_PATH]</p>
+<h1>OPTIONS <em>'zmirror</em> reload-config'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> scrub-all'</h1>
+<p>usage: zmirror scrub-all [-h] [--socket-path SOCKET_PATH]</p>
+<h1>OPTIONS <em>'zmirror</em> scrub-all'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> scrub-overdue'</h1>
+<p>usage: zmirror scrub-overdue [-h] [--socket-path SOCKET_PATH]</p>
+<h1>OPTIONS <em>'zmirror</em> scrub-overdue'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> resilver-overdue'</h1>
+<p>usage: zmirror resilver-overdue [-h] [--socket-path SOCKET_PATH]</p>
+<h1>OPTIONS <em>'zmirror</em> resilver-overdue'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> trim-all'</h1>
+<p>usage: zmirror trim-all [-h] [--socket-path SOCKET_PATH]</p>
+<h1>OPTIONS <em>'zmirror</em> trim-all'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> trim-overdue'</h1>
+<p>usage: zmirror trim-overdue [-h] [--socket-path SOCKET_PATH]</p>
+<h1>OPTIONS <em>'zmirror</em> trim-overdue'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> online-all'</h1>
+<p>usage: zmirror online-all [-h] [--socket-path SOCKET_PATH]</p>
+<h1>OPTIONS <em>'zmirror</em> online-all'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> status-all'</h1>
+<p>usage: zmirror status-all [-h] [--socket-path SOCKET_PATH]</p>
+<h1>OPTIONS <em>'zmirror</em> status-all'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> daemon-version'</h1>
+<p>usage: zmirror daemon-version [-h] [--socket-path SOCKET_PATH]</p>
+<h1>OPTIONS <em>'zmirror</em> daemon-version'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> maintenance'</h1>
+<p>usage: zmirror maintenance [-h] [--socket-path SOCKET_PATH]</p>
+<h1>OPTIONS <em>'zmirror</em> maintenance'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> online'</h1>
+<p>usage: zmirror online [-h] [--socket-path SOCKET_PATH]
+{disk,partition,zpool,zfs-volume,dm-crypt,zdev} ...</p>
+<h1>POSITIONAL ARGUMENTS <em>'zmirror online'</em></h1>
+<h1>COMMAND <em>'zmirror</em> online disk'</h1>
+<p>usage: zmirror online disk [-h] uuid</p>
+<dl>
+<dt><strong>uuid</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> online partition'</h1>
+<p>usage: zmirror online partition [-h] name</p>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> online zpool'</h1>
+<p>usage: zmirror online zpool [-h] name</p>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> online zfs-volume'</h1>
+<p>usage: zmirror online zfs-volume [-h] pool name</p>
+<dl>
+<dt><strong>pool</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> online dm-crypt'</h1>
+<p>usage: zmirror online dm-crypt [-h] name</p>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> online zdev'</h1>
+<p>usage: zmirror online zdev [-h] pool name</p>
+<dl>
+<dt><strong>pool</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>OPTIONS <em>'zmirror</em> online'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> offline'</h1>
+<p>usage: zmirror offline [-h] [--socket-path SOCKET_PATH]
+{disk,partition,zpool,zfs-volume,dm-crypt,zdev} ...</p>
+<h1>POSITIONAL ARGUMENTS <em>'zmirror offline'</em></h1>
+<h1>COMMAND <em>'zmirror</em> offline disk'</h1>
+<p>usage: zmirror offline disk [-h] uuid</p>
+<dl>
+<dt><strong>uuid</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> offline partition'</h1>
+<p>usage: zmirror offline partition [-h] name</p>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> offline zpool'</h1>
+<p>usage: zmirror offline zpool [-h] name</p>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> offline zfs-volume'</h1>
+<p>usage: zmirror offline zfs-volume [-h] pool name</p>
+<dl>
+<dt><strong>pool</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> offline dm-crypt'</h1>
+<p>usage: zmirror offline dm-crypt [-h] name</p>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> offline zdev'</h1>
+<p>usage: zmirror offline zdev [-h] pool name</p>
+<dl>
+<dt><strong>pool</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>OPTIONS <em>'zmirror</em> offline'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> status'</h1>
+<p>usage: zmirror status [-h] [--socket-path SOCKET_PATH]
+{disk,partition,zpool,zfs-volume,dm-crypt,zdev} ...</p>
+<h1>POSITIONAL ARGUMENTS <em>'zmirror status'</em></h1>
+<h1>COMMAND <em>'zmirror</em> status disk'</h1>
+<p>usage: zmirror status disk [-h] uuid</p>
+<dl>
+<dt><strong>uuid</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> status partition'</h1>
+<p>usage: zmirror status partition [-h] name</p>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> status zpool'</h1>
+<p>usage: zmirror status zpool [-h] name</p>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> status zfs-volume'</h1>
+<p>usage: zmirror status zfs-volume [-h] pool name</p>
+<dl>
+<dt><strong>pool</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> status dm-crypt'</h1>
+<p>usage: zmirror status dm-crypt [-h] name</p>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> status zdev'</h1>
+<p>usage: zmirror status zdev [-h] pool name</p>
+<dl>
+<dt><strong>pool</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>OPTIONS <em>'zmirror</em> status'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> trim'</h1>
+<p>usage: zmirror trim [-h] [--socket-path SOCKET_PATH] {zdev} ...</p>
+<h1>POSITIONAL ARGUMENTS <em>'zmirror trim'</em></h1>
+<h1>COMMAND <em>'zmirror</em> trim zdev'</h1>
+<p>usage: zmirror trim zdev [-h] pool name</p>
+<dl>
+<dt><strong>pool</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>OPTIONS <em>'zmirror</em> trim'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> scrub'</h1>
+<p>usage: zmirror scrub [-h] [--socket-path SOCKET_PATH] {zpool,zdev}
+...</p>
+<h1>POSITIONAL ARGUMENTS <em>'zmirror scrub'</em></h1>
+<h1>COMMAND <em>'zmirror</em> scrub zpool'</h1>
+<p>usage: zmirror scrub zpool [-h] name</p>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> scrub zdev'</h1>
+<p>usage: zmirror scrub zdev [-h] pool name</p>
+<dl>
+<dt><strong>pool</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>name</strong></dt>
+<dd>
+<p>id field</p>
+</dd>
+</dl>
+<h1>OPTIONS <em>'zmirror</em> scrub'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> list'</h1>
+<p>usage: zmirror list [-h] [--socket-path SOCKET_PATH]
+{overdue,scrub,trim,update} ...</p>
+<h1>POSITIONAL ARGUMENTS <em>'zmirror list'</em></h1>
+<dl>
+<dt><strong>zmirror list</strong> <em>overdue</em></dt>
+<dd>
+<p>list all overdue devices</p>
+</dd>
+<dt><strong>zmirror list</strong> <em>scrub</em></dt>
+<dd>
+<p>list devices based on current/last scrub state</p>
+</dd>
+<dt><strong>zmirror list</strong> <em>trim</em></dt>
+<dd>
+<p>list devices based on current/last trim state</p>
+</dd>
+<dt><strong>zmirror list</strong> <em>update</em></dt>
+<dd>
+<p>list devices based on when they were last up-to-date</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> list overdue'</h1>
+<p>usage: zmirror list overdue [-h] [--keys KEYS] [--no_headers]
+[--format
+{json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}]</p>
+<h1>OPTIONS <em>'zmirror</em> list overdue'</h1>
+<dl>
+<dt><strong>--keys</strong> <em>KEYS</em></dt>
+<dd>
+<p>only output this list of keys (columns)</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>--no_headers</strong></dt>
+<dd>
+<p>do not print headers when outputting a table</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>--format</strong>
+<em>{json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}</em></dt>
+<dd>
+<p>either `json` or one of the formats defined by the tabulate library
+(see https://https://pypi.org/project/tabulate/#description)</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> list scrub'</h1>
+<p>usage: zmirror list scrub [-h] {overdue} ...</p>
+<h1>POSITIONAL ARGUMENTS <em>'zmirror list scrub'</em></h1>
+<dl>
+<dt><strong>zmirror list scrub</strong> <em>overdue</em></dt>
+<dd>
+<p>list devices on which a scrub is overdue</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> list scrub overdue'</h1>
+<p>usage: zmirror list scrub overdue [-h] [--keys KEYS] [--no_headers]
+[--format
+{json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}]</p>
+<h1>OPTIONS <em>'zmirror</em> list scrub overdue'</h1>
+<dl>
+<dt><strong>--keys</strong> <em>KEYS</em></dt>
+<dd>
+<p>only output this list of keys (columns)</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>--no_headers</strong></dt>
+<dd>
+<p>do not print headers when outputting a table</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>--format</strong>
+<em>{json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}</em></dt>
+<dd>
+<p>either `json` or one of the formats defined by the tabulate library
+(see https://https://pypi.org/project/tabulate/#description)</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> list trim'</h1>
+<p>usage: zmirror list trim [-h] {overdue} ...</p>
+<h1>POSITIONAL ARGUMENTS <em>'zmirror list trim'</em></h1>
+<dl>
+<dt><strong>zmirror list trim</strong> <em>overdue</em></dt>
+<dd>
+<p>list devices on which a trim is overdue</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> list trim overdue'</h1>
+<p>usage: zmirror list trim overdue [-h] [--keys KEYS] [--no_headers]
+[--format
+{json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}]</p>
+<h1>OPTIONS <em>'zmirror</em> list trim overdue'</h1>
+<dl>
+<dt><strong>--keys</strong> <em>KEYS</em></dt>
+<dd>
+<p>only output this list of keys (columns)</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>--no_headers</strong></dt>
+<dd>
+<p>do not print headers when outputting a table</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>--format</strong>
+<em>{json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}</em></dt>
+<dd>
+<p>either `json` or one of the formats defined by the tabulate library
+(see https://https://pypi.org/project/tabulate/#description)</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> list update'</h1>
+<p>usage: zmirror list update [-h] {overdue} ...</p>
+<h1>POSITIONAL ARGUMENTS <em>'zmirror list update'</em></h1>
+<dl>
+<dt><strong>zmirror list update</strong> <em>overdue</em></dt>
+<dd>
+<p>list devices which need updating of their data</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> list update overdue'</h1>
+<p>usage: zmirror list update overdue [-h] [--keys KEYS] [--no_headers]
+[--format
+{json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}]</p>
+<h1>OPTIONS <em>'zmirror</em> list update overdue'</h1>
+<dl>
+<dt><strong>--keys</strong> <em>KEYS</em></dt>
+<dd>
+<p>only output this list of keys (columns)</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>--no_headers</strong></dt>
+<dd>
+<p>do not print headers when outputting a table</p>
+</dd>
+</dl>
+<dl>
+<dt><strong>--format</strong>
+<em>{json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}</em></dt>
+<dd>
+<p>either `json` or one of the formats defined by the tabulate library
+(see https://https://pypi.org/project/tabulate/#description)</p>
+</dd>
+</dl>
+<h1>OPTIONS <em>'zmirror</em> list'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> enable'</h1>
+<p>usage: zmirror enable [-h] [--socket-path SOCKET_PATH]
+{commands,log-events} ...</p>
+<h1>POSITIONAL ARGUMENTS <em>'zmirror enable'</em></h1>
+<dl>
+<dt><strong>zmirror enable</strong> <em>commands</em></dt>
+<dd>
+<p>enable command execution</p>
+</dd>
+<dt><strong>zmirror enable</strong> <em>log-events</em></dt>
+<dd>
+<p>enable logging of all UDEV and ZED events received by zmirror</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> enable commands'</h1>
+<p>usage: zmirror enable commands [-h]</p>
+<h1>COMMAND <em>'zmirror</em> enable log-events'</h1>
+<p>usage: zmirror enable log-events [-h]</p>
+<h1>OPTIONS <em>'zmirror</em> enable'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> disable'</h1>
+<p>usage: zmirror disable [-h] [--socket-path SOCKET_PATH]
+{commands,log-events} ...</p>
+<h1>POSITIONAL ARGUMENTS <em>'zmirror disable'</em></h1>
+<dl>
+<dt><strong>zmirror disable</strong> <em>commands</em></dt>
+<dd>
+<p>disable command execution</p>
+</dd>
+<dt><strong>zmirror disable</strong> <em>log-events</em></dt>
+<dd>
+<p>disable logging of all UDEV and ZED events received by zmirror</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> disable commands'</h1>
+<p>usage: zmirror disable commands [-h]</p>
+<h1>COMMAND <em>'zmirror</em> disable log-events'</h1>
+<p>usage: zmirror disable log-events [-h]</p>
+<h1>OPTIONS <em>'zmirror</em> disable'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> set'</h1>
+<p>usage: zmirror set [-h] [--socket-path SOCKET_PATH]
+{log-level,timeout} ...</p>
+<h1>POSITIONAL ARGUMENTS <em>'zmirror set'</em></h1>
+<dl>
+<dt><strong>zmirror set</strong> <em>log-level</em></dt>
+<dd>
+<p>set log level to one of: trace | debug | verbose | info | warning |
+error | critical</p>
+</dd>
+<dt><strong>zmirror set</strong> <em>timeout</em></dt>
+<dd>
+<p>set request timeout in seconds</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> set log-level'</h1>
+<p>usage: zmirror set log-level [-h] value</p>
+<dl>
+<dt><strong>value</strong></dt>
+<dd>
+<p>the new value of the property</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> set timeout'</h1>
+<p>usage: zmirror set timeout [-h] value</p>
+<dl>
+<dt><strong>value</strong></dt>
+<dd>
+<p>the new value of the property</p>
+</dd>
+</dl>
+<h1>OPTIONS <em>'zmirror</em> set'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>COMMAND <em>'zmirror</em> get'</h1>
+<p>usage: zmirror get [-h] [--socket-path SOCKET_PATH]
+{commands,log-events,log-level,timeout} ...</p>
+<h1>POSITIONAL ARGUMENTS <em>'zmirror get'</em></h1>
+<dl>
+<dt><strong>zmirror get</strong> <em>commands</em></dt>
+<dd>
+<p>get command execution</p>
+</dd>
+<dt><strong>zmirror get</strong> <em>log-events</em></dt>
+<dd>
+<p>get logging of all UDEV and ZED events received by zmirror</p>
+</dd>
+<dt><strong>zmirror get</strong> <em>log-level</em></dt>
+<dd>
+<dl>
+<dt><strong>zmirror get</strong> <em>timeout</em></dt>
+<dd>
+<h1>COMMAND <em>'zmirror</em> get commands'</h1>
+</dd>
+</dl>
+</dd>
+</dl>
+<p>usage: zmirror get commands [-h]</p>
+<h1>COMMAND <em>'zmirror</em> get log-events'</h1>
+<p>usage: zmirror get log-events [-h]</p>
+<h1>COMMAND <em>'zmirror</em> get log-level'</h1>
+<p>usage: zmirror get log-level [-h]</p>
+<h1>COMMAND <em>'zmirror</em> get timeout'</h1>
+<p>usage: zmirror get timeout [-h]</p>
+<h1>OPTIONS <em>'zmirror</em> get'</h1>
+<dl>
+<dt><strong>--socket-path</strong> <em>SOCKET_PATH</em></dt>
+<dd>
+<p>the path to the unix socket on which `zmirror daemon` listens, to
+which `zmirror-trigger` sends UDEV and ZED events, and to which commands
+are sent when you invoke `zmirror &lt;command&gt;`. May be set via the
+environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
+`/run/zmirror/zmirror.socket`</p>
+</dd>
+</dl>
+<h1>OPTIONS</h1>
+<dl>
+<dt><strong>--version</strong></dt>
+<dd>
+<p>print the version</p>
+</dd>
+</dl>
+</body>
+</html>

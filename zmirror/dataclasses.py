@@ -12,13 +12,12 @@
 #pylint: disable=wildcard-import
 
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from typing import Any
 from .util import read_file
 from enum import Enum
 
-import dateparser
 
 from kpyutils.kiify import yaml_data, yaml_enum, KiEnum, KdStream, yes_no_absent_or_dict
 
@@ -29,7 +28,7 @@ from . import commands as commands
 from . import config as config
 from .config import iterate_content_tree3_depth_first
 from .requests import *
-
+import dateparser
 
 
 def human_readable_id(entity):
@@ -1265,6 +1264,9 @@ def inaccurate_now():
   return datetime.now().replace(microsecond=0)
 
 
+def inaccurate_datetime(td):
+  return td - timedelta(microseconds = td.microseconds)
+
 # zmirror assumes a mirrored device that was just onlined (via zpool online)
 # is in "resilvering" state right away. This assumption is a simplification
 # so that zmirror does not assume that other operations can be run (e.g. scrub).
@@ -1452,6 +1454,12 @@ def succeed_request(self, request_type):
     request.succeed()
 
 
+def is_anything_overdue(self):
+  for op in Operation:
+    if self.is_overdue(op):
+      return True
+  return False
+
 
 @yaml_data
 class ZDev(Onlineable, Embedded, Entity):
@@ -1540,9 +1548,9 @@ class ZDev(Onlineable, Embedded, Entity):
           if cache.state.what == EntityState.ONLINE and Operation.RESILVER not in cache.operations:
             return False
         if last is None:
-          return allowed_delta - datetime.min
+          return inaccurate_datetime(allowed_delta - datetime.min)
         else:
-          return allowed_delta - last
+          return inaccurate_datetime(allowed_delta - last)
     return False
 
   def handle_resilver_finished(self):

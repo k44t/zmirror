@@ -1,0 +1,732 @@
+.TH ZMIRROR "1" "2025\-09\-02" "zmirror" "Generated Python Manual"
+.SH NAME
+zmirror
+.SH SYNOPSIS
+.B zmirror
+[-h] [--version] {daemon,clear-cache,reload-config,scrub-all,scrub-overdue,resilver-overdue,trim-all,trim-overdue,online-all,status-all,daemon-version,maintenance,online,offline,status,trim,scrub,list,enable,disable,set,get} ...
+
+.SH
+POSITIONAL ARGUMENTS
+.TP
+\fBzmirror\fR \fI\,daemon\/\fR
+starts zmirror in daemon mode
+.TP
+\fBzmirror\fR \fI\,clear\-cache\/\fR
+clears the cache and removes the cache file (which stores the dates of when the maintenance tasks were last run). Triggers a configuration reload.
+.TP
+\fBzmirror\fR \fI\,reload\-config\/\fR
+reloads the configuration.
+.TP
+\fBzmirror\fR \fI\,scrub\-all\/\fR
+requests all configured zdevs to be scrubbed. This will bring all necessary and available parent devices (i.e. dm\-crypts) online.
+.TP
+\fBzmirror\fR \fI\,scrub\-overdue\/\fR
+requests zdevs to be scrubbed if they are behind their configured scrub_interval. This will bring all necessary and available parent devices (i.e. dm\-crypts) online.
+.TP
+\fBzmirror\fR \fI\,resilver\-overdue\/\fR
+requests zdevs to be resilvered if they are behind their configured resilver_interval. Since a resilver happens whenever a mirrored device is brought online, this really does nothing but (try to) online the respective devices.
+.TP
+\fBzmirror\fR \fI\,trim\-all\/\fR
+requests all configured zdevs to be trimmed. This will bring all necessary and available parent devices (i.e. dm\-crypts) online.
+.TP
+\fBzmirror\fR \fI\,trim\-overdue\/\fR
+requests zdevs to be trimmed if they are behind their configured trim_interval. This will bring all necessary and available parent devices (i.e. dm\-crypts) online.
+.TP
+\fBzmirror\fR \fI\,online\-all\/\fR
+requests all configured devices to be onlined.
+.TP
+\fBzmirror\fR \fI\,status\-all\/\fR
+shows the status of all configured devices
+.TP
+\fBzmirror\fR \fI\,daemon\-version\/\fR
+shows the version of the (currently running) zmirror daemon
+.TP
+\fBzmirror\fR \fI\,maintenance\/\fR
+triggers all maintenance tasks (scrub and trim as scheduled as well as onlining devices that should be brought up to date [resilvered]). This is what you want to schedule via a cronjob or a systemd timer. It makes sense to do this at night on a weekday where there is not much load on your machine. This will online all devices that are present and need maintenance. The devices will only be taken offline afterwards if you have configured the respective event timers to take them offline (i.e. `on_resilvered` set to `offline`).
+.TP
+\fBzmirror\fR \fI\,online\/\fR
+request device to go online
+.TP
+\fBzmirror\fR \fI\,offline\/\fR
+request device to go offline
+.TP
+\fBzmirror\fR \fI\,status\/\fR
+show device status
+.TP
+\fBzmirror\fR \fI\,trim\/\fR
+request device trim
+.TP
+\fBzmirror\fR \fI\,scrub\/\fR
+request device to be scrubbed
+.TP
+\fBzmirror\fR \fI\,list\/\fR
+list devices fulfilling conditions
+.TP
+\fBzmirror\fR \fI\,enable\/\fR
+enable zmirror daemon property
+.TP
+\fBzmirror\fR \fI\,disable\/\fR
+disable zmirror daemon property
+.TP
+\fBzmirror\fR \fI\,set\/\fR
+set zmirror daemon property to value
+.TP
+\fBzmirror\fR \fI\,get\/\fR
+get zmirror daemon property value
+
+.SH COMMAND \fI\,'zmirror daemon'\/\fR
+usage: zmirror daemon [\-h] [\-\-config\-path CONFIG_PATH]
+                      [\-\-cache\-path CACHE_PATH] [\-\-socket\-path SOCKET_PATH]
+
+.SH OPTIONS \fI\,'zmirror daemon'\/\fR
+.TP
+\fB\-\-config\-path\fR \fI\,CONFIG_PATH\/\fR
+the path to the config file. May be set via the environment variable
+`ZMIRROR_CONFIG_PATH`. Defaults to `/etc/zmirror/zmirror\-config.yml`
+
+.TP
+\fB\-\-cache\-path\fR \fI\,CACHE_PATH\/\fR
+the path to the cache file in which zmirror stores device state. May be set
+via the environment variable `ZMIRROR_CACHE_PATH`. Defaults to
+`/var/lib/zmirror/zmirror\-cache.yml`
+
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror clear\-cache'\/\fR
+usage: zmirror clear\-cache [\-h] [\-\-socket\-path SOCKET_PATH]
+
+.SH OPTIONS \fI\,'zmirror clear\-cache'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror reload\-config'\/\fR
+usage: zmirror reload\-config [\-h] [\-\-socket\-path SOCKET_PATH]
+
+.SH OPTIONS \fI\,'zmirror reload\-config'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror scrub\-all'\/\fR
+usage: zmirror scrub\-all [\-h] [\-\-socket\-path SOCKET_PATH]
+
+.SH OPTIONS \fI\,'zmirror scrub\-all'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror scrub\-overdue'\/\fR
+usage: zmirror scrub\-overdue [\-h] [\-\-socket\-path SOCKET_PATH]
+
+.SH OPTIONS \fI\,'zmirror scrub\-overdue'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror resilver\-overdue'\/\fR
+usage: zmirror resilver\-overdue [\-h] [\-\-socket\-path SOCKET_PATH]
+
+.SH OPTIONS \fI\,'zmirror resilver\-overdue'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror trim\-all'\/\fR
+usage: zmirror trim\-all [\-h] [\-\-socket\-path SOCKET_PATH]
+
+.SH OPTIONS \fI\,'zmirror trim\-all'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror trim\-overdue'\/\fR
+usage: zmirror trim\-overdue [\-h] [\-\-socket\-path SOCKET_PATH]
+
+.SH OPTIONS \fI\,'zmirror trim\-overdue'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror online\-all'\/\fR
+usage: zmirror online\-all [\-h] [\-\-socket\-path SOCKET_PATH]
+
+.SH OPTIONS \fI\,'zmirror online\-all'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror status\-all'\/\fR
+usage: zmirror status\-all [\-h] [\-\-socket\-path SOCKET_PATH]
+
+.SH OPTIONS \fI\,'zmirror status\-all'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror daemon\-version'\/\fR
+usage: zmirror daemon\-version [\-h] [\-\-socket\-path SOCKET_PATH]
+
+.SH OPTIONS \fI\,'zmirror daemon\-version'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror maintenance'\/\fR
+usage: zmirror maintenance [\-h] [\-\-socket\-path SOCKET_PATH]
+
+.SH OPTIONS \fI\,'zmirror maintenance'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror online'\/\fR
+usage: zmirror online [\-h] [\-\-socket\-path SOCKET_PATH]
+                      {disk,partition,zpool,zfs\-volume,dm\-crypt,zdev} ...
+
+.SH
+POSITIONAL ARGUMENTS \fI\,'zmirror online'\/\fR
+
+
+.SH COMMAND \fI\,'zmirror online disk'\/\fR
+usage: zmirror online disk [\-h] uuid
+
+.TP
+\fBuuid\fR
+id field
+
+.SH COMMAND \fI\,'zmirror online partition'\/\fR
+usage: zmirror online partition [\-h] name
+
+.TP
+\fBname\fR
+id field
+
+.SH COMMAND \fI\,'zmirror online zpool'\/\fR
+usage: zmirror online zpool [\-h] name
+
+.TP
+\fBname\fR
+id field
+
+.SH COMMAND \fI\,'zmirror online zfs\-volume'\/\fR
+usage: zmirror online zfs\-volume [\-h] pool name
+
+.TP
+\fBpool\fR
+id field
+
+.TP
+\fBname\fR
+id field
+
+.SH COMMAND \fI\,'zmirror online dm\-crypt'\/\fR
+usage: zmirror online dm\-crypt [\-h] name
+
+.TP
+\fBname\fR
+id field
+
+.SH COMMAND \fI\,'zmirror online zdev'\/\fR
+usage: zmirror online zdev [\-h] pool name
+
+.TP
+\fBpool\fR
+id field
+
+.TP
+\fBname\fR
+id field
+
+.SH OPTIONS \fI\,'zmirror online'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror offline'\/\fR
+usage: zmirror offline [\-h] [\-\-socket\-path SOCKET_PATH]
+                       {disk,partition,zpool,zfs\-volume,dm\-crypt,zdev} ...
+
+.SH
+POSITIONAL ARGUMENTS \fI\,'zmirror offline'\/\fR
+
+
+.SH COMMAND \fI\,'zmirror offline disk'\/\fR
+usage: zmirror offline disk [\-h] uuid
+
+.TP
+\fBuuid\fR
+id field
+
+.SH COMMAND \fI\,'zmirror offline partition'\/\fR
+usage: zmirror offline partition [\-h] name
+
+.TP
+\fBname\fR
+id field
+
+.SH COMMAND \fI\,'zmirror offline zpool'\/\fR
+usage: zmirror offline zpool [\-h] name
+
+.TP
+\fBname\fR
+id field
+
+.SH COMMAND \fI\,'zmirror offline zfs\-volume'\/\fR
+usage: zmirror offline zfs\-volume [\-h] pool name
+
+.TP
+\fBpool\fR
+id field
+
+.TP
+\fBname\fR
+id field
+
+.SH COMMAND \fI\,'zmirror offline dm\-crypt'\/\fR
+usage: zmirror offline dm\-crypt [\-h] name
+
+.TP
+\fBname\fR
+id field
+
+.SH COMMAND \fI\,'zmirror offline zdev'\/\fR
+usage: zmirror offline zdev [\-h] pool name
+
+.TP
+\fBpool\fR
+id field
+
+.TP
+\fBname\fR
+id field
+
+.SH OPTIONS \fI\,'zmirror offline'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror status'\/\fR
+usage: zmirror status [\-h] [\-\-socket\-path SOCKET_PATH]
+                      {disk,partition,zpool,zfs\-volume,dm\-crypt,zdev} ...
+
+.SH
+POSITIONAL ARGUMENTS \fI\,'zmirror status'\/\fR
+
+
+.SH COMMAND \fI\,'zmirror status disk'\/\fR
+usage: zmirror status disk [\-h] uuid
+
+.TP
+\fBuuid\fR
+id field
+
+.SH COMMAND \fI\,'zmirror status partition'\/\fR
+usage: zmirror status partition [\-h] name
+
+.TP
+\fBname\fR
+id field
+
+.SH COMMAND \fI\,'zmirror status zpool'\/\fR
+usage: zmirror status zpool [\-h] name
+
+.TP
+\fBname\fR
+id field
+
+.SH COMMAND \fI\,'zmirror status zfs\-volume'\/\fR
+usage: zmirror status zfs\-volume [\-h] pool name
+
+.TP
+\fBpool\fR
+id field
+
+.TP
+\fBname\fR
+id field
+
+.SH COMMAND \fI\,'zmirror status dm\-crypt'\/\fR
+usage: zmirror status dm\-crypt [\-h] name
+
+.TP
+\fBname\fR
+id field
+
+.SH COMMAND \fI\,'zmirror status zdev'\/\fR
+usage: zmirror status zdev [\-h] pool name
+
+.TP
+\fBpool\fR
+id field
+
+.TP
+\fBname\fR
+id field
+
+.SH OPTIONS \fI\,'zmirror status'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror trim'\/\fR
+usage: zmirror trim [\-h] [\-\-socket\-path SOCKET_PATH] {zdev} ...
+
+.SH
+POSITIONAL ARGUMENTS \fI\,'zmirror trim'\/\fR
+
+
+.SH COMMAND \fI\,'zmirror trim zdev'\/\fR
+usage: zmirror trim zdev [\-h] pool name
+
+.TP
+\fBpool\fR
+id field
+
+.TP
+\fBname\fR
+id field
+
+.SH OPTIONS \fI\,'zmirror trim'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror scrub'\/\fR
+usage: zmirror scrub [\-h] [\-\-socket\-path SOCKET_PATH] {zpool,zdev} ...
+
+.SH
+POSITIONAL ARGUMENTS \fI\,'zmirror scrub'\/\fR
+
+
+.SH COMMAND \fI\,'zmirror scrub zpool'\/\fR
+usage: zmirror scrub zpool [\-h] name
+
+.TP
+\fBname\fR
+id field
+
+.SH COMMAND \fI\,'zmirror scrub zdev'\/\fR
+usage: zmirror scrub zdev [\-h] pool name
+
+.TP
+\fBpool\fR
+id field
+
+.TP
+\fBname\fR
+id field
+
+.SH OPTIONS \fI\,'zmirror scrub'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror list'\/\fR
+usage: zmirror list [\-h] [\-\-socket\-path SOCKET_PATH]
+                    {overdue,scrub,trim,update} ...
+
+.SH
+POSITIONAL ARGUMENTS \fI\,'zmirror list'\/\fR
+.TP
+\fBzmirror list\fR \fI\,overdue\/\fR
+list all overdue devices
+.TP
+\fBzmirror list\fR \fI\,scrub\/\fR
+list devices based on current/last scrub state
+.TP
+\fBzmirror list\fR \fI\,trim\/\fR
+list devices based on current/last trim state
+.TP
+\fBzmirror list\fR \fI\,update\/\fR
+list devices based on when they were last up\-to\-date
+
+.SH COMMAND \fI\,'zmirror list overdue'\/\fR
+usage: zmirror list overdue [\-h] [\-\-keys KEYS] [\-\-no_headers]
+                            [\-\-format {json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}]
+
+.SH OPTIONS \fI\,'zmirror list overdue'\/\fR
+.TP
+\fB\-\-keys\fR \fI\,KEYS\/\fR
+only output this list of keys (columns)
+
+.TP
+\fB\-\-no_headers\fR
+do not print headers when outputting a table
+
+.TP
+\fB\-\-format\fR \fI\,{json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}\/\fR
+either `json` or one of the formats defined by the tabulate library (see
+https://https://pypi.org/project/tabulate/#description)
+
+.SH COMMAND \fI\,'zmirror list scrub'\/\fR
+usage: zmirror list scrub [\-h] {overdue} ...
+
+.SH
+POSITIONAL ARGUMENTS \fI\,'zmirror list scrub'\/\fR
+.TP
+\fBzmirror list scrub\fR \fI\,overdue\/\fR
+list devices on which a scrub is overdue
+
+.SH COMMAND \fI\,'zmirror list scrub overdue'\/\fR
+usage: zmirror list scrub overdue [\-h] [\-\-keys KEYS] [\-\-no_headers]
+                                  [\-\-format {json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}]
+
+.SH OPTIONS \fI\,'zmirror list scrub overdue'\/\fR
+.TP
+\fB\-\-keys\fR \fI\,KEYS\/\fR
+only output this list of keys (columns)
+
+.TP
+\fB\-\-no_headers\fR
+do not print headers when outputting a table
+
+.TP
+\fB\-\-format\fR \fI\,{json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}\/\fR
+either `json` or one of the formats defined by the tabulate library (see
+https://https://pypi.org/project/tabulate/#description)
+
+.SH COMMAND \fI\,'zmirror list trim'\/\fR
+usage: zmirror list trim [\-h] {overdue} ...
+
+.SH
+POSITIONAL ARGUMENTS \fI\,'zmirror list trim'\/\fR
+.TP
+\fBzmirror list trim\fR \fI\,overdue\/\fR
+list devices on which a trim is overdue
+
+.SH COMMAND \fI\,'zmirror list trim overdue'\/\fR
+usage: zmirror list trim overdue [\-h] [\-\-keys KEYS] [\-\-no_headers]
+                                 [\-\-format {json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}]
+
+.SH OPTIONS \fI\,'zmirror list trim overdue'\/\fR
+.TP
+\fB\-\-keys\fR \fI\,KEYS\/\fR
+only output this list of keys (columns)
+
+.TP
+\fB\-\-no_headers\fR
+do not print headers when outputting a table
+
+.TP
+\fB\-\-format\fR \fI\,{json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}\/\fR
+either `json` or one of the formats defined by the tabulate library (see
+https://https://pypi.org/project/tabulate/#description)
+
+.SH COMMAND \fI\,'zmirror list update'\/\fR
+usage: zmirror list update [\-h] {overdue} ...
+
+.SH
+POSITIONAL ARGUMENTS \fI\,'zmirror list update'\/\fR
+.TP
+\fBzmirror list update\fR \fI\,overdue\/\fR
+list devices which need updating of their data
+
+.SH COMMAND \fI\,'zmirror list update overdue'\/\fR
+usage: zmirror list update overdue [\-h] [\-\-keys KEYS] [\-\-no_headers]
+                                   [\-\-format {json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}]
+
+.SH OPTIONS \fI\,'zmirror list update overdue'\/\fR
+.TP
+\fB\-\-keys\fR \fI\,KEYS\/\fR
+only output this list of keys (columns)
+
+.TP
+\fB\-\-no_headers\fR
+do not print headers when outputting a table
+
+.TP
+\fB\-\-format\fR \fI\,{json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}\/\fR
+either `json` or one of the formats defined by the tabulate library (see
+https://https://pypi.org/project/tabulate/#description)
+
+.SH OPTIONS \fI\,'zmirror list'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror enable'\/\fR
+usage: zmirror enable [\-h] [\-\-socket\-path SOCKET_PATH]
+                      {commands,log\-events} ...
+
+.SH
+POSITIONAL ARGUMENTS \fI\,'zmirror enable'\/\fR
+.TP
+\fBzmirror enable\fR \fI\,commands\/\fR
+enable command execution
+.TP
+\fBzmirror enable\fR \fI\,log\-events\/\fR
+enable logging of all UDEV and ZED events received by zmirror
+
+.SH COMMAND \fI\,'zmirror enable commands'\/\fR
+usage: zmirror enable commands [\-h]
+
+.SH COMMAND \fI\,'zmirror enable log\-events'\/\fR
+usage: zmirror enable log\-events [\-h]
+
+.SH OPTIONS \fI\,'zmirror enable'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror disable'\/\fR
+usage: zmirror disable [\-h] [\-\-socket\-path SOCKET_PATH]
+                       {commands,log\-events} ...
+
+.SH
+POSITIONAL ARGUMENTS \fI\,'zmirror disable'\/\fR
+.TP
+\fBzmirror disable\fR \fI\,commands\/\fR
+disable command execution
+.TP
+\fBzmirror disable\fR \fI\,log\-events\/\fR
+disable logging of all UDEV and ZED events received by zmirror
+
+.SH COMMAND \fI\,'zmirror disable commands'\/\fR
+usage: zmirror disable commands [\-h]
+
+.SH COMMAND \fI\,'zmirror disable log\-events'\/\fR
+usage: zmirror disable log\-events [\-h]
+
+.SH OPTIONS \fI\,'zmirror disable'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror set'\/\fR
+usage: zmirror set [\-h] [\-\-socket\-path SOCKET_PATH] {log\-level,timeout} ...
+
+.SH
+POSITIONAL ARGUMENTS \fI\,'zmirror set'\/\fR
+.TP
+\fBzmirror set\fR \fI\,log\-level\/\fR
+set log level to one of: trace | debug | verbose | info | warning | error | critical
+.TP
+\fBzmirror set\fR \fI\,timeout\/\fR
+set request timeout in seconds
+
+.SH COMMAND \fI\,'zmirror set log\-level'\/\fR
+usage: zmirror set log\-level [\-h] value
+
+.TP
+\fBvalue\fR
+the new value of the property
+
+.SH COMMAND \fI\,'zmirror set timeout'\/\fR
+usage: zmirror set timeout [\-h] value
+
+.TP
+\fBvalue\fR
+the new value of the property
+
+.SH OPTIONS \fI\,'zmirror set'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH COMMAND \fI\,'zmirror get'\/\fR
+usage: zmirror get [\-h] [\-\-socket\-path SOCKET_PATH]
+                   {commands,log\-events,log\-level,timeout} ...
+
+.SH
+POSITIONAL ARGUMENTS \fI\,'zmirror get'\/\fR
+.TP
+\fBzmirror get\fR \fI\,commands\/\fR
+get command execution
+.TP
+\fBzmirror get\fR \fI\,log\-events\/\fR
+get logging of all UDEV and ZED events received by zmirror
+.TP
+\fBzmirror get\fR \fI\,log\-level\/\fR
+.TP
+\fBzmirror get\fR \fI\,timeout\/\fR
+
+.SH COMMAND \fI\,'zmirror get commands'\/\fR
+usage: zmirror get commands [\-h]
+
+.SH COMMAND \fI\,'zmirror get log\-events'\/\fR
+usage: zmirror get log\-events [\-h]
+
+.SH COMMAND \fI\,'zmirror get log\-level'\/\fR
+usage: zmirror get log\-level [\-h]
+
+.SH COMMAND \fI\,'zmirror get timeout'\/\fR
+usage: zmirror get timeout [\-h]
+
+.SH OPTIONS \fI\,'zmirror get'\/\fR
+.TP
+\fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
+the path to the unix socket on which `zmirror daemon` listens, to which
+`zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
+when you invoke `zmirror <command>`. May be set via the environment variable
+`ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.SH OPTIONS
+.TP
+\fB\-\-version\fR
+print the version

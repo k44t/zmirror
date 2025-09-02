@@ -86,6 +86,12 @@ name_for_log_level = {value: key for key, value in log_level_for_name.items()}
 
 
 
+def cancel_timers():
+  global timers
+  for timer in timers:
+      timer.cancel()
+  timers = []
+
 
 
 def iterate_content_tree3(o, fn, parent, strt):

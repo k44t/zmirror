@@ -326,7 +326,10 @@ def handle_events(event_queue):
       event = event_queue.get()
       if event is None:
         # this is the SHUTDOWN, shutting down
-        save_cache_now()
+        try:
+          save_cache_now()
+        except BaseException as _ex:
+          log.error("failed to save cache")
         break
       elif isinstance(event, UserEvent):
         
@@ -387,7 +390,17 @@ def is_socket_active(socket_path):
 # so this is just a description for the next milestone
 def daemon(args):# pylint: disable=unused-argument
 
- 
+  
+  # Check if systemd is available
+  try:
+    from systemd.journal import JournalHandler # type: ignore # pylint: disable=import-outside-toplevel
+
+    journal_handler = JournalHandler()
+    formatter = logging.Formatter('%(levelname)7s: %(message)s')
+    journal_handler.setFormatter(formatter)
+    logging.getLogger().addHandler(journal_handler)
+  except ImportError:
+    log.warning("systemd log not available")
 
   log.info(f"zmirror daemon version {get_version()} starting")
 
@@ -467,12 +480,17 @@ def daemon(args):# pylint: disable=unused-argument
         os.unlink(socket_path)
       except Exception:
         pass
+      try:
+        config.cancel_timers()
+      except Exception:
+        pass
+
       event_queue.put(None)
       handle_event_thread.join()
-      log.info("zmirror daemon shut down gracefully")
+      log.info("zmirror daemon finished")
       
       # this is necessary if some timeouts are still pending (timer threads may keep running after sys.exit has been called)
-      os.kill(os.getpid(), signal.SIGKILL) #pylint: disable=unreachable
+      # os.kill(os.getpid(), signal.SIGKILL) #pylint: disable=unreachable
       sys.exit(0)
 
 

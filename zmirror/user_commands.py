@@ -1,6 +1,5 @@
 
 import socket
-import dateparser
 
 from zmirror.entities import *
 from . import config
@@ -19,6 +18,7 @@ import inspect
 import json
 import codecs
 import traceback
+from tabulate import tabulate
 
 
 
@@ -122,11 +122,47 @@ def handle_request_command(command):
   daemon_request(rqst, cancel, typ, ids)
 
 
+def handle_list_overdue_command(command, stream):
+  op = None
+  if "operation" in command:
+    try:
+      op = Operation[str(command["operation"]).upper()]
+    except Exception:
+      raise ValueError(f"unknown `operation`: {command["operation"]}")
+  
+  result = []
+  def do(entity):
+    if isinstance(entity, ZDev):
+
+      if (op and entity.is_overdue(op)) or is_anything_overdue(entity):
+        result.append({
+          "id" : entity_id_string(entity),
+          "last_online": to_kd_date(entity.last_online),
+          "last_update": to_kd_date(entity.last_update),
+          "update_overdue": to_kd_date(entity.is_overdue(Operation.RESILVER)),
+          "last_trim": to_kd_date(entity.last_trim),
+          "trim_overdue": to_kd_date(entity.is_overdue(Operation.TRIM)),
+          "last_scrub": to_kd_date(entity.last_scrub),
+          "scrub_overdue": to_kd_date(entity.is_overdue(Operation.SCRUB))
+        })
+  iterate_content_tree(config.config_root, do)
+
+  r = json.dumps(result)
+  stream.write(r)
+
+
+def to_kd_date(value):
+  if isinstance(value, datetime) or isinstance(value, timedelta):
+    return to_kd(value)
+  else:
+    return value
+    
+
 
 def handle_status_command(command, stream):
     
   if not "type" in command:
-    raise ValueError(f"missing type for handling command: status")
+    raise ValueError(f"missing `type` for handling command: status")
  
   type_name = command["type"]
   if not type_name in type_for_command_name:
@@ -293,7 +329,7 @@ def handle_command(command, con):
 
     log.addHandler(handler)
 
-
+    
 
 
     if name == "status-all":
@@ -310,6 +346,8 @@ def handle_command(command, con):
       handle_do_overdue_command(Operation.SCRUB)
     elif name == "trim-overdue":
       handle_do_overdue_command(Operation.TRIM)
+    elif name == "list-overdue":
+      handle_list_overdue_command(command, stream)
     elif name == "resilver-overdue":
       handle_do_overdue_command(Operation.RESILVER)
     elif name == "trim-all":
@@ -376,7 +414,7 @@ request_for_name = {
 name_for_request = {value: key for key, value in request_for_name.items()}
 
 
-def make_send_daemon_wrapper(fn):
+def make_send_daemon_wrapper(fn, stream=sys.stdout):
   def do(args):
     path = args.socket_path
     delattr(args, "socket_path")
@@ -406,22 +444,67 @@ def make_send_daemon_wrapper(fn):
           if not data:
               break
           decoded_data = decoder.decode(data, final=False)
-          sys.stdout.write(decoded_data)
-          sys.stdout.flush()
+          stream.write(decoded_data)
         remaining_data = decoder.decode(b'', final=True)
-        sys.stdout.write(remaining_data)
-        sys.stdout.flush()
+        stream.write(remaining_data)
       except KeyboardInterrupt: #pylint: disable=try-except-raise
         raise
       except Exception as ex:
         log.error(f"communication error: {ex}")
+      finally:
+        stream.flush()
   return do
 
 
 
-def make_send_set_property_daemon_command(property, value=None):
+LIST_KEYS = ["id", "last-online", "last_update", "update_overdue", "last_trim", "trim_overdue", "last_scrub", "scrub_overdue"]
+
+
+def make_list_overdue_command(op: Operation):
   def do(args):
-    r = {"command": "set", "property": property}
+    b = StringBuilder()
+    def make_command(_args):
+      r = {"command": "list-overdue"}
+      if op:
+        r["operation"] = op.name.lower()
+      return r
+    
+    doit = make_send_daemon_wrapper(make_command, stream=b)
+    doit(args)
+
+    items = json.loads(b.get_string())
+
+    keys = args.keys
+
+
+    for item in items:
+      # print(item)
+      # sys.stdout.flush()
+      for k in item.copy():
+        if not k in keys:
+          del item[k]
+
+    
+    headers = None
+    if args.format == "json":
+      sys.stdout.write(json.dumps(items))
+    else:
+      if not args.no_headers:
+        headers = {k: k for k in keys}
+        table = tabulate(items, headers=headers, tablefmt=args.format)
+      else:
+        table = tabulate(items, tablefmt=args.format)
+
+
+      sys.stdout.write(table)
+    sys.stdout.flush()
+  return do
+  
+
+
+def make_send_set_property_daemon_command(prop, value=None):
+  def do(args):
+    r = {"command": "set", "property": prop}
     if value is not None:
       r["value"] = value
     else:
@@ -431,9 +514,9 @@ def make_send_set_property_daemon_command(property, value=None):
 
 
 
-def make_send_get_property_daemon_command(property, value=None):
-  def do(args):
-    return {"command": "get", "property": property}
+def make_send_get_property_daemon_command(prop, value=None):
+  def do(_args):
+    return {"command": "get", "property": prop}
   return make_send_daemon_wrapper(do)
 
 

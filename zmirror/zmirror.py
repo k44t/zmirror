@@ -22,23 +22,10 @@ from . import operations as operations
 from .defaults import *
 
 
-
-
-
-
-
-
-
-
-
-
-
-def main(args=None):
-
-
+def make_arg_parser():
 
   parser = argparse.ArgumentParser(prog="zmirror")
-  parser.add_argument('--version', action='version', version=get_version())
+  parser.add_argument('--version', action='version', version=get_version(), help="print the version")
   subs = parser.add_subparsers(required=True)
 
 
@@ -61,7 +48,57 @@ def main(args=None):
   # shared_parser.add_argument("runtime-dir", type=str, help="the path to the runtime directory", default= "/var/run/zmirror")
 
   cancel_parser = argparse.ArgumentParser(add_help=False)
-  cancel_parser.add_argument("--cancel", action="store_true")
+  # cancel_parser.add_argument("--cancel", action="store_true")
+
+
+  list_parser = argparse.ArgumentParser(add_help=False)
+
+  TABLE_FORMATS = [
+    "json",
+
+    # tabulate's formats
+    "plain",
+    "simple",
+    "github",
+    "grid",
+    "simple_grid",
+    "rounded_grid",
+    "heavy_grid",
+    "mixed_grid",
+    "double_grid",
+    "fancy_grid",
+    "outline",
+    "simple_outline",
+    "rounded_outline",
+    "heavy_outline",
+    "mixed_outline",
+    "double_outline",
+    "fancy_outline",
+    "pipe",
+    "orgtbl",
+    "asciidoc",
+    "jira",
+    "presto",
+    "pretty",
+    "psql",
+    "rst",
+    "mediawiki",
+    "moinmoin",
+    "youtrack",
+    "html",
+    "unsafehtml",
+    "latex",
+    "latex_raw",
+    "latex_booktabs",
+    "latex_longtable",
+    "textile",
+    "tsv"
+  ]
+
+
+  list_parser.add_argument("--keys", type=lambda s: s.split(','), default=LIST_KEYS, help="only output this list of keys (columns)")
+  list_parser.add_argument("--no_headers", action="store_true", default=False, help="do not print headers when outputting a table")
+  list_parser.add_argument("--format", choices=TABLE_FORMATS, default="plain", help="either `json` or one of the formats defined by the tabulate library (see https://https://pypi.org/project/tabulate/#description)")
 
   daemon_parser = subs.add_parser('daemon', parents=[shared_parser, socket_parser], help="starts zmirror in daemon mode")
   daemon_parser.set_defaults(func=daemon)
@@ -116,6 +153,21 @@ def main(args=None):
   scrub_subs = scrub_parser.add_subparsers(required=True)
 
 
+  list_subs = subs.add_parser("list", parents=[socket_parser], help="list devices fulfilling conditions").add_subparsers(required=True)
+  list_subs.add_parser("overdue", parents=[list_parser], help="list all overdue devices").set_defaults(func=make_list_overdue_command(op=None))
+
+  list_scrub_subs = list_subs.add_parser("scrub", help="list devices based on current/last scrub state").add_subparsers(required=True)
+  list_scrub_subs.add_parser("overdue", parents=[list_parser], help="list devices on which a scrub is overdue").set_defaults(func=make_list_overdue_command(Operation.SCRUB))
+
+  list_trim_subs = list_subs.add_parser("trim", help="list devices based on current/last trim state").add_subparsers(required=True)
+  list_trim_subs.add_parser("overdue", parents=[list_parser], help="list devices on which a trim is overdue").set_defaults(func=make_list_overdue_command(Operation.TRIM))
+
+  list_update_subs = list_subs.add_parser("update", help="list devices based on when they were last up-to-date").add_subparsers(required=True)
+  list_update_subs.add_parser("overdue", parents=[list_parser], help="list devices which need updating of their data").set_defaults(func=make_list_overdue_command(Operation.RESILVER))
+
+
+
+
 
   enable_subs = subs.add_parser('enable', parents=[socket_parser], help='enable zmirror daemon property').add_subparsers(required=True)
   disable_subs = subs.add_parser('disable', parents=[socket_parser], help='disable zmirror daemon property').add_subparsers(required=True)
@@ -138,7 +190,7 @@ def main(args=None):
 
   def add_set_property_parser(name, set_help=None, get_help=None):
     set_parser = set_subs.add_parser(name, help=set_help)
-    set_parser.add_argument("value", type=str)
+    set_parser.add_argument("value", type=str, help="the new value of the property")
     set_parser.set_defaults(func=make_send_set_property_daemon_command(name))
     get_subs.add_parser(name, help=get_help).set_defaults(func=make_send_get_property_daemon_command(name))
 
@@ -150,7 +202,7 @@ def main(args=None):
 
     common_parser = argparse.ArgumentParser(add_help=False)
     for fld in typ.id_fields():
-      common_parser.add_argument(f"{fld}", type=str, default=None)
+      common_parser.add_argument(f"{fld}", type=str, default=None, help="id field")
     
     online = online_subs.add_parser(command_name, parents=[common_parser, cancel_parser])
     online.set_defaults(func=make_send_request_daemon_command(RequestType.ONLINE, typ))
@@ -178,8 +230,14 @@ def main(args=None):
 
 
 
+  return parser
 
 
+
+
+def main(args=None):
+
+  parser = make_arg_parser()
 
 
   args = parser.parse_args(args=args)

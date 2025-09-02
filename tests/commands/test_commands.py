@@ -1175,9 +1175,8 @@ class Tests():
   # this is necessary because we have not allowed all requests to be fulfilled
   # and we don't want the testing process to run until the timers have finished
   def test_shutdown_timers(self):
-    for timer in config.timers:
-      timer.cancel()
-    config.timers = []
+    config.cancel_timers()
+    
 
 
 

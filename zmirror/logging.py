@@ -8,12 +8,6 @@ import inspect
 import traceback
 import re
 
-# Check if systemd is available
-try:
-  from systemd.journal import JournalHandler
-  USE_JOURNAL = True
-except ImportError:
-  USE_JOURNAL = False
 
 def log_func_start():
   frame = inspect.currentframe().f_back
@@ -59,15 +53,6 @@ def __init__():
   logger.addHandler = addHandler
   logger.removeHandler = removeHandler
 
-
-  # Add systemd journal handler if available
-  if USE_JOURNAL:
-    journal_handler = JournalHandler()
-    formatter = logging.Formatter('%(levelname)7s: %(message)s')
-    journal_handler.setFormatter(formatter)
-    logging.getLogger().addHandler(journal_handler)
-  if not USE_JOURNAL:
-    logger.warning("systemd log not available")
 
   logger.original_error = logger.error
   logger.original_info = logger.info

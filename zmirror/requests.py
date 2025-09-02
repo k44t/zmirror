@@ -18,7 +18,6 @@ from enum import Enum
 import random
 import sys
 
-import dateparser
 
 from kpyutils.kiify import yaml_data, yaml_enum, KiEnum, KdStream, yes_no_absent_or_dict
 

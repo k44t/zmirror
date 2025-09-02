@@ -1,29 +1,33 @@
 [tool.poetry]
 name = "zmirror"
-version = "0.1.8a1"
+version = "0.1.8b2"
 description = ""
 authors = ["devvythelopper"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.12"
-
 natsort = ">=8.4.0"
 pyyaml = ">=6.0.0"
 dateparser = ">=1.2.0"
-kpyutils = "^0.1.2"
+kpyutils = ">=0.1.2b2"
+tabulate = ">=0.9.0"
 
 [tool.poetry.dev-dependencies]
 kpyutils = { path = "../kpyutils", develop = true }
 debugpy = ">=1.8.14"
 pytest = ">=8.3.5"
 cysystemd = ">= 0.0.1"
+argparse-manpage = { path = "../argparse-manpage", develop = true } # "^4.7"
+toml = ">=0.10.2"
 
 [tool.pytest.ini_options]
 log_cli = true
 log_level = "INFO"
 
+[tool.poetry.scripts]
+generate-manpage = "scripts.generate_manpage:main"
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core", "argparse-manpage[setuptools]"]
 build-backend = "poetry.core.masonry.api"
