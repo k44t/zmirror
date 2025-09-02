@@ -8,3 +8,6 @@ dist
 temp
 .notifier
 .pytest_cache
+logs
+history.log
+temp.txt
