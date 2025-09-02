@@ -120,12 +120,12 @@ def make_arg_parser():
   subcmd("reload-config", help="reloads the configuration.")
 
   subcmd("scrub-all", cancel=True, help="requests all configured zdevs to be scrubbed. This will bring all necessary and available parent devices (i.e. dm-crypts) online.")
-  subcmd("scrub-overdue", help="requests zdevs to be scrubbed if they are behind their configured scrub_interval. This will bring all necessary and available parent devices (i.e. dm-crypts) online.")
+  subcmd("scrub-overdue", help="requests zdevs to be scrubbed if they are behind their configured `scrub_interval`. This will bring all necessary and available parent devices (i.e. `dm-crypt`s) online.")
 
-  subcmd("resilver-overdue", help="requests zdevs to be resilvered if they are behind their configured resilver_interval. Since a resilver happens whenever a mirrored device is brought online, this really does nothing but (try to) online the respective devices.")
+  subcmd("resilver-overdue", help="requests zdevs to be resilvered if they are behind their configured `resilver_interval`. Since a resilver happens whenever a mirrored device is brought online, this really does nothing but (try to) online the respective devices.")
 
-  subcmd("trim-all", cancel=True, help="requests all configured zdevs to be trimmed. This will bring all necessary and available parent devices (i.e. dm-crypts) online.")
-  subcmd("trim-overdue", help="requests zdevs to be trimmed if they are behind their configured trim_interval. This will bring all necessary and available parent devices (i.e. dm-crypts) online.")
+  subcmd("trim-all", cancel=True, help="requests all configured zdevs to be trimmed. This will bring all necessary and available parent devices (i.e. `dm-crypt`s) online.")
+  subcmd("trim-overdue", help="requests zdevs to be trimmed if they are behind their configured trim_interval. This will bring all necessary and available parent devices (i.e. `dm-crypt`s) online.")
 
 
   subcmd("online-all", cancel=True, help="requests all configured devices to be onlined.")
@@ -194,8 +194,8 @@ def make_arg_parser():
     set_parser.set_defaults(func=make_send_set_property_daemon_command(name))
     get_subs.add_parser(name, help=get_help).set_defaults(func=make_send_get_property_daemon_command(name))
 
-  add_set_property_parser("log-level", "set log level to one of: trace | debug | verbose | info | warning | error | critical")
-  add_set_property_parser("timeout", "set request timeout in seconds")
+  add_set_property_parser("log-level", "temporarily set log level to one of: trace | debug | verbose | info | warning | error | critical")
+  add_set_property_parser("timeout", "temporarily set request timeout in seconds")
 
   def make_onlineable_commands(typ):
     command_name = command_name_for_type[typ]

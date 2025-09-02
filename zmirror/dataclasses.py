@@ -29,7 +29,7 @@ from . import config as config
 from .config import iterate_content_tree3_depth_first
 from .requests import *
 import dateparser
-
+import re
 
 def human_readable_id(entity):
   r = entity_id_string(entity)
@@ -206,12 +206,20 @@ def make_id(o, **kwargs):
     o = type(o)
   return (o, kwargs)
 
+
+def get_name_for_type(tp):
+  if tp in NAME_FOR_TYPE:
+    return NAME_FOR_TYPE[tp]
+  return re.sub(r'(?<=\w)[A-Z]', lambda x: '-' + x.group().lower(), tp.__name__).lower()
+
+
+
 def make_id_string(x, **kwargs):
   if isinstance(x, tuple):
     return make_id_string(x[0], **x[1])
   elif not isinstance(x, type):
     raise ValueError("value must be type or tuple of type and arguments")
-  return x.__name__ + "|" + '|'.join(f"{key}:{kwargs[key]}" for key in x.id_fields())
+  return get_name_for_type(x) + "|" + '|'.join(f"{key}:{kwargs[key]}" for key in x.id_fields())
 
 def entity_id_string(o):
   return make_id_string(o.id())
@@ -1700,3 +1708,11 @@ class ZDev(Onlineable, Embedded, Entity):
 
   def __kiify__(self, kd_stream: KdStream):
     kd_stream.print_partial_obj(self, ["pool", "dev", "state", "operations", "last_online", "last_update", "last_scrub", "last_trim"])
+
+
+
+NAME_FOR_TYPE = {
+  DMCrypt: "dm-crypt",
+  ZDev: "zdev",
+  ZPool: "zpool"
+}

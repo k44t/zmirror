@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <meta name="dcterms.date" content="2025-09-02" />
+  <meta name="dcterms.date" content="1980-01-01" />
   <title>ZMIRROR</title>
   <style>
     html {
@@ -172,7 +172,7 @@
 <body>
 <header id="title-block-header">
 <h1 class="title">ZMIRROR</h1>
-<p class="date">2025-09-02</p>
+<p class="date">1980-01-01</p>
 </header>
 <h1>NAME</h1>
 <p>zmirror</p>
@@ -204,26 +204,26 @@ necessary and available parent devices (i.e. dm-crypts) online.</p>
 <dt><strong>zmirror</strong> <em>scrub-overdue</em></dt>
 <dd>
 <p>requests zdevs to be scrubbed if they are behind their configured
-scrub_interval. This will bring all necessary and available parent
-devices (i.e. dm-crypts) online.</p>
+`scrub_interval`. This will bring all necessary and available parent
+devices (i.e. `dm-crypt`s) online.</p>
 </dd>
 <dt><strong>zmirror</strong> <em>resilver-overdue</em></dt>
 <dd>
 <p>requests zdevs to be resilvered if they are behind their configured
-resilver_interval. Since a resilver happens whenever a mirrored device
+`resilver_interval`. Since a resilver happens whenever a mirrored device
 is brought online, this really does nothing but (try to) online the
 respective devices.</p>
 </dd>
 <dt><strong>zmirror</strong> <em>trim-all</em></dt>
 <dd>
 <p>requests all configured zdevs to be trimmed. This will bring all
-necessary and available parent devices (i.e. dm-crypts) online.</p>
+necessary and available parent devices (i.e. `dm-crypt`s) online.</p>
 </dd>
 <dt><strong>zmirror</strong> <em>trim-overdue</em></dt>
 <dd>
 <p>requests zdevs to be trimmed if they are behind their configured
 trim_interval. This will bring all necessary and available parent
-devices (i.e. dm-crypts) online.</p>
+devices (i.e. `dm-crypt`s) online.</p>
 </dd>
 <dt><strong>zmirror</strong> <em>online-all</em></dt>
 <dd>
@@ -976,12 +976,12 @@ environment variable `ZMIRROR_SOCKET_PATH`. Defaults to
 <dl>
 <dt><strong>zmirror set</strong> <em>log-level</em></dt>
 <dd>
-<p>set log level to one of: trace | debug | verbose | info | warning |
-error | critical</p>
+<p>temporarily set log level to one of: trace | debug | verbose | info |
+warning | error | critical</p>
 </dd>
 <dt><strong>zmirror set</strong> <em>timeout</em></dt>
 <dd>
-<p>set request timeout in seconds</p>
+<p>temporarily set request timeout in seconds</p>
 </dd>
 </dl>
 <h1>COMMAND <em>'zmirror</em> set log-level'</h1>

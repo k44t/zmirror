@@ -1,4 +1,4 @@
-.TH ZMIRROR "1" "2025\-09\-02" "zmirror" "Generated Python Manual"
+.TH ZMIRROR "1" "1980\-01\-01" "zmirror" "Generated Python Manual"
 .SH NAME
 zmirror
 .SH SYNOPSIS
@@ -21,16 +21,16 @@ reloads the configuration.
 requests all configured zdevs to be scrubbed. This will bring all necessary and available parent devices (i.e. dm\-crypts) online.
 .TP
 \fBzmirror\fR \fI\,scrub\-overdue\/\fR
-requests zdevs to be scrubbed if they are behind their configured scrub_interval. This will bring all necessary and available parent devices (i.e. dm\-crypts) online.
+requests zdevs to be scrubbed if they are behind their configured `scrub_interval`. This will bring all necessary and available parent devices (i.e. `dm\-crypt`s) online.
 .TP
 \fBzmirror\fR \fI\,resilver\-overdue\/\fR
-requests zdevs to be resilvered if they are behind their configured resilver_interval. Since a resilver happens whenever a mirrored device is brought online, this really does nothing but (try to) online the respective devices.
+requests zdevs to be resilvered if they are behind their configured `resilver_interval`. Since a resilver happens whenever a mirrored device is brought online, this really does nothing but (try to) online the respective devices.
 .TP
 \fBzmirror\fR \fI\,trim\-all\/\fR
-requests all configured zdevs to be trimmed. This will bring all necessary and available parent devices (i.e. dm\-crypts) online.
+requests all configured zdevs to be trimmed. This will bring all necessary and available parent devices (i.e. `dm\-crypt`s) online.
 .TP
 \fBzmirror\fR \fI\,trim\-overdue\/\fR
-requests zdevs to be trimmed if they are behind their configured trim_interval. This will bring all necessary and available parent devices (i.e. dm\-crypts) online.
+requests zdevs to be trimmed if they are behind their configured trim_interval. This will bring all necessary and available parent devices (i.e. `dm\-crypt`s) online.
 .TP
 \fBzmirror\fR \fI\,online\-all\/\fR
 requests all configured devices to be onlined.
@@ -662,10 +662,10 @@ usage: zmirror set [\-h] [\-\-socket\-path SOCKET_PATH] {log\-level,timeout} ...
 POSITIONAL ARGUMENTS \fI\,'zmirror set'\/\fR
 .TP
 \fBzmirror set\fR \fI\,log\-level\/\fR
-set log level to one of: trace | debug | verbose | info | warning | error | critical
+temporarily set log level to one of: trace | debug | verbose | info | warning | error | critical
 .TP
 \fBzmirror set\fR \fI\,timeout\/\fR
-set request timeout in seconds
+temporarily set request timeout in seconds
 
 .SH COMMAND \fI\,'zmirror set log\-level'\/\fR
 usage: zmirror set log\-level [\-h] value

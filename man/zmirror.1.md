@@ -1,5 +1,5 @@
 ---
-date: 2025-09-02
+date: 1980-01-01
 section: 1
 title: ZMIRROR
 ---
@@ -38,26 +38,26 @@ zmirror
 **zmirror** *scrub-overdue*
 
 :   requests zdevs to be scrubbed if they are behind their configured
-    scrub_interval. This will bring all necessary and available parent
-    devices (i.e. dm-crypts) online.
+    \`scrub_interval\`. This will bring all necessary and available
+    parent devices (i.e. \`dm-crypt\`s) online.
 
 **zmirror** *resilver-overdue*
 
 :   requests zdevs to be resilvered if they are behind their configured
-    resilver_interval. Since a resilver happens whenever a mirrored
+    \`resilver_interval\`. Since a resilver happens whenever a mirrored
     device is brought online, this really does nothing but (try to)
     online the respective devices.
 
 **zmirror** *trim-all*
 
 :   requests all configured zdevs to be trimmed. This will bring all
-    necessary and available parent devices (i.e. dm-crypts) online.
+    necessary and available parent devices (i.e. \`dm-crypt\`s) online.
 
 **zmirror** *trim-overdue*
 
 :   requests zdevs to be trimmed if they are behind their configured
     trim_interval. This will bring all necessary and available parent
-    devices (i.e. dm-crypts) online.
+    devices (i.e. \`dm-crypt\`s) online.
 
 **zmirror** *online-all*
 
@@ -846,12 +846,12 @@ usage: zmirror set \[-h\] \[\--socket-path SOCKET_PATH\]
 
 **zmirror set** *log-level*
 
-:   set log level to one of: trace \| debug \| verbose \| info \|
-    warning \| error \| critical
+:   temporarily set log level to one of: trace \| debug \| verbose \|
+    info \| warning \| error \| critical
 
 **zmirror set** *timeout*
 
-:   set request timeout in seconds
+:   temporarily set request timeout in seconds
 
 # COMMAND *\'zmirror* set log-level\'
 
