@@ -14,6 +14,7 @@ buildPythonPackage rec {
     pyyaml
     dateparser
     systemd
+    tabulate
     kpyutils
   ];
   

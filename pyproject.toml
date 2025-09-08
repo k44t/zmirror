@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "zmirror"
-version = "0.1.8b3"
+version = "0.1.8b5"
 description = ""
 authors = ["devvythelopper"]
 readme = "README.md"
@@ -10,7 +10,7 @@ python = "^3.12"
 natsort = ">=8.4.0"
 pyyaml = ">=6.0.0"
 dateparser = ">=1.2.0"
-kpyutils = ">=0.1.2b2"
+kpyutils = ">=0.1.2b1"
 tabulate = ">=0.9.0"
 
 [tool.poetry.dev-dependencies]
@@ -25,9 +25,6 @@ toml = ">=0.10.2"
 log_cli = true
 log_level = "INFO"
 
-[tool.poetry.scripts]
-generate-manpage = "scripts.generate_manpage:main"
-
 [build-system]
-requires = ["poetry-core", "argparse-manpage[setuptools]"]
+requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

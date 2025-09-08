@@ -48,7 +48,7 @@ def make_arg_parser():
   # shared_parser.add_argument("runtime-dir", type=str, help="the path to the runtime directory", default= "/var/run/zmirror")
 
   cancel_parser = argparse.ArgumentParser(add_help=False)
-  # cancel_parser.add_argument("--cancel", action="store_true")
+  cancel_parser.add_argument("--cancel", action="store_true")
 
 
   list_parser = argparse.ArgumentParser(add_help=False)
@@ -139,7 +139,7 @@ def make_arg_parser():
   # scrub_parser = subs.add_parser('scrub-overdue', parents=[], help='scrub devices that have not been scrubbed for too long')
   # scrub_parser.set_defaults(func=scrub)
 
-  online_parser = subs.add_parser('online', parents=[socket_parser], help='request device to go online')
+  online_parser = subs.add_parser('online', parents=[socket_parser, cancel_parser], help='request device to go online')
   offline_parser = subs.add_parser('offline', parents=[socket_parser], help='request device to go offline')
   status_parser = subs.add_parser('status', parents=[socket_parser], help='show device status')
   trim_parser = subs.add_parser('trim', parents=[socket_parser], help='request device trim')
