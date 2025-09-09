@@ -208,9 +208,15 @@ def make_id(o, **kwargs):
 
 
 def get_name_for_type(tp):
-  if tp in NAME_FOR_TYPE:
-    return NAME_FOR_TYPE[tp]
-  return re.sub(r'(?<=\w)[A-Z]', lambda x: '-' + x.group().lower(), tp.__name__).lower()
+  return NAME_FOR_TYPE[tp]
+  # if tp in NAME_FOR_TYPE:
+  #  return NAME_FOR_TYPE[tp]
+  # return re.sub(r'(?<=\w)[A-Z]', lambda x: '-' + x.group().lower(), tp.__name__).lower()
+
+
+
+def get_type_for_name(nm):
+  return TYPE_FOR_NAME(nm)
 
 
 
@@ -1464,7 +1470,7 @@ def succeed_request(self, request_type):
 
 def is_anything_overdue(self):
   for op in Operation:
-    if self.is_overdue(op):
+    if hasattr(self, "is_overdue") and self.is_overdue(op):
       return True
   return False
 
@@ -1711,8 +1717,17 @@ class ZDev(Onlineable, Embedded, Entity):
 
 
 
+
+
 NAME_FOR_TYPE = {
-  DMCrypt: "dm-crypt",
+  None: None,
+  Disk: "disk",
+  Partition: "partition",
+  ZPool: "zpool",
   ZDev: "zdev",
-  ZPool: "zpool"
+  ZFSVolume: "zfs-volume",
+  DMCrypt: "dm-crypt",
+  ZMirror: "zmirror"
 }
+
+TYPE_FOR_NAME = {value: key for key, value in NAME_FOR_TYPE.items()}

@@ -111,9 +111,9 @@ def handle_request_command(command):
     raise ValueError(f"missing type for handling command: {name}")
  
   type_name = command["type"]
-  if not type_name in type_for_command_name:
+  if not type_name in TYPE_FOR_NAME:
     raise ValueError(f"unknown type: {type_name}")
-  typ = type_for_command_name[type_name]
+  typ = TYPE_FOR_NAME[type_name]
   if not "identifiers" in command:
     raise ValueError(f"no identifiers given for type: {typ}")
   ids = command["identifiers"]
@@ -121,34 +121,6 @@ def handle_request_command(command):
     raise ValueError("identifiers are not a dict of type {{str:str}}")
   daemon_request(rqst, cancel, typ, ids)
 
-
-def handle_list_overdue_command(command, stream):
-  op = None
-  if "operation" in command:
-    try:
-      op = Operation[str(command["operation"]).upper()]
-    except Exception:
-      raise ValueError(f"unknown `operation`: {command["operation"]}")
-  
-  result = []
-  def do(entity):
-    if isinstance(entity, ZDev):
-
-      if (op and entity.is_overdue(op)) or is_anything_overdue(entity):
-        result.append({
-          "id" : entity_id_string(entity),
-          "last_online": to_kd_date(entity.last_online),
-          "last_update": to_kd_date(entity.last_update),
-          "update_overdue": to_kd_date(entity.is_overdue(Operation.RESILVER)),
-          "last_trim": to_kd_date(entity.last_trim),
-          "trim_overdue": to_kd_date(entity.is_overdue(Operation.TRIM)),
-          "last_scrub": to_kd_date(entity.last_scrub),
-          "scrub_overdue": to_kd_date(entity.is_overdue(Operation.SCRUB))
-        })
-  iterate_content_tree(config.config_root, do)
-
-  r = json.dumps(result)
-  stream.write(r)
 
 
 def to_kd_date(value):
@@ -165,9 +137,9 @@ def handle_status_command(command, stream):
     raise ValueError(f"missing `type` for handling command: status")
  
   type_name = command["type"]
-  if not type_name in type_for_command_name:
+  if not type_name in TYPE_FOR_NAME:
     raise ValueError(f"unknown type: {type_name}")
-  typ = type_for_command_name[type_name]
+  typ = TYPE_FOR_NAME[type_name]
   if not "identifiers" in command:
     raise ValueError(f"no identifiers given for type: {typ}")
   ids = command["identifiers"]
@@ -346,8 +318,8 @@ def handle_command(command, con):
       handle_do_overdue_command(Operation.SCRUB)
     elif name == "trim-overdue":
       handle_do_overdue_command(Operation.TRIM)
-    elif name == "list-overdue":
-      handle_list_overdue_command(command, stream)
+    elif name == "list":
+      handle_list_command(command, stream)
     elif name == "resilver-overdue":
       handle_do_overdue_command(Operation.RESILVER)
     elif name == "trim-all":
@@ -392,17 +364,6 @@ def handle_command(command, con):
   # print("client handled")
 
 
-
-command_name_for_type = {
-  Disk: "disk",
-  Partition: "partition",
-  ZPool: "zpool",
-  ZDev: "zdev",
-  ZFSVolume: "zfs-volume",
-  DMCrypt: "dm-crypt"
-}
-
-type_for_command_name = {value: key for key, value in command_name_for_type.items()}
 
 request_for_name = {
   "online": RequestType.ONLINE,
@@ -460,23 +421,35 @@ def make_send_daemon_wrapper(fn, stream=sys.stdout):
 LIST_KEYS = ["id", "last-online", "last_update", "update_overdue", "last_trim", "trim_overdue", "last_scrub", "scrub_overdue"]
 
 
-def make_list_overdue_command(op: Operation):
+def make_list_command(op: Operation, entity_type=None, overdue=False):
   def do(args):
     b = StringBuilder()
     def make_command(_args):
-      r = {"command": "list-overdue"}
+      # only zdev is supported for now
+      r = {"command": "list"}
       if op:
         r["operation"] = op.name.lower()
+      if overdue:
+        r["overdue"] = True
+      if entity_type:
+        r["type"] = get_name_for_type(entity_type)
+      if args.sort:
+        r["sort"] = args.sort
+      
       return r
     
     doit = make_send_daemon_wrapper(make_command, stream=b)
     doit(args)
 
-    items = json.loads(b.get_string())
+    try:
+      result = json.loads(b.get_string())
+    except BaseException:
+      log.error("an error occurred on the server: %s", b.get_string())
+      return
 
     keys = args.keys
 
-
+    items = result
     for item in items:
       # print(item)
       # sys.stdout.flush()
@@ -499,7 +472,74 @@ def make_list_overdue_command(op: Operation):
       sys.stdout.write(table)
     sys.stdout.flush()
   return do
+
+
+
+
+def entity_to_table_entry(entity: Entity):
+  if isinstance(entity, ZDev):
+    return {
+        "id" : entity_id_string(entity),
+        "last_online": to_kd_date(entity.last_online),
+        "last_update": to_kd_date(entity.last_update),
+        "update_overdue": to_kd_date(entity.is_overdue(Operation.RESILVER)),
+        "last_trim": to_kd_date(entity.last_trim),
+        "trim_overdue": to_kd_date(entity.is_overdue(Operation.TRIM)),
+        "last_scrub": to_kd_date(entity.last_scrub),
+        "scrub_overdue": to_kd_date(entity.is_overdue(Operation.SCRUB))
+      }
+  else:
+    return {
+        "id" : entity_id_string(entity),
+        "last_online": to_kd_date(entity.last_online),
+        "last_update": None,
+        "update_overdue": None,
+        "last_trim": None,
+        "trim_overdue": None,
+        "last_scrub": None,
+        "scrub_overdue": None
+      }
+
+def handle_list_command(command, stream):
+  op = None
+  overdue = False
+  if "overdue" in command:
+    overdue = True
+    if "operation" in command:
+      try:
+        op = Operation[str(command["operation"]).upper()]
+      except Exception:
+        raise ValueError(f"unknown `operation`: {command["operation"]}")
+  entity_type = None
+
+  if "type" in command:
+    tp = command["type"]
+    try:
+      entity_type = TYPE_FOR_NAME[tp]
+    except:
+      raise ValueError(f"unknown type: {tp}")
+
   
+  result = []
+  def do(entity):
+    if isinstance(entity, ZMirror):
+      return
+    if not entity_type or isinstance(entity, entity_type):
+
+      if not overdue   or   (overdue and op and hasattr(entity, "is_overdue") and entity.is_overdue(op))   or   (overdue and is_anything_overdue(entity)):
+        result.append(entity_to_table_entry(entity))
+  iterate_content_tree(config.config_root, do)
+
+  if "sort" in command:
+    attr = command["sort"]
+    def keyfn(itemx):
+      # print(itemx)
+      return itemx[attr]
+    result = sorted(result, key= keyfn)
+
+  r = json.dumps(result)
+  stream.write(r)
+
 
 
 def make_send_set_property_daemon_command(prop, value=None):
@@ -540,7 +580,7 @@ def make_send_request_daemon_command(rqst, typ):
       r["cancel"] = "yes"
 
     delattr(args, "cancel")
-    r["type"] = command_name_for_type[typ]
+    r["type"] = NAME_FOR_TYPE[typ]
     identifiers = dict()
     for fld in typ.id_fields():
       val = getattr(args, fld)
@@ -558,7 +598,7 @@ def make_send_entity_daemon_command(command, typ):
 
     return {
       "command": command,
-      "type": command_name_for_type[typ],
+      "type": NAME_FOR_TYPE[typ],
       "identifiers": vars(args)
     }
   return make_send_daemon_wrapper(do)

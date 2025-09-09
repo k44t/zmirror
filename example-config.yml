@@ -327,6 +327,8 @@ content:
               # after the disk has been scrubbed we want to trim it to preserve performance
               on_scrubbed:
                 - trim
+              
+              scrub_interval: 2 weeks
 
 
 
@@ -393,6 +395,8 @@ content:
 
               on_scrubbed:
                 - trim
+
+              scrub_interval: 2 weeks
 
 
 
@@ -463,6 +467,8 @@ content:
                 # is done.
                 on_trimmed:
                   - offline
+
+                scrub_interval: 2 weeks
 
 
 
@@ -553,6 +559,8 @@ content:
               - online
 
 
+            scrub_interval: 2 weeks
+
 
 
   # big-b is a non-NVMe external USB-Connected SSD drive, exactly like big-a.
@@ -585,6 +593,8 @@ content:
             on_appeared:
               - online
 
+
+            scrub_interval: 2 weeks
 
 
 
@@ -792,6 +802,9 @@ content:
             on_scrubbed:
               - offline
 
+
+            scrub_interval: 4 weeks
+
       
       # the note from zmirror-bak-a/sysfs applies
       - !ZFSVolume
@@ -812,6 +825,9 @@ content:
             on_resilvered: 
               - offline
               - snapshot-parent
+
+
+            scrub_interval: 4 weeks
 
 
 
@@ -914,6 +930,9 @@ content:
             on_resilvered:
               - offline
               - snapshot-parent
+
+
+            scrub_interval: 4 weeks
       
 
       - !ZFSVolume
@@ -933,6 +952,9 @@ content:
             on_resilvered:
               - offline
               - snapshot-parent
+
+
+            scrub_interval: 4 weeks
 
 
 
@@ -1061,6 +1083,7 @@ content:
             # its a HDD it does not support trim
             trim_interval: nil
 
+            scrub_interval: 4 months
 
 
 
@@ -1099,9 +1122,7 @@ content:
               - offline
               # - snapshot-parent
 
-            # scrubbing will be done on the overlaying zpool only
-            # (not on blubak but on blubak-gamma and blubak-beta)
-            scrub_interval: nil
+            scrub_interval: 4 months
 
 
     # and for zmirror to do that, we need to tell it how the backing is layed out
@@ -1142,6 +1163,8 @@ content:
             trim_interval: nil
 
 
+
+
   - !Partition
     name: zmirror-blubak-beta-b
 
@@ -1162,3 +1185,5 @@ content:
 
             # its a HDD it does not support trim
             trim_interval: nil
+
+

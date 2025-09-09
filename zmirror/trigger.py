@@ -18,7 +18,7 @@ path = os.getenv("ZMIRROR_SOCKET_PATH")
 if path is None or len(sys.argv) > 1:
   import argparse
   parser = argparse.ArgumentParser(prog="zmirror-trigger")
-  parser.add_argument('--version', action='version', version=f'zmirror-trigger {VERSION}')
+  # parser.add_argument('--version', de='version', version=f'zmirror-trigger {get_version()}')
   parser.add_argument("--socket-path", type=str, help="the path to the unix socket (used by zmirror.trigger)", default=ZMIRROR_SOCKET_PATH_DEFAULT)
   args = parser.parse_args()
   path = args.socket_path

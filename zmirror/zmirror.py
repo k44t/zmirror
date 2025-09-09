@@ -51,7 +51,8 @@ def make_arg_parser():
   cancel_parser.add_argument("--cancel", action="store_true")
 
 
-  list_parser = argparse.ArgumentParser(add_help=False)
+  list_args_parser = argparse.ArgumentParser(add_help=False)
+
 
   TABLE_FORMATS = [
     "json",
@@ -96,9 +97,10 @@ def make_arg_parser():
   ]
 
 
-  list_parser.add_argument("--keys", type=lambda s: s.split(','), default=LIST_KEYS, help="only output this list of keys (columns)")
-  list_parser.add_argument("--no_headers", action="store_true", default=False, help="do not print headers when outputting a table")
-  list_parser.add_argument("--format", choices=TABLE_FORMATS, default="plain", help="either `json` or one of the formats defined by the tabulate library (see https://https://pypi.org/project/tabulate/#description)")
+  list_args_parser.add_argument("--keys", type=lambda s: s.split(','), default=LIST_KEYS, help="only output this list of keys (columns)")
+  list_args_parser.add_argument("--no_headers", action="store_true", default=False, help="do not print headers when outputting a table")
+  list_args_parser.add_argument("--format", choices=TABLE_FORMATS, default="plain", help="either `json` or one of the formats defined by the tabulate library (see https://https://pypi.org/project/tabulate/#description)")
+  list_args_parser.add_argument("--sort", choices=LIST_KEYS, help="the key (column) to sort for")
 
   daemon_parser = subs.add_parser('daemon', parents=[shared_parser, socket_parser], help="starts zmirror in daemon mode")
   daemon_parser.set_defaults(func=daemon)
@@ -152,18 +154,20 @@ def make_arg_parser():
   scrub_parser = subs.add_parser("scrub", parents=[socket_parser, cancel_parser], help="request device to be scrubbed")
   scrub_subs = scrub_parser.add_subparsers(required=True)
 
+  list_parser = subs.add_parser("list", parents=[socket_parser, list_args_parser], help="list devices fulfilling conditions")
+  list_parser.set_defaults(func=make_list_command(op=None, overdue=False))
 
-  list_subs = subs.add_parser("list", parents=[socket_parser], help="list devices fulfilling conditions").add_subparsers(required=True)
-  list_subs.add_parser("overdue", parents=[list_parser], help="list all overdue devices").set_defaults(func=make_list_overdue_command(op=None))
+  list_subs = list_parser.add_subparsers()
+  list_subs.add_parser("overdue", parents=[list_args_parser], help="list all overdue devices").set_defaults(func=make_list_command(op=None, overdue=True, entity_type=ZDev))
 
   list_scrub_subs = list_subs.add_parser("scrub", help="list devices based on current/last scrub state").add_subparsers(required=True)
-  list_scrub_subs.add_parser("overdue", parents=[list_parser], help="list devices on which a scrub is overdue").set_defaults(func=make_list_overdue_command(Operation.SCRUB))
+  list_scrub_subs.add_parser("overdue", parents=[list_args_parser], help="list devices on which a scrub is overdue").set_defaults(func=make_list_command(Operation.SCRUB, overdue=True))
 
   list_trim_subs = list_subs.add_parser("trim", help="list devices based on current/last trim state").add_subparsers(required=True)
-  list_trim_subs.add_parser("overdue", parents=[list_parser], help="list devices on which a trim is overdue").set_defaults(func=make_list_overdue_command(Operation.TRIM))
+  list_trim_subs.add_parser("overdue", parents=[list_args_parser], help="list devices on which a trim is overdue").set_defaults(func=make_list_command(Operation.TRIM, overdue=True))
 
   list_update_subs = list_subs.add_parser("update", help="list devices based on when they were last up-to-date").add_subparsers(required=True)
-  list_update_subs.add_parser("overdue", parents=[list_parser], help="list devices which need updating of their data").set_defaults(func=make_list_overdue_command(Operation.RESILVER))
+  list_update_subs.add_parser("overdue", parents=[list_args_parser], help="list devices which need updating of their data").set_defaults(func=make_list_command(Operation.RESILVER, overdue=True))
 
 
 
@@ -198,7 +202,7 @@ def make_arg_parser():
   add_set_property_parser("timeout", "temporarily set request timeout in seconds")
 
   def make_onlineable_commands(typ):
-    command_name = command_name_for_type[typ]
+    command_name = NAME_FOR_TYPE[typ]
 
     common_parser = argparse.ArgumentParser(add_help=False)
     for fld in typ.id_fields():
