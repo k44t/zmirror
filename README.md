@@ -8,6 +8,16 @@ This project is in the beta phase. Bugs might exist, changes to API and CLI migh
 
 ### How it works
 
+For every internal zpool for which you want a backup you mirror its devices on one or more external disks (`zpool attach`). When you want to make a backup you connect those external disks over night. `zmirror` will then (if you configure it thus) ensure that once the activity LED stops blinking, the backup is complete, and you can disconnect the disk. 
+
+`zmirror` writes detailed system logs, and keeps track of the state of your backups. You can for example ask it to list devices for which a scrub is overdue: 
+
+```
+zmirror list scrub overdue
+```
+
+`zmirror` can handle some quite complex configurations: `zpool`s whose `zdev`s (backing devices) are stored on ZFS Volumes which are within `zpools` backed by `zdev`s stored within LUKS encrypted containers for example.
+
 `zmirror` listens to `udev` and `ZED` events to online or offline devices and zpools based on configuration.
 
 `zmirror`'s YAML configuration file gives you fine-grained control over how zmirror should treat each disk, zpool and zdev. 
@@ -170,13 +180,7 @@ If it starts successfully, you can then run commands as the same user (or as `ro
 zmirror list
 ```
 
-see 
-
-```
-zmirror --help
-```
-
-For all the things you can tell the `zmirror daemon` to do for you.
+See `zmirror --help` for all the things you can tell the `zmirror daemon` to do for you. Equally helpful are the help texts for each subcommand (`zmirror list --help` or `zmirror list overdue --help` or `zmirror online zdev --help` etc.)
 
 
 
