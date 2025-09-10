@@ -2,7 +2,7 @@
 
 buildPythonPackage rec {
   pname = "zmirror-core";
-  version = import ./version.nix;
+  version = builtins.readFile ../VERSION;
 
   disabled = python.pythonOlder "3.7";
 
@@ -27,7 +27,7 @@ buildPythonPackage rec {
 
   
   unpackPhase = ''
-    rsync -av --exclude='.venv' --exclude='.vscode' --exclude='.notifier' --exclude='*/__pycache__/' --no-perms --no-group --no-owner ${src}/ ./
+    rsync -av --exclude='.venv' --exclude='.vscode' --exclude='.notifier' --exclude='*/__pycache__/' --exclude='dist' --no-perms --no-group --no-owner ${src}/ ./
   '';
 
   patchPhase = ''

@@ -1,1 +1,1 @@
-builtins.readFile (builtins.exec ''python3 -c "import toml; print(toml.load('pyproject.toml')['tool']['poetry']['version'])"'')
+"0.1.8b8"
