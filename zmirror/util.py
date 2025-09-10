@@ -10,11 +10,7 @@ from .logging import log
 from kpyutils.kiify import TabbedShiftexStream, KdStream
 
 
-from importlib.metadata import version
 
-
-def get_version():
-  return version('zmirror')
 
 
 

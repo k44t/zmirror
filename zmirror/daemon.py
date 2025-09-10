@@ -15,11 +15,13 @@ import signal
 import sys
 import time
 
+
 from zmirror.user_commands import cancel_requests_for_timeout, enact_requests, handle_command
-from zmirror.util import get_version
 
 from . import defaults
 
+
+from ._version import __version__
 
 from . import commands
 from .logging import log
@@ -403,7 +405,7 @@ def daemon(args):# pylint: disable=unused-argument
   except ImportError:
     log.warning("systemd log not available")
 
-  log.info(f"zmirror daemon version {get_version()} starting")
+  log.info(f"zmirror daemon version {__version__} starting")
 
   config.is_daemon = True
 

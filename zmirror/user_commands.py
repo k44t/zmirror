@@ -7,7 +7,7 @@ from .config import *
 
 from .logging import log
 from .dataclasses import *
-from .util import get_version, myexec, outs, copy_attrs, require_path
+from .util import myexec, outs, copy_attrs, require_path
 from . import commands as commands
 from kpyutils.kiify import KdStream, is_yes_or_true, to_yes
 
@@ -19,6 +19,8 @@ import json
 import codecs
 import traceback
 from tabulate import tabulate
+
+from ._version import __version__
 
 
 
@@ -278,7 +280,7 @@ def handle_get_command(command, stream):
 
 
 def handle_daemon_version_command(out):
-  out.write(get_version())
+  out.write(__version__)
   out.write("\n")
 
 def handle_command(command, con):

@@ -9,7 +9,7 @@ import argparse
 
 from .logging import log
 from .dataclasses import *
-from .util import get_version, myexec, outs, copy_attrs, env_var_or
+from .util import myexec, outs, copy_attrs, env_var_or
 from .entities import *
 from . import commands as commands
 from .daemon import daemon
@@ -22,10 +22,13 @@ from . import operations as operations
 from .defaults import *
 
 
+from ._version import __version__
+
+
 def make_arg_parser():
 
   parser = argparse.ArgumentParser(prog="zmirror")
-  parser.add_argument('--version', action='version', version=get_version(), help="print the version")
+  parser.add_argument('--version', action='version', version=__version__, help="print the version")
   subs = parser.add_subparsers(required=True)
 
 
