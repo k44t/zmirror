@@ -4,7 +4,7 @@ This project is in the beta phase. Bugs might exist, changes to API and CLI migh
 
 ## Description
 
-`zmirror` is a linux system service that enables you to use ZFS encrypted mirror devices as backups.
+`zmirror` is a linux system service that enables you to use (optionally LUKS encrypted) ZFS mirror devices as backups.
 
 ### How it works
 
@@ -32,10 +32,10 @@ is the active configuration of the devvythelopper of `zmirror` (sic).
 
 `zmirror`'s backup strategy **CANNOT** mitigate the following risks:
 
-- bugs in ZFS that make me lose some or all of the data inside the backups
+- bugs in ZFS that cause data loss on the backup disks
 - hackers that maliciously delete data WHILE a backup disk is connected
 
-To mitigate these types of risks one would need permanent backups (i.e. millenium disks or tape backups).
+To mitigate these types of risks one would need permanent backups (i.e. millenium disks or tape backups). Since this is more time-consuming one might wish to combine permanent backups for the most important data with `zmirror` based backups for everything else.
 
 
 
@@ -57,8 +57,8 @@ The following features are implemented:
 ### Scheduling
 
 `zmirror daemon` itself does not have an inbuilt scheduler. Instead it relies
-on systemd or or cron to run `zmirror maintenance` at some user-specified 
-time of day (or week or whatever).
+on `systemd` or or `cron` to run `zmirror maintenance` at some user-specified 
+time of day (or week, etc.).
 
 
 ## Installation
@@ -97,9 +97,7 @@ Install system-wide:
 sudo pip3 install dist/zmirror-*.whl
 ```
 
-Install systemd bindings for python so that zmirror can write its log messages to the system log.
-
-On ubuntu you can do
+Install systemd bindings for python so that zmirror can write its log messages to the system log. On ubuntu this can be done with:
 
 ```bash
 apt install python3-systemd
@@ -111,13 +109,11 @@ At this point you might want to open a window to follow the logs:
 journalctl -f
 ```
 
-On a debian-like distribution, you can simply install udev rules (`/etc/udev/rules.d/99-zmirror.rules`), ZED script (`/etc/zfs/zed.d/all-zmirror.sh`) and the `/usr/sbin/zmirror` and `/usr/sbin/zmirror-trigger` scripts by copying them:
+On ubuntu (or any other debian-like distribution), you can simply install udev rules (`/etc/udev/rules.d/99-zmirror.rules`), ZED script (`/etc/zfs/zed.d/all-zmirror.sh`) and the `/usr/sbin/zmirror` and `/usr/sbin/zmirror-trigger` scripts by copying them:
 
 ```
 sudo rsync -av ./debian/ /
 ```
-
-Be sure to 
 
 On other distributions locations and script contents (paths) might need adapting.
 
@@ -135,13 +131,13 @@ sudo systemctl restart zfs-zed
 
 Properly configure `zmirror` at this point. You may copy `example-config.yml` to `/etc/zmirror/zmirror.yml` and adapt carefully.
 
-Most instances of malconfiguration should simply result in error messages or just simply not the results you desire.
+Most instances of malconfiguration should simply result in error messages or `zmirror` just not being able to do what you desire.
 
 Dataloss can occur for example if `zmirror` imports a pool when only a device is present that does not have the newest data. This might also be the result of not configuring a "leader" mirror device (the one with the newest data) properly (for example the wrong path to the key-file) while configuring "follower" mirror device properly, so that zmirror imports the pool with only the "follower" device and later imports the "leader" device once configuration has been corrected.
 
 Misconfiguration of zpools (outside of zmirror) might result in system instability. This might be the result of a zpool that is usually imported with a different root path `-R /some/path`, and `zmirror` which knows nothing of changing pool root on import imports it under `/`.
 
-The developers are not responsible for any damages caused by using `zmirror`. Use at your own risk as agreed per the LICENSE.
+The developers are not responsible for any damages caused by using `zmirror`. Use at your own risk as agreed per the `LICENSE`.
 
 Start `zmirror`:
 
@@ -149,7 +145,9 @@ Start `zmirror`:
 sudo systemctl start zmirror
 ```
 
-Alternatively you can also run zmirror from the project directory. First prepare:
+Alternatively you can also run zmirror from the project directory. 
+
+First prepare:
 
 ```bash
 # create venv
@@ -184,4 +182,4 @@ For all the things you can tell the `zmirror daemon` to do for you.
 
 ## License
 
-The code is fully MIT licensed. See the LICENSE file.
+The code is fully MIT licensed. See the `LICENSE` file.
