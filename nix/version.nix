@@ -1,1 +1,1 @@
-"0.1.5-alpha"
+builtins.readFile (builtins.exec ''python3 -c "import toml; print(toml.load('pyproject.toml')['tool']['poetry']['version'])"'')

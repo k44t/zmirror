@@ -32,7 +32,7 @@ package = stdenv.mkDerivation rec {
     chmod a+x $out/bin/*
 
     mkdir -p $out/lib/udev/rules.d
-    cp ./udev/99-zmirror.rules $out/lib/udev/rules.d
+    cp ./debian/etc/udev/rules.d/99-zmirror.rules $out/lib/udev/rules.d
     sed -i "s|/usr/local/bin/|$out/bin/|g" $out/lib/udev/rules.d/99-zmirror.rules
 
   '';

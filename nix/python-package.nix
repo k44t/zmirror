@@ -1,4 +1,4 @@
-{ lib, rsync, poetry-core, zfs, tree, python, buildPythonPackage, kpyutils }:
+{ lib, rsync, poetry-core, zfs, tree, python, buildPythonPackage }:
 
 buildPythonPackage rec {
   pname = "zmirror-core";
@@ -15,7 +15,6 @@ buildPythonPackage rec {
     dateparser
     systemd
     tabulate
-    kpyutils
   ];
   
   nativeBuildInputs = [ 
@@ -28,7 +27,12 @@ buildPythonPackage rec {
 
   
   unpackPhase = ''
-    rsync -av --exclude='.venv' --exclude='.vscode' --exclude='.notifier' --no-perms --no-group --no-owner ${src}/ ./
+    rsync -av --exclude='.venv' --exclude='.vscode' --exclude='.notifier' --exclude='*/__pycache__/' --no-perms --no-group --no-owner ${src}/ ./
+  '';
+
+  patchPhase = ''
+    # python's systemd library will be brought in by nix
+    # sed -i 's/^.*cysystemd = \".*$/# &/' pyproject.toml
   '';
 
 

@@ -1,0 +1,13 @@
+[Unit]
+Description=ZMirror Service
+Wants=local-fs.target
+After=local-fs.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/zmirror daemon --config-path '/etc/zmirror/zmirror.yml' >> /dev/null
+ExecReload=/usr/bin/zmirror reload-config >> /dev/null
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+[Install]
+WantedBy=local-fs.target

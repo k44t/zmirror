@@ -1,0 +1,7 @@
+[Unit]
+Description=ZMirror Maintenance Run
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/zmirror reload-config >> /dev/null
+Environment=PATH=/usr/sbin

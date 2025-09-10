@@ -13,6 +13,7 @@ from enum import Enum
 from threading import Timer
 import signal
 import sys
+import time
 
 from zmirror.user_commands import cancel_requests_for_timeout, enact_requests, handle_command
 from zmirror.util import get_version
@@ -492,6 +493,11 @@ def daemon(args):# pylint: disable=unused-argument
       # this is necessary if some timeouts are still pending (timer threads may keep running after sys.exit has been called)
       # os.kill(os.getpid(), signal.SIGKILL) #pylint: disable=unreachable
       sys.exit(0)
+
+      time.sleep(1)
+
+      # this is necessary if some timeouts are still pending (timer threads may keep running after sys.exit has been called)
+      os.kill(os.getpid(), signal.SIGKILL) #pylint: disable=unreachable
 
 
   signal.signal(signal.SIGTERM, shutdown)

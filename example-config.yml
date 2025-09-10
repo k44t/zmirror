@@ -2,10 +2,16 @@
 
 
 # enable logging of the environment variables for all udev and ZED events for debugging purposes. 
+#
+# can be enabled temporarily via `zmirror enable log-events` (please note that 
+# the config file uses `log_events` while the CLI uses `log-events` (with a minus).
+#
 # defaults to: `no`
 log_events: no
 
 # trace | debug | verbose | info | warning | error | critical
+#
+# can be set temporarily via `zmirror set log-level <x>`
 #
 # defaults to `info`
 log_level: info
@@ -13,7 +19,7 @@ log_level: info
 # If set to `no`, then zmirror never executes any commands 
 # but only logs the commands that it would execute. This is helpful when you
 # want to test things and/or manually interact with the devices without zmirror 
-# interfering (but still keeping track of state changes).
+# interfering (but still want zmirror to keep track of state changes).
 #
 # you can temporarily override this at runtime by running `zmirror enable commands` 
 # or `zmirror disable commands`
@@ -38,32 +44,25 @@ enable_commands: yes
 timeout: 300
 
 
-
-
-
-
-# zmirror itself does not support scheduling when the maintenance task should be 
-# run (`zmirror maintenance`), since there are great tools
-# that do just that. Basically you create a systemd service that runs at whatever
-# interval you prefer and that calls: `zmirror scrub-all` or `zmirror trim-all` (depending on whether you configured all your disks
-# to always be trimmed after a scrub or no)
-# 
-# You can of course always do `zpool scrub-all` or `zpool trim-all` directly. 
+# #########################
+# scheduling
+# #########################
 #
-# Please note that zmirror should always be running/restarted with 
-# `disable_commands: yes` when you do anything manual, so that it can ubdate its disk state information 
-# accordingly.
+# `zmirror` itself does not have an inbuilt scheduler. Instead it relies
+# on systemd or or cron to run `zmirror maintenance` at some user-specified 
+# time of day.
+
 
 # sets the global trim interval. May be overridden by setting `trim_interval` 
 # directly on a device.
 #
 # please note that this interval will be inherited by all zdevs, even those that
 # are on HDDs, which means that zmirror will try to trim them (and fail). If you set
-# the global trim_interval to anything other than `nil`, you need to set it to
-# `nil` for all HDDs.
+# the global trim_interval to anything other than `nil`, you need to set 
+# `trim_interval: nil` on each zdev on an HDD.
 # 
 # you can also set the interval to `nil` which means that no interval is set.
-# defaults to: `nil` (no interval)
+# defaults to: `nil` (meaning no interval is set)
 trim_interval: nil # 1 week
 
 # sets the global trim interval. May be overridden by setting `scrub_interval` 
@@ -83,8 +82,8 @@ scrub_interval: nil # 4 weeks
 update_interval: nil # 2 weeks
 
 
-# under here all top-level entities (such as disks, partitions, lvm volume groups
-# or zpools) are configured
+# under here all top-level entities (such as disks, partitions, LUKS containers 
+# or zpools
 content:
 
 
