@@ -123,11 +123,6 @@ def handle_request_command(command):
 
 
 
-def to_kd_date(value):
-  if isinstance(value, datetime) or isinstance(value, timedelta):
-    return to_kd(value)
-  else:
-    return value
     
 
 
@@ -418,7 +413,7 @@ def make_send_daemon_wrapper(fn, stream=sys.stdout):
 
 
 
-LIST_KEYS = ["id", "last-online", "last_update", "update_overdue", "last_trim", "trim_overdue", "last_scrub", "scrub_overdue"]
+LIST_KEYS = ["id", "last_online", "last_update", "update_overdue", "last_trim", "trim_overdue", "last_scrub", "scrub_overdue"]
 
 
 def make_list_command(op: Operation, entity_type=None, overdue=False):
@@ -462,6 +457,21 @@ def make_list_command(op: Operation, entity_type=None, overdue=False):
     if args.format == "json":
       sys.stdout.write(json.dumps(items))
     else:
+      for item in items:
+        for key in item:
+          val = item[key]
+          if key.startswith("last_"):
+            if val is None:
+              val = "-"
+          if isinstance(val, bool):
+            val = f"{to_kd(val)}"
+          elif isinstance(val, dict):
+            val = special_ki_from_json(val)
+            if hasattr(val, "__kiify__"):
+              val = f"{to_kd(val)}"
+          item[key] = val
+          
+
       if not args.no_headers:
         headers = {k: k for k in keys}
         table = tabulate(items, headers=headers, tablefmt=args.format)
@@ -475,23 +485,23 @@ def make_list_command(op: Operation, entity_type=None, overdue=False):
 
 
 
-
 def entity_to_table_entry(entity: Entity):
+  cache = cached(entity)
   if isinstance(entity, ZDev):
     return {
         "id" : entity_id_string(entity),
-        "last_online": to_kd_date(entity.last_online),
-        "last_update": to_kd_date(entity.last_update),
+        "last_online": special_ki_to_json(to_kd_date(entity.get_last_online())),
+        "last_update": special_ki_to_json(to_kd_date(cache.get_last_update())),
         "update_overdue": to_kd_date(entity.is_overdue(Operation.RESILVER)),
-        "last_trim": to_kd_date(entity.last_trim),
+        "last_trim": to_kd_date(cache.last_trim),
         "trim_overdue": to_kd_date(entity.is_overdue(Operation.TRIM)),
-        "last_scrub": to_kd_date(entity.last_scrub),
+        "last_scrub": to_kd_date(cache.last_scrub),
         "scrub_overdue": to_kd_date(entity.is_overdue(Operation.SCRUB))
       }
   else:
     return {
         "id" : entity_id_string(entity),
-        "last_online": to_kd_date(entity.last_online),
+        "last_online": special_ki_to_json(to_kd_date(entity.get_last_online())),
         "last_update": None,
         "update_overdue": None,
         "last_trim": None,
@@ -524,10 +534,22 @@ def handle_list_command(command, stream):
   def do(entity):
     if isinstance(entity, ZMirror):
       return
-    if not entity_type or isinstance(entity, entity_type):
+    if entity_type:
+      if not isinstance(entity, entity_type):
+        return
+    if overdue:
+      if not hasattr(entity, "is_overdue"):
+        return
+      
+      if op:
+        if not entity.is_overdue(op):
+          return
+      else:
+        if not is_anything_overdue(entity):
+          return
 
-      if not overdue   or   (overdue and op and hasattr(entity, "is_overdue") and entity.is_overdue(op))   or   (overdue and is_anything_overdue(entity)):
-        result.append(entity_to_table_entry(entity))
+    result.append(entity_to_table_entry(entity))
+        
   iterate_content_tree(config.config_root, do)
 
   if "sort" in command:

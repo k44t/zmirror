@@ -19,7 +19,7 @@ from .util import read_file
 from enum import Enum
 
 
-from kpyutils.kiify import yaml_data, yaml_enum, KiEnum, KdStream, yes_no_absent_or_dict
+from kpyutils.kiify import yaml_data, yaml_enum, KiEnum, KdStream, yes_no_absent_or_dict, KiSymbol
 
 
 
@@ -281,6 +281,16 @@ class Entity:
     raise NotImplementedError()
 
 
+  def get_last_online(self):
+    cache = cached(self)
+    now = inaccurate_now()
+    if cache.state.what is EntityState.ONLINE:
+      cache.last_online = now
+      return KiSymbol("now")
+    return cache.last_online
+  
+
+
   def remove_request(self, request_type):
     return self.requested.remove(request_type)
 
@@ -342,7 +352,7 @@ class Entity:
 
     if cache.state.what is not EntityState.ONLINE:
       kdstream.newline()
-      kdstream.print_property(cache, "last_online", nil="#never")
+      kdstream.print_property(cache, "last_online", nil=KiSymbol("never"))
 
   def handle_onlined(self, prev_state):
     succeed_request(self, RequestType.ONLINE)
@@ -1508,6 +1518,14 @@ class ZDev(Onlineable, Embedded, Entity):
     return ["pool", "name"]
   
 
+  def get_last_update(self):
+    cache = cached(self)
+    now = inaccurate_now()
+    if cache.state.what == EntityState.ONLINE and Operation.RESILVER not in cache.operations:
+      cache.last_update = now
+      return KiSymbol("now")
+    return cache.last_update
+  
 
   def unsupported_request(self, request_type: RequestType):
     if request_type in [RequestType.OFFLINE, RequestType.ONLINE, RequestType.SCRUB, RequestType.TRIM]:
@@ -1578,10 +1596,13 @@ class ZDev(Onlineable, Embedded, Entity):
     
     
     for op in Operation:
-      if op == Operation.RESILVER and cache.state.what == EntityState.ONLINE and Operation.RESILVER not in cache.operations:
-        continue
       kdstream.newline()
-      kdstream.print_property(cache, get_last_property_name_for_operation(op), nil="#never")
+      if op is Operation.RESILVER:
+        kdstream.print_property_prefix("last_online")
+        last_online = self.get_last_online()
+        kdstream.print_obj(last_online, nil=KiSymbol("never"))
+      else:
+        kdstream.print_property(cache, get_last_property_name_for_operation(op), nil=KiSymbol("never"))
       if self.is_overdue(op):
         kdstream.print_raw(" # OVERDUE")
       kdstream.print_property(self, f"{property_name_for_operation[op]}_interval", hide_if_empty=True)
@@ -1727,7 +1748,9 @@ NAME_FOR_TYPE = {
   ZDev: "zdev",
   ZFSVolume: "zfs-volume",
   DMCrypt: "dm-crypt",
-  ZMirror: "zmirror"
+  ZMirror: "zmirror",
+  UnavailableDependency: "unavailable-dependency",
+  Mirror: "mirror"
 }
 
 TYPE_FOR_NAME = {value: key for key, value in NAME_FOR_TYPE.items()}
