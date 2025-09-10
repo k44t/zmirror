@@ -10,16 +10,17 @@ python = "^3.12"
 natsort = ">=8.4.0"
 pyyaml = ">=6.0.0"
 dateparser = ">=1.2.0"
-# kpyutils = ">=0.1.2b1"
 tabulate = ">=0.9.0"
+
+
 
 [tool.poetry.dev-dependencies]
 # kpyutils = { path = "../kpyutils", develop = true }
 debugpy = ">=1.8.14"
 pytest = ">=8.3.5"
-cysystemd = ">= 0.0.1"
 argparse-manpage = { path = "../argparse-manpage", develop = true } # "^4.7"
 toml = ">=0.10.2"
+cysystemd = ">= 0.0.1"
 
 [tool.pytest.ini_options]
 log_cli = true

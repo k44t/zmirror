@@ -1,5 +1,5 @@
 ---
-date: 1980-01-01
+date: 2025-09-10
 section: 1
 title: ZMIRROR
 ---
@@ -185,6 +185,7 @@ usage: zmirror reload-config \[-h\] \[\--socket-path SOCKET_PATH\]
 # COMMAND *\'zmirror* scrub-all\'
 
 usage: zmirror scrub-all \[-h\] \[\--socket-path SOCKET_PATH\]
+\[\--cancel\]
 
 # OPTIONS *\'zmirror* scrub-all\'
 
@@ -196,7 +197,11 @@ usage: zmirror scrub-all \[-h\] \[\--socket-path SOCKET_PATH\]
     set via the environment variable \`ZMIRROR_SOCKET_PATH\`. Defaults
     to \`/run/zmirror/zmirror.socket\`
 
-# COMMAND *\'zmirror* scrub-overdue\'
+<!-- -->
+
+**\--cancel**
+
+:   # COMMAND *\'zmirror* scrub-overdue\'
 
 usage: zmirror scrub-overdue \[-h\] \[\--socket-path SOCKET_PATH\]
 
@@ -227,6 +232,7 @@ usage: zmirror resilver-overdue \[-h\] \[\--socket-path SOCKET_PATH\]
 # COMMAND *\'zmirror* trim-all\'
 
 usage: zmirror trim-all \[-h\] \[\--socket-path SOCKET_PATH\]
+\[\--cancel\]
 
 # OPTIONS *\'zmirror* trim-all\'
 
@@ -238,7 +244,11 @@ usage: zmirror trim-all \[-h\] \[\--socket-path SOCKET_PATH\]
     set via the environment variable \`ZMIRROR_SOCKET_PATH\`. Defaults
     to \`/run/zmirror/zmirror.socket\`
 
-# COMMAND *\'zmirror* trim-overdue\'
+<!-- -->
+
+**\--cancel**
+
+:   # COMMAND *\'zmirror* trim-overdue\'
 
 usage: zmirror trim-overdue \[-h\] \[\--socket-path SOCKET_PATH\]
 
@@ -255,6 +265,7 @@ usage: zmirror trim-overdue \[-h\] \[\--socket-path SOCKET_PATH\]
 # COMMAND *\'zmirror* online-all\'
 
 usage: zmirror online-all \[-h\] \[\--socket-path SOCKET_PATH\]
+\[\--cancel\]
 
 # OPTIONS *\'zmirror* online-all\'
 
@@ -266,7 +277,11 @@ usage: zmirror online-all \[-h\] \[\--socket-path SOCKET_PATH\]
     set via the environment variable \`ZMIRROR_SOCKET_PATH\`. Defaults
     to \`/run/zmirror/zmirror.socket\`
 
-# COMMAND *\'zmirror* status-all\'
+<!-- -->
+
+**\--cancel**
+
+:   # COMMAND *\'zmirror* status-all\'
 
 usage: zmirror status-all \[-h\] \[\--socket-path SOCKET_PATH\]
 
@@ -311,37 +326,49 @@ usage: zmirror maintenance \[-h\] \[\--socket-path SOCKET_PATH\]
 # COMMAND *\'zmirror* online\'
 
 usage: zmirror online \[-h\] \[\--socket-path SOCKET_PATH\]
-{disk,partition,zpool,zfs-volume,dm-crypt,zdev} \...
+\[\--cancel\] {disk,partition,zpool,zfs-volume,dm-crypt,zdev} \...
 
 # POSITIONAL ARGUMENTS *\'zmirror online\'*
 
 # COMMAND *\'zmirror* online disk\'
 
-usage: zmirror online disk \[-h\] uuid
+usage: zmirror online disk \[-h\] \[\--cancel\] uuid
 
 **uuid**
 
 :   id field
 
-# COMMAND *\'zmirror* online partition\'
+# OPTIONS *\'zmirror* online disk\'
 
-usage: zmirror online partition \[-h\] name
+**\--cancel**
 
-**name**
+:   # COMMAND *\'zmirror* online partition\'
 
-:   id field
-
-# COMMAND *\'zmirror* online zpool\'
-
-usage: zmirror online zpool \[-h\] name
+usage: zmirror online partition \[-h\] \[\--cancel\] name
 
 **name**
 
 :   id field
 
-# COMMAND *\'zmirror* online zfs-volume\'
+# OPTIONS *\'zmirror* online partition\'
 
-usage: zmirror online zfs-volume \[-h\] pool name
+**\--cancel**
+
+:   # COMMAND *\'zmirror* online zpool\'
+
+usage: zmirror online zpool \[-h\] \[\--cancel\] name
+
+**name**
+
+:   id field
+
+# OPTIONS *\'zmirror* online zpool\'
+
+**\--cancel**
+
+:   # COMMAND *\'zmirror* online zfs-volume\'
+
+usage: zmirror online zfs-volume \[-h\] \[\--cancel\] pool name
 
 **pool**
 
@@ -353,17 +380,25 @@ usage: zmirror online zfs-volume \[-h\] pool name
 
 :   id field
 
-# COMMAND *\'zmirror* online dm-crypt\'
+# OPTIONS *\'zmirror* online zfs-volume\'
 
-usage: zmirror online dm-crypt \[-h\] name
+**\--cancel**
+
+:   # COMMAND *\'zmirror* online dm-crypt\'
+
+usage: zmirror online dm-crypt \[-h\] \[\--cancel\] name
 
 **name**
 
 :   id field
 
-# COMMAND *\'zmirror* online zdev\'
+# OPTIONS *\'zmirror* online dm-crypt\'
 
-usage: zmirror online zdev \[-h\] pool name
+**\--cancel**
+
+:   # COMMAND *\'zmirror* online zdev\'
+
+usage: zmirror online zdev \[-h\] \[\--cancel\] pool name
 
 **pool**
 
@@ -375,7 +410,11 @@ usage: zmirror online zdev \[-h\] pool name
 
 :   id field
 
-# OPTIONS *\'zmirror* online\'
+# OPTIONS *\'zmirror* online zdev\'
+
+**\--cancel**
+
+:   # OPTIONS *\'zmirror* online\'
 
 **\--socket-path** *SOCKET_PATH*
 
@@ -385,7 +424,11 @@ usage: zmirror online zdev \[-h\] pool name
     set via the environment variable \`ZMIRROR_SOCKET_PATH\`. Defaults
     to \`/run/zmirror/zmirror.socket\`
 
-# COMMAND *\'zmirror* offline\'
+<!-- -->
+
+**\--cancel**
+
+:   # COMMAND *\'zmirror* offline\'
 
 usage: zmirror offline \[-h\] \[\--socket-path SOCKET_PATH\]
 {disk,partition,zpool,zfs-volume,dm-crypt,zdev} \...
@@ -394,31 +437,43 @@ usage: zmirror offline \[-h\] \[\--socket-path SOCKET_PATH\]
 
 # COMMAND *\'zmirror* offline disk\'
 
-usage: zmirror offline disk \[-h\] uuid
+usage: zmirror offline disk \[-h\] \[\--cancel\] uuid
 
 **uuid**
 
 :   id field
 
-# COMMAND *\'zmirror* offline partition\'
+# OPTIONS *\'zmirror* offline disk\'
 
-usage: zmirror offline partition \[-h\] name
+**\--cancel**
 
-**name**
+:   # COMMAND *\'zmirror* offline partition\'
 
-:   id field
-
-# COMMAND *\'zmirror* offline zpool\'
-
-usage: zmirror offline zpool \[-h\] name
+usage: zmirror offline partition \[-h\] \[\--cancel\] name
 
 **name**
 
 :   id field
 
-# COMMAND *\'zmirror* offline zfs-volume\'
+# OPTIONS *\'zmirror* offline partition\'
 
-usage: zmirror offline zfs-volume \[-h\] pool name
+**\--cancel**
+
+:   # COMMAND *\'zmirror* offline zpool\'
+
+usage: zmirror offline zpool \[-h\] \[\--cancel\] name
+
+**name**
+
+:   id field
+
+# OPTIONS *\'zmirror* offline zpool\'
+
+**\--cancel**
+
+:   # COMMAND *\'zmirror* offline zfs-volume\'
+
+usage: zmirror offline zfs-volume \[-h\] \[\--cancel\] pool name
 
 **pool**
 
@@ -430,17 +485,25 @@ usage: zmirror offline zfs-volume \[-h\] pool name
 
 :   id field
 
-# COMMAND *\'zmirror* offline dm-crypt\'
+# OPTIONS *\'zmirror* offline zfs-volume\'
 
-usage: zmirror offline dm-crypt \[-h\] name
+**\--cancel**
+
+:   # COMMAND *\'zmirror* offline dm-crypt\'
+
+usage: zmirror offline dm-crypt \[-h\] \[\--cancel\] name
 
 **name**
 
 :   id field
 
-# COMMAND *\'zmirror* offline zdev\'
+# OPTIONS *\'zmirror* offline dm-crypt\'
 
-usage: zmirror offline zdev \[-h\] pool name
+**\--cancel**
+
+:   # COMMAND *\'zmirror* offline zdev\'
+
+usage: zmirror offline zdev \[-h\] \[\--cancel\] pool name
 
 **pool**
 
@@ -452,7 +515,11 @@ usage: zmirror offline zdev \[-h\] pool name
 
 :   id field
 
-# OPTIONS *\'zmirror* offline\'
+# OPTIONS *\'zmirror* offline zdev\'
+
+**\--cancel**
+
+:   # OPTIONS *\'zmirror* offline\'
 
 **\--socket-path** *SOCKET_PATH*
 
@@ -547,7 +614,7 @@ usage: zmirror trim \[-h\] \[\--socket-path SOCKET_PATH\] {zdev} \...
 
 # COMMAND *\'zmirror* trim zdev\'
 
-usage: zmirror trim zdev \[-h\] pool name
+usage: zmirror trim zdev \[-h\] \[\--cancel\] pool name
 
 **pool**
 
@@ -559,7 +626,11 @@ usage: zmirror trim zdev \[-h\] pool name
 
 :   id field
 
-# OPTIONS *\'zmirror* trim\'
+# OPTIONS *\'zmirror* trim zdev\'
+
+**\--cancel**
+
+:   # OPTIONS *\'zmirror* trim\'
 
 **\--socket-path** *SOCKET_PATH*
 
@@ -571,8 +642,8 @@ usage: zmirror trim zdev \[-h\] pool name
 
 # COMMAND *\'zmirror* scrub\'
 
-usage: zmirror scrub \[-h\] \[\--socket-path SOCKET_PATH\] {zpool,zdev}
-\...
+usage: zmirror scrub \[-h\] \[\--socket-path SOCKET_PATH\] \[\--cancel\]
+{zpool,zdev} \...
 
 # POSITIONAL ARGUMENTS *\'zmirror scrub\'*
 
@@ -608,9 +679,17 @@ usage: zmirror scrub zdev \[-h\] pool name
     set via the environment variable \`ZMIRROR_SOCKET_PATH\`. Defaults
     to \`/run/zmirror/zmirror.socket\`
 
-# COMMAND *\'zmirror* list\'
+<!-- -->
 
-usage: zmirror list \[-h\] \[\--socket-path SOCKET_PATH\]
+**\--cancel**
+
+:   # COMMAND *\'zmirror* list\'
+
+usage: zmirror list \[-h\] \[\--socket-path SOCKET_PATH\] \[\--keys
+KEYS\] \[\--no_headers\] \[\--format
+{json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}\]
+\[\--sort
+{id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}\]
 {overdue,scrub,trim,update} \...
 
 # POSITIONAL ARGUMENTS *\'zmirror list\'*
@@ -636,6 +715,8 @@ usage: zmirror list \[-h\] \[\--socket-path SOCKET_PATH\]
 usage: zmirror list overdue \[-h\] \[\--keys KEYS\] \[\--no_headers\]
 \[\--format
 {json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}\]
+\[\--sort
+{id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}\]
 
 # OPTIONS *\'zmirror* list overdue\'
 
@@ -656,6 +737,12 @@ usage: zmirror list overdue \[-h\] \[\--keys KEYS\] \[\--no_headers\]
 :   either \`json\` or one of the formats defined by the tabulate
     library (see https://https://pypi.org/project/tabulate/#description)
 
+<!-- -->
+
+**\--sort** *{id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}*
+
+:   the key (column) to sort for
+
 # COMMAND *\'zmirror* list scrub\'
 
 usage: zmirror list scrub \[-h\] {overdue} \...
@@ -671,6 +758,8 @@ usage: zmirror list scrub \[-h\] {overdue} \...
 usage: zmirror list scrub overdue \[-h\] \[\--keys KEYS\]
 \[\--no_headers\] \[\--format
 {json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}\]
+\[\--sort
+{id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}\]
 
 # OPTIONS *\'zmirror* list scrub overdue\'
 
@@ -691,6 +780,12 @@ usage: zmirror list scrub overdue \[-h\] \[\--keys KEYS\]
 :   either \`json\` or one of the formats defined by the tabulate
     library (see https://https://pypi.org/project/tabulate/#description)
 
+<!-- -->
+
+**\--sort** *{id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}*
+
+:   the key (column) to sort for
+
 # COMMAND *\'zmirror* list trim\'
 
 usage: zmirror list trim \[-h\] {overdue} \...
@@ -706,6 +801,8 @@ usage: zmirror list trim \[-h\] {overdue} \...
 usage: zmirror list trim overdue \[-h\] \[\--keys KEYS\]
 \[\--no_headers\] \[\--format
 {json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}\]
+\[\--sort
+{id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}\]
 
 # OPTIONS *\'zmirror* list trim overdue\'
 
@@ -726,6 +823,12 @@ usage: zmirror list trim overdue \[-h\] \[\--keys KEYS\]
 :   either \`json\` or one of the formats defined by the tabulate
     library (see https://https://pypi.org/project/tabulate/#description)
 
+<!-- -->
+
+**\--sort** *{id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}*
+
+:   the key (column) to sort for
+
 # COMMAND *\'zmirror* list update\'
 
 usage: zmirror list update \[-h\] {overdue} \...
@@ -741,6 +844,8 @@ usage: zmirror list update \[-h\] {overdue} \...
 usage: zmirror list update overdue \[-h\] \[\--keys KEYS\]
 \[\--no_headers\] \[\--format
 {json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}\]
+\[\--sort
+{id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}\]
 
 # OPTIONS *\'zmirror* list update overdue\'
 
@@ -761,6 +866,12 @@ usage: zmirror list update overdue \[-h\] \[\--keys KEYS\]
 :   either \`json\` or one of the formats defined by the tabulate
     library (see https://https://pypi.org/project/tabulate/#description)
 
+<!-- -->
+
+**\--sort** *{id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}*
+
+:   the key (column) to sort for
+
 # OPTIONS *\'zmirror* list\'
 
 **\--socket-path** *SOCKET_PATH*
@@ -770,6 +881,31 @@ usage: zmirror list update overdue \[-h\] \[\--keys KEYS\]
     commands are sent when you invoke \`zmirror \<command\>\`. May be
     set via the environment variable \`ZMIRROR_SOCKET_PATH\`. Defaults
     to \`/run/zmirror/zmirror.socket\`
+
+<!-- -->
+
+**\--keys** *KEYS*
+
+:   only output this list of keys (columns)
+
+<!-- -->
+
+**\--no_headers**
+
+:   do not print headers when outputting a table
+
+<!-- -->
+
+**\--format** *{json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}*
+
+:   either \`json\` or one of the formats defined by the tabulate
+    library (see https://https://pypi.org/project/tabulate/#description)
+
+<!-- -->
+
+**\--sort** *{id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}*
+
+:   the key (column) to sort for
 
 # COMMAND *\'zmirror* enable\'
 

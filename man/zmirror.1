@@ -1,4 +1,4 @@
-.TH ZMIRROR "1" "1980\-01\-01" "zmirror" "Generated Python Manual"
+.TH ZMIRROR "1" "2025\-09\-10" "zmirror" "Generated Python Manual"
 .SH NAME
 zmirror
 .SH SYNOPSIS
@@ -120,7 +120,7 @@ when you invoke `zmirror <command>`. May be set via the environment variable
 `ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
 
 .SH COMMAND \fI\,'zmirror scrub\-all'\/\fR
-usage: zmirror scrub\-all [\-h] [\-\-socket\-path SOCKET_PATH]
+usage: zmirror scrub\-all [\-h] [\-\-socket\-path SOCKET_PATH] [\-\-cancel]
 
 .SH OPTIONS \fI\,'zmirror scrub\-all'\/\fR
 .TP
@@ -129,6 +129,9 @@ the path to the unix socket on which `zmirror daemon` listens, to which
 `zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
 when you invoke `zmirror <command>`. May be set via the environment variable
 `ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.TP
+\fB\-\-cancel\fR
 
 .SH COMMAND \fI\,'zmirror scrub\-overdue'\/\fR
 usage: zmirror scrub\-overdue [\-h] [\-\-socket\-path SOCKET_PATH]
@@ -153,7 +156,7 @@ when you invoke `zmirror <command>`. May be set via the environment variable
 `ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
 
 .SH COMMAND \fI\,'zmirror trim\-all'\/\fR
-usage: zmirror trim\-all [\-h] [\-\-socket\-path SOCKET_PATH]
+usage: zmirror trim\-all [\-h] [\-\-socket\-path SOCKET_PATH] [\-\-cancel]
 
 .SH OPTIONS \fI\,'zmirror trim\-all'\/\fR
 .TP
@@ -162,6 +165,9 @@ the path to the unix socket on which `zmirror daemon` listens, to which
 `zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
 when you invoke `zmirror <command>`. May be set via the environment variable
 `ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.TP
+\fB\-\-cancel\fR
 
 .SH COMMAND \fI\,'zmirror trim\-overdue'\/\fR
 usage: zmirror trim\-overdue [\-h] [\-\-socket\-path SOCKET_PATH]
@@ -175,7 +181,7 @@ when you invoke `zmirror <command>`. May be set via the environment variable
 `ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
 
 .SH COMMAND \fI\,'zmirror online\-all'\/\fR
-usage: zmirror online\-all [\-h] [\-\-socket\-path SOCKET_PATH]
+usage: zmirror online\-all [\-h] [\-\-socket\-path SOCKET_PATH] [\-\-cancel]
 
 .SH OPTIONS \fI\,'zmirror online\-all'\/\fR
 .TP
@@ -184,6 +190,9 @@ the path to the unix socket on which `zmirror daemon` listens, to which
 `zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
 when you invoke `zmirror <command>`. May be set via the environment variable
 `ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.TP
+\fB\-\-cancel\fR
 
 .SH COMMAND \fI\,'zmirror status\-all'\/\fR
 usage: zmirror status\-all [\-h] [\-\-socket\-path SOCKET_PATH]
@@ -219,7 +228,7 @@ when you invoke `zmirror <command>`. May be set via the environment variable
 `ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
 
 .SH COMMAND \fI\,'zmirror online'\/\fR
-usage: zmirror online [\-h] [\-\-socket\-path SOCKET_PATH]
+usage: zmirror online [\-h] [\-\-socket\-path SOCKET_PATH] [\-\-cancel]
                       {disk,partition,zpool,zfs\-volume,dm\-crypt,zdev} ...
 
 .SH
@@ -227,28 +236,40 @@ POSITIONAL ARGUMENTS \fI\,'zmirror online'\/\fR
 
 
 .SH COMMAND \fI\,'zmirror online disk'\/\fR
-usage: zmirror online disk [\-h] uuid
+usage: zmirror online disk [\-h] [\-\-cancel] uuid
 
 .TP
 \fBuuid\fR
 id field
 
+.SH OPTIONS \fI\,'zmirror online disk'\/\fR
+.TP
+\fB\-\-cancel\fR
+
 .SH COMMAND \fI\,'zmirror online partition'\/\fR
-usage: zmirror online partition [\-h] name
+usage: zmirror online partition [\-h] [\-\-cancel] name
 
 .TP
 \fBname\fR
 id field
+
+.SH OPTIONS \fI\,'zmirror online partition'\/\fR
+.TP
+\fB\-\-cancel\fR
 
 .SH COMMAND \fI\,'zmirror online zpool'\/\fR
-usage: zmirror online zpool [\-h] name
+usage: zmirror online zpool [\-h] [\-\-cancel] name
 
 .TP
 \fBname\fR
 id field
+
+.SH OPTIONS \fI\,'zmirror online zpool'\/\fR
+.TP
+\fB\-\-cancel\fR
 
 .SH COMMAND \fI\,'zmirror online zfs\-volume'\/\fR
-usage: zmirror online zfs\-volume [\-h] pool name
+usage: zmirror online zfs\-volume [\-h] [\-\-cancel] pool name
 
 .TP
 \fBpool\fR
@@ -257,16 +278,24 @@ id field
 .TP
 \fBname\fR
 id field
+
+.SH OPTIONS \fI\,'zmirror online zfs\-volume'\/\fR
+.TP
+\fB\-\-cancel\fR
 
 .SH COMMAND \fI\,'zmirror online dm\-crypt'\/\fR
-usage: zmirror online dm\-crypt [\-h] name
+usage: zmirror online dm\-crypt [\-h] [\-\-cancel] name
 
 .TP
 \fBname\fR
 id field
 
+.SH OPTIONS \fI\,'zmirror online dm\-crypt'\/\fR
+.TP
+\fB\-\-cancel\fR
+
 .SH COMMAND \fI\,'zmirror online zdev'\/\fR
-usage: zmirror online zdev [\-h] pool name
+usage: zmirror online zdev [\-h] [\-\-cancel] pool name
 
 .TP
 \fBpool\fR
@@ -275,6 +304,10 @@ id field
 .TP
 \fBname\fR
 id field
+
+.SH OPTIONS \fI\,'zmirror online zdev'\/\fR
+.TP
+\fB\-\-cancel\fR
 
 .SH OPTIONS \fI\,'zmirror online'\/\fR
 .TP
@@ -283,6 +316,9 @@ the path to the unix socket on which `zmirror daemon` listens, to which
 `zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
 when you invoke `zmirror <command>`. May be set via the environment variable
 `ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.TP
+\fB\-\-cancel\fR
 
 .SH COMMAND \fI\,'zmirror offline'\/\fR
 usage: zmirror offline [\-h] [\-\-socket\-path SOCKET_PATH]
@@ -293,28 +329,40 @@ POSITIONAL ARGUMENTS \fI\,'zmirror offline'\/\fR
 
 
 .SH COMMAND \fI\,'zmirror offline disk'\/\fR
-usage: zmirror offline disk [\-h] uuid
+usage: zmirror offline disk [\-h] [\-\-cancel] uuid
 
 .TP
 \fBuuid\fR
 id field
 
+.SH OPTIONS \fI\,'zmirror offline disk'\/\fR
+.TP
+\fB\-\-cancel\fR
+
 .SH COMMAND \fI\,'zmirror offline partition'\/\fR
-usage: zmirror offline partition [\-h] name
+usage: zmirror offline partition [\-h] [\-\-cancel] name
 
 .TP
 \fBname\fR
 id field
+
+.SH OPTIONS \fI\,'zmirror offline partition'\/\fR
+.TP
+\fB\-\-cancel\fR
 
 .SH COMMAND \fI\,'zmirror offline zpool'\/\fR
-usage: zmirror offline zpool [\-h] name
+usage: zmirror offline zpool [\-h] [\-\-cancel] name
 
 .TP
 \fBname\fR
 id field
+
+.SH OPTIONS \fI\,'zmirror offline zpool'\/\fR
+.TP
+\fB\-\-cancel\fR
 
 .SH COMMAND \fI\,'zmirror offline zfs\-volume'\/\fR
-usage: zmirror offline zfs\-volume [\-h] pool name
+usage: zmirror offline zfs\-volume [\-h] [\-\-cancel] pool name
 
 .TP
 \fBpool\fR
@@ -323,16 +371,24 @@ id field
 .TP
 \fBname\fR
 id field
+
+.SH OPTIONS \fI\,'zmirror offline zfs\-volume'\/\fR
+.TP
+\fB\-\-cancel\fR
 
 .SH COMMAND \fI\,'zmirror offline dm\-crypt'\/\fR
-usage: zmirror offline dm\-crypt [\-h] name
+usage: zmirror offline dm\-crypt [\-h] [\-\-cancel] name
 
 .TP
 \fBname\fR
 id field
 
+.SH OPTIONS \fI\,'zmirror offline dm\-crypt'\/\fR
+.TP
+\fB\-\-cancel\fR
+
 .SH COMMAND \fI\,'zmirror offline zdev'\/\fR
-usage: zmirror offline zdev [\-h] pool name
+usage: zmirror offline zdev [\-h] [\-\-cancel] pool name
 
 .TP
 \fBpool\fR
@@ -341,6 +397,10 @@ id field
 .TP
 \fBname\fR
 id field
+
+.SH OPTIONS \fI\,'zmirror offline zdev'\/\fR
+.TP
+\fB\-\-cancel\fR
 
 .SH OPTIONS \fI\,'zmirror offline'\/\fR
 .TP
@@ -424,7 +484,7 @@ POSITIONAL ARGUMENTS \fI\,'zmirror trim'\/\fR
 
 
 .SH COMMAND \fI\,'zmirror trim zdev'\/\fR
-usage: zmirror trim zdev [\-h] pool name
+usage: zmirror trim zdev [\-h] [\-\-cancel] pool name
 
 .TP
 \fBpool\fR
@@ -433,6 +493,10 @@ id field
 .TP
 \fBname\fR
 id field
+
+.SH OPTIONS \fI\,'zmirror trim zdev'\/\fR
+.TP
+\fB\-\-cancel\fR
 
 .SH OPTIONS \fI\,'zmirror trim'\/\fR
 .TP
@@ -443,7 +507,8 @@ when you invoke `zmirror <command>`. May be set via the environment variable
 `ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
 
 .SH COMMAND \fI\,'zmirror scrub'\/\fR
-usage: zmirror scrub [\-h] [\-\-socket\-path SOCKET_PATH] {zpool,zdev} ...
+usage: zmirror scrub [\-h] [\-\-socket\-path SOCKET_PATH] [\-\-cancel]
+                     {zpool,zdev} ...
 
 .SH
 POSITIONAL ARGUMENTS \fI\,'zmirror scrub'\/\fR
@@ -475,8 +540,14 @@ the path to the unix socket on which `zmirror daemon` listens, to which
 when you invoke `zmirror <command>`. May be set via the environment variable
 `ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
 
+.TP
+\fB\-\-cancel\fR
+
 .SH COMMAND \fI\,'zmirror list'\/\fR
-usage: zmirror list [\-h] [\-\-socket\-path SOCKET_PATH]
+usage: zmirror list [\-h] [\-\-socket\-path SOCKET_PATH] [\-\-keys KEYS]
+                    [\-\-no_headers]
+                    [\-\-format {json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}]
+                    [\-\-sort {id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}]
                     {overdue,scrub,trim,update} ...
 
 .SH
@@ -497,6 +568,7 @@ list devices based on when they were last up\-to\-date
 .SH COMMAND \fI\,'zmirror list overdue'\/\fR
 usage: zmirror list overdue [\-h] [\-\-keys KEYS] [\-\-no_headers]
                             [\-\-format {json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}]
+                            [\-\-sort {id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}]
 
 .SH OPTIONS \fI\,'zmirror list overdue'\/\fR
 .TP
@@ -512,6 +584,10 @@ do not print headers when outputting a table
 either `json` or one of the formats defined by the tabulate library (see
 https://https://pypi.org/project/tabulate/#description)
 
+.TP
+\fB\-\-sort\fR \fI\,{id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}\/\fR
+the key (column) to sort for
+
 .SH COMMAND \fI\,'zmirror list scrub'\/\fR
 usage: zmirror list scrub [\-h] {overdue} ...
 
@@ -524,6 +600,7 @@ list devices on which a scrub is overdue
 .SH COMMAND \fI\,'zmirror list scrub overdue'\/\fR
 usage: zmirror list scrub overdue [\-h] [\-\-keys KEYS] [\-\-no_headers]
                                   [\-\-format {json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}]
+                                  [\-\-sort {id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}]
 
 .SH OPTIONS \fI\,'zmirror list scrub overdue'\/\fR
 .TP
@@ -539,6 +616,10 @@ do not print headers when outputting a table
 either `json` or one of the formats defined by the tabulate library (see
 https://https://pypi.org/project/tabulate/#description)
 
+.TP
+\fB\-\-sort\fR \fI\,{id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}\/\fR
+the key (column) to sort for
+
 .SH COMMAND \fI\,'zmirror list trim'\/\fR
 usage: zmirror list trim [\-h] {overdue} ...
 
@@ -551,6 +632,7 @@ list devices on which a trim is overdue
 .SH COMMAND \fI\,'zmirror list trim overdue'\/\fR
 usage: zmirror list trim overdue [\-h] [\-\-keys KEYS] [\-\-no_headers]
                                  [\-\-format {json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}]
+                                 [\-\-sort {id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}]
 
 .SH OPTIONS \fI\,'zmirror list trim overdue'\/\fR
 .TP
@@ -566,6 +648,10 @@ do not print headers when outputting a table
 either `json` or one of the formats defined by the tabulate library (see
 https://https://pypi.org/project/tabulate/#description)
 
+.TP
+\fB\-\-sort\fR \fI\,{id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}\/\fR
+the key (column) to sort for
+
 .SH COMMAND \fI\,'zmirror list update'\/\fR
 usage: zmirror list update [\-h] {overdue} ...
 
@@ -578,6 +664,7 @@ list devices which need updating of their data
 .SH COMMAND \fI\,'zmirror list update overdue'\/\fR
 usage: zmirror list update overdue [\-h] [\-\-keys KEYS] [\-\-no_headers]
                                    [\-\-format {json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}]
+                                   [\-\-sort {id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}]
 
 .SH OPTIONS \fI\,'zmirror list update overdue'\/\fR
 .TP
@@ -593,6 +680,10 @@ do not print headers when outputting a table
 either `json` or one of the formats defined by the tabulate library (see
 https://https://pypi.org/project/tabulate/#description)
 
+.TP
+\fB\-\-sort\fR \fI\,{id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}\/\fR
+the key (column) to sort for
+
 .SH OPTIONS \fI\,'zmirror list'\/\fR
 .TP
 \fB\-\-socket\-path\fR \fI\,SOCKET_PATH\/\fR
@@ -600,6 +691,23 @@ the path to the unix socket on which `zmirror daemon` listens, to which
 `zmirror\-trigger` sends UDEV and ZED events, and to which commands are sent
 when you invoke `zmirror <command>`. May be set via the environment variable
 `ZMIRROR_SOCKET_PATH`. Defaults to `/run/zmirror/zmirror.socket`
+
+.TP
+\fB\-\-keys\fR \fI\,KEYS\/\fR
+only output this list of keys (columns)
+
+.TP
+\fB\-\-no_headers\fR
+do not print headers when outputting a table
+
+.TP
+\fB\-\-format\fR \fI\,{json,plain,simple,github,grid,simple_grid,rounded_grid,heavy_grid,mixed_grid,double_grid,fancy_grid,outline,simple_outline,rounded_outline,heavy_outline,mixed_outline,double_outline,fancy_outline,pipe,orgtbl,asciidoc,jira,presto,pretty,psql,rst,mediawiki,moinmoin,youtrack,html,unsafehtml,latex,latex_raw,latex_booktabs,latex_longtable,textile,tsv}\/\fR
+either `json` or one of the formats defined by the tabulate library (see
+https://https://pypi.org/project/tabulate/#description)
+
+.TP
+\fB\-\-sort\fR \fI\,{id,last_online,last_update,update_overdue,last_trim,trim_overdue,last_scrub,scrub_overdue}\/\fR
+the key (column) to sort for
 
 .SH COMMAND \fI\,'zmirror enable'\/\fR
 usage: zmirror enable [\-h] [\-\-socket\-path SOCKET_PATH]
