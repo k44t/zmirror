@@ -336,10 +336,8 @@ def handle_events(event_queue):
         break
       elif isinstance(event, UserEvent):
         
-        handle_command(event.event, event.con)
-
-        # different commands will result in cache_save and enact_requests or not
-        ## handled = False
+        handled = handle_command(event.event, event.con)
+        
 
       elif isinstance(event, TimerEvent):
         log.debug(f"timer event: ({config.timeout})")

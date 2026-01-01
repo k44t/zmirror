@@ -299,12 +299,25 @@ def handle_command(command, con):
     log.addHandler(handler)
 
     
-
+    commit = True
 
     if name == "status-all":
       handle_status_all_command(stream)
+      commit = False
     elif name == "status":
+      
       handle_status_command(command, stream)
+      commit = False
+    elif name == "list":
+      handle_list_command(command, stream)
+      commit = False
+    elif name == "get":
+      handle_get_command(command, stream)
+      commit = False
+    elif name == "daemon-version":
+      handle_daemon_version_command(stream)
+      commit = False
+
     elif name == "clear-cache":
       handle_clear_cache_command()
     elif name == "reload-config":
@@ -315,8 +328,6 @@ def handle_command(command, con):
       handle_do_overdue_command(Operation.SCRUB)
     elif name == "trim-overdue":
       handle_do_overdue_command(Operation.TRIM)
-    elif name == "list":
-      handle_list_command(command, stream)
     elif name == "resilver-overdue":
       handle_do_overdue_command(Operation.RESILVER)
     elif name == "trim-all":
@@ -327,17 +338,10 @@ def handle_command(command, con):
       handle_maintenance_command()
     elif name == "set":
       handle_set_command(command)
-    elif name == "get":
-      handle_get_command(command, stream)
-    elif name == "daemon-version":
-      handle_daemon_version_command(stream)
     else:
       handle_request_command(command)
     
-
-    save_cache()
-    enact_requests()
-    commands.execute_commands()
+    return commit
 
   except Exception as ex:
     log.error("failed to handle command")
