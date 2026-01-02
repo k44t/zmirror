@@ -12,7 +12,7 @@ Say you are friends with a family who also runs a homeserver with ZFS. You might
 
 Now you could now use https://github.com/jimsalterjrs/sanoid or some other ZFS replication tool for this purpose. This would however require your friends to have access to the ZFS datasets, at least to some degree. Replicating encrypted datasets with ZFS on linux had data corruption bugs for some time (https://github.com/openzfs/zfs/issues/10019) which might still be lurking around on some distributions. And ZFS encryption does not decrypt filenames and metadata. So if you care about privacy as I do, then you can do the following.
 
-Your friends create a zfs volume (blockdevice) on their NAS and a wireguard VPN connection directly to the machine, where a NBD (network block device) server is running. Once the VPN is up and running, you can run your NBD server. Then you encrypt the volume with LUKS2 and use it as a mirror for your internal zfs pool.
+Your friends create a zfs volume (blockdevice) on their NAS and a wireguard VPN connection directly to the machine, where a NBD (network block device) server is running. Once the VPN is up and running, you can run an NBD client on your own NAS. Then you encrypt the volume with LUKS2 and use it as a mirror for your internal zfs pool.
 
 And now zmirror comes into play: your internal pool will become very slow, once the resilver is completed. zmirror's job is to disconnect the remote mirror once the resilver is completed, and reconnected it at an interval that you configure. This way your machine will be fast, and you have regular backups.
 
