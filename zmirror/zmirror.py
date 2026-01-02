@@ -120,6 +120,7 @@ def make_arg_parser():
     subpsr = subs.add_parser(command, parents=parents, help=help)
     subpsr.set_defaults(func=make_send_simple_daemon_command(command))
 
+  subcmd("startup", help="supposed to be called once on system start (for example by a systemd service configured as `Type=oneshot`). Brings all entities online that have been configured to be onlined on startup. The zmirror daemon must already be running (through another systemd service). This distinction is made, so that not with every restart of the zmirror daemon those entities will be brought online. You can of course also call this manually to test your configuration.")
 
   subcmd("clear-cache", help="clears the cache and removes the cache file (which stores the dates of when the maintenance tasks were last run). Triggers a configuration reload.")
   subcmd("reload-config", help="reloads the configuration.")
@@ -258,6 +259,8 @@ def main(args=None):
     error_message = str(exception)
     log.error(error_message)
     traceback.print_exc()
+    print("sending error code")
+    sys.exit(1)
 
 
 

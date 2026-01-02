@@ -185,6 +185,17 @@ def handle_reload_config_command():
   log.info("configuration reloaded")
 
 
+def handle_startup_command():
+  def do(entity):
+    if hasattr(entity, "on_startup"):
+      handlers = getattr(entity, "on_startup")
+      if handlers:
+        for action in handlers:
+          if action == "online":
+            entity.request(RequestType.ONLINE)
+          else:
+            log.error(f"unsupported action for startup command: {action}")
+  iterate_content_tree(config.config_root, do)
 
 def handle_scrub_all_command():
   def do(entity):
@@ -317,7 +328,8 @@ def handle_command(command, con):
     elif name == "daemon-version":
       handle_daemon_version_command(stream)
       commit = False
-
+    elif name == "startup":
+      handle_startup_command()
     elif name == "clear-cache":
       handle_clear_cache_command()
     elif name == "reload-config":
@@ -394,7 +406,7 @@ def make_send_daemon_wrapper(fn, stream=sys.stdout):
           con.connect(path)
         except Exception as ex:
           log.error(f"failed to connect to zmirror daemon ({path}): {ex}")
-          return
+          raise
         decoder = codecs.getincrementaldecoder('utf-8')()
 
         # Send data
@@ -413,6 +425,7 @@ def make_send_daemon_wrapper(fn, stream=sys.stdout):
         raise
       except Exception as ex:
         log.error(f"communication error: {ex}")
+        raise
       finally:
         stream.flush()
   return do

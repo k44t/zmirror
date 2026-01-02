@@ -232,13 +232,17 @@ def entity_id_string(o):
 
 
 
-
+@yaml_data
 class Onlineable:
 
   def unsupported_request(self, request_type):
     if request_type in {RequestType.ONLINE, RequestType.OFFLINE}:
       return None
     return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
+  
+
+  # these event handlers will be called on all zpools only when `zmirror startup` is called
+  on_startup: list = field(default_factory=list, kw_only=True)
 
 
 
@@ -942,6 +946,7 @@ class ZPool(Onlineable, Children):
   backed_by: list = field(default_factory=list)
 
   on_backing_appeared: list = field(default_factory=list)
+
 
   _backed_by: list = None
 
