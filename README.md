@@ -4,7 +4,22 @@ This project is in the beta phase. Bugs might exist, changes to API and CLI migh
 
 ## Description
 
-`zmirror` is a linux system service that enables you to use (optionally LUKS encrypted) ZFS mirror devices as backups.
+`zmirror` is a linux system service that enables you to use (optionally LUKS encrypted) ZFS mirror devices as backups. The following scenarios describe what you can do with zmirror:
+
+### Scenario 1: Friends
+
+Say you are friends with a family who also runs a homeserver with ZFS. You might agree with them that they provide storage for an off-site backup for you, while in turn you provide storage for their offsite backup. 
+
+Now you could now use {sanoid}[https://github.com/jimsalterjrs/sanoid] or some other ZFS replication tool for this purpose. This would however require your friends to have access to the ZFS datasets, at least to some degree. Replicating encrypted datasets with ZFS on linux had data corruption bugs for some time (https://github.com/openzfs/zfs/issues/10019). And ZFS encryption does not decrypt filenames and metadata. So if you care about privacy as I do, then you can do the following:
+
+Your friends create a zfs volume (blockdevice) on their NAS and a wireguard VPN connection directly to the machine, where a NBD (network block device) server is running. Once the VPN is up and running, you can run your NBD server. Then you encrypt the volume with LUKS2 and use it as a mirror for your internal zfs pool.
+
+And now zmirror comes into play: your internal pool will become very slow, once the resilver is completed. zmirror's job is to disconnect the remote mirror once the resilver is completed, and reconnected it at an interval that you configure. This way your machine will be fast, and you have regular backups.
+
+And to ensure that you won't lose data through an accidental `zfs destroy`, you can use `zfs snapshot pool/your-volume` on your friend's machine every now and then. (a future version of zmirror will allow you to run arbitrary commands to accomplish this on each resilver).
+
+
+
 
 ### How it works
 
@@ -67,7 +82,7 @@ The following features are implemented:
 ### Scheduling
 
 `zmirror daemon` itself does not have an inbuilt scheduler. Instead it relies
-on `systemd` or or `cron` to run `zmirror maintenance` at some user-specified 
+on `systemd` or `cron` to run `zmirror maintenance` at some user-specified 
 time of day (or week, etc.).
 
 
@@ -80,22 +95,8 @@ git clone https://github.com/k44t/zmirror.git
 cd zmirror
 ```
 
-On nixOS you can change `/etc/nix/configuration.nix`:
 
-```nix
-  imports = [
-    /path/to/zmirror/nix/nixos.nix
-  ];
-
-  services.zmirror = {
-    enable = true;
-    maintenance-schedule = "03:00";
-    # config-file = "${./zmirror.yml}";
-    config-path = "${/path/to/config/file/zmirror.yml}";
-  };
-```
-
-On other distributions (untested by the devvythelopper) build the project (after installing poetry):
+Build the project (after installing poetry):
 
 ```bash
 poetry build
@@ -143,7 +144,7 @@ Properly configure `zmirror` at this point. You may copy `example-config.yml` to
 
 Most instances of malconfiguration should simply result in error messages or `zmirror` just not being able to do what you desire.
 
-Dataloss can occur for example if `zmirror` imports a pool when only a device is present that does not have the newest data. This might also be the result of not configuring a "leader" mirror device (the one with the newest data) properly (for example the wrong path to the key-file) while configuring "follower" mirror device properly, so that zmirror imports the pool with only the "follower" device and later imports the "leader" device once configuration has been corrected.
+Dataloss can occur for example if `zmirror` imports a pool when only a device is present that does not have the newest data. This might also be the result of not configuring a "leader" mirror device (the one with the newest data) properly (for example the wrong path to the key-file) while configuring "follower" mirror device properly, so that zmirror imports the pool with only the "follower" device and later imports the "leader" device once configuration has been corrected (which results in ZFS discarding the newer data on the leader device).
 
 Misconfiguration of zpools (outside of zmirror) might result in system instability. This might be the result of a zpool that is usually imported with a different root path `-R /some/path`, and `zmirror` which knows nothing of changing pool root on import imports it under `/`.
 
