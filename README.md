@@ -10,7 +10,7 @@ This project is in the beta phase. Bugs might exist, changes to API and CLI migh
 
 Say you are friends with a family who also runs a homeserver with ZFS. You might agree with them that they provide storage for an off-site backup for you, while in turn you provide storage for their offsite backup. 
 
-Now you could now use {sanoid}[https://github.com/jimsalterjrs/sanoid] or some other ZFS replication tool for this purpose. This would however require your friends to have access to the ZFS datasets, at least to some degree. Replicating encrypted datasets with ZFS on linux had data corruption bugs for some time (https://github.com/openzfs/zfs/issues/10019). And ZFS encryption does not decrypt filenames and metadata. So if you care about privacy as I do, then you can do the following:
+Now you could now use https://github.com/jimsalterjrs/sanoid or some other ZFS replication tool for this purpose. This would however require your friends to have access to the ZFS datasets, at least to some degree. Replicating encrypted datasets with ZFS on linux had data corruption bugs for some time (https://github.com/openzfs/zfs/issues/10019) which might still be lurking around on some distributions. And ZFS encryption does not decrypt filenames and metadata. So if you care about privacy as I do, then you can do the following.
 
 Your friends create a zfs volume (blockdevice) on their NAS and a wireguard VPN connection directly to the machine, where a NBD (network block device) server is running. Once the VPN is up and running, you can run your NBD server. Then you encrypt the volume with LUKS2 and use it as a mirror for your internal zfs pool.
 
