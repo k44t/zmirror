@@ -68,7 +68,7 @@ def enact_requests(entity=None):
   iterate_content_tree3_depth_first(entity, do_enact_requests, parent=None, strt=None)
 
 
-def daemon_request(rqst, cancel, typ, ids):
+def daemon_request(rqst: RequestType, cancel: bool, typ, ids):
 
   constructor_params = inspect.signature(typ).parameters
 
@@ -78,22 +78,23 @@ def daemon_request(rqst, cancel, typ, ids):
   if entity is None:
     log.error(f"{make_id_string(make_id(typ, **filtered_args))}: entity not configured")
     return
+  do_request(entity, rqst, cancel)
+
   
+def do_request(entity, rqst: RequestType, cancel: bool):
   if cancel:
     if rqst in entity.requested:
       entity.requested[rqst].cancel(Reason.USER_REQUESTED)
-
-      log.info(f"executed user command `cancel {rqst.name.lower()}` for {make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} cancelled successfully")
+      log.info(f"executed user command `cancel {rqst.name.lower()}` for {entity_id_string(entity)}: request {rqst.name} cancelled successfully")
     else:
-      log.info(f"executed user command `cancel {rqst.name.lower()}` for {make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} was not scheduled, and could not be cancelled")
+      log.info(f"executed user command `cancel {rqst.name.lower()}` for {entity_id_string(entity)}: request {rqst.name} was not scheduled, and could not be cancelled")
   else:
     if entity.request(rqst):
       config.last_request_at = datetime.now()
-      entity.requested[rqst].enact_hierarchy()
+      log.info(f"executed user command `{rqst.name.lower()}` for {entity_id_string(entity)}: request {rqst.name} scheduled successfully.")
     else:
-      log.error(f"executed user command `{rqst.name.lower()}` for {make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} failed. See previous error messages.")
+      log.error(f"executed user command `{rqst.name.lower()}` for {entity_id_string(entity)}: request {rqst.name} failed. See previous error messages.")
       return
-    log.info(f"executed user command `{rqst.name.lower()}` for {make_id_string(make_id(typ, **filtered_args))}: request {rqst.name} scheduled successfully.")
 
 
 
@@ -101,10 +102,14 @@ def daemon_request(rqst, cancel, typ, ids):
 
 def handle_request_command(command):
   name = command["command"]
+
+
   if not name in request_for_name:
     raise ValueError(f"unknown command {name}")
     
   rqst = request_for_name[name]
+
+
   if "cancel" in command:
     cancel = yes_no_absent_or_dict(command, "cancel", False, "error")
   else:
@@ -113,17 +118,45 @@ def handle_request_command(command):
     raise ValueError(f"missing type for handling command: {name}")
  
   type_name = command["type"]
-  if not type_name in TYPE_FOR_NAME:
+  if type_name == "all":
+    handle_all_request(rqst)
+  elif type_name == "group":
+    if "group" not in command:
+      raise ValueError(f"missing group for handling group command: {command}")
+    handle_group_request(rqst, command["group"], cancel=cancel)
+
+  elif type_name in TYPE_FOR_NAME:
+    typ = TYPE_FOR_NAME[type_name]
+
+    if not "identifiers" in command:
+      raise ValueError(f"no identifiers given for type: {typ}")
+    ids = command["identifiers"]
+    if not isinstance(ids, dict):
+      raise ValueError("identifiers are not a dict of type {{str:str}}")
+    daemon_request(rqst, cancel, typ, ids)  
+  else:
     raise ValueError(f"unknown type: {type_name}")
-  typ = TYPE_FOR_NAME[type_name]
-  if not "identifiers" in command:
-    raise ValueError(f"no identifiers given for type: {typ}")
-  ids = command["identifiers"]
-  if not isinstance(ids, dict):
-    raise ValueError("identifiers are not a dict of type {{str:str}}")
-  daemon_request(rqst, cancel, typ, ids)
+  
+  
 
 
+def handle_group_request(rqst: RequestType, group: str, cancel: bool = False):
+  def do(entity):
+    if hasattr(entity, "groups"):
+      if entity.groups and group in entity.groups:
+        do_request(entity, rqst, cancel= cancel)
+  iterate_content_tree(config.config_root, do)
+
+
+
+def handle_all_request(rqst: RequestType, cancel: bool = False):
+  def do(entity):
+    # TODO figure out if enact_... is the best way to figure out if entity can do this
+    # attr = f"enact_{rqst.name.lower()}"
+    # if hasattr(entity, attr):
+    if hasattr(entity, "request"):
+      do_request(entity, rqst, cancel= cancel)
+  iterate_content_tree(config.config_root, do)
 
     
 
@@ -134,27 +167,45 @@ def handle_status_command(command, stream):
     raise ValueError(f"missing `type` for handling command: status")
  
   type_name = command["type"]
-  if not type_name in TYPE_FOR_NAME:
-    raise ValueError(f"unknown type: {type_name}")
-  typ = TYPE_FOR_NAME[type_name]
-  if not "identifiers" in command:
-    raise ValueError(f"no identifiers given for type: {typ}")
-  ids = command["identifiers"]
-  if not isinstance(ids, dict):
-    raise ValueError("identifiers are not a dict of type {{str:str}}")
+  if type_name == "all":
+    handle_status_all_command(stream)
+  elif type_name == "group":
+    
+    if "group" not in command:
+      raise ValueError(f"missing group for handling group command: {command}")
+    handle_status_group_command(command["group"], stream)
+  else:
+    if not type_name in TYPE_FOR_NAME:
+      raise ValueError(f"unknown type: {type_name}")
+    typ = TYPE_FOR_NAME[type_name]
+    if not "identifiers" in command:
+      raise ValueError(f"no identifiers given for type: {typ}")
+    ids = command["identifiers"]
+    if not isinstance(ids, dict):
+      raise ValueError("identifiers are not a dict of type {{str:str}}")
 
-  constructor_params = inspect.signature(typ).parameters
+    constructor_params = inspect.signature(typ).parameters
 
-  # Filter the Namespace to include only the required arguments
-  filtered_args = {k: v for k, v in ids.items() if k in constructor_params}
-  entity = config.find_config(typ, **filtered_args)
-  if entity is None:
-    log.error(f"{make_id_string(make_id(typ, **filtered_args))}: entity not configured")
-    return
-  kdstream = KdStream(stream)
-  print_status(entity, kdstream)
-  kdstream.newline()
+    # Filter the Namespace to include only the required arguments
+    filtered_args = {k: v for k, v in ids.items() if k in constructor_params}
+    entity = config.find_config(typ, **filtered_args)
+    if entity is None:
+      log.error(f"{make_id_string(make_id(typ, **filtered_args))}: entity not configured")
+      return
+    kdstream = KdStream(stream)
+    print_status(entity, kdstream)
+    kdstream.newline()
 
+
+
+def handle_status_group_command(group: str, out):
+  lst = []
+  def do(entity):
+    if hasattr(entity, "groups") and group in entity.groups:
+      lst.append(entity)
+  iterate_content_tree(config.config_root, do)
+  kdstream = KdStream(out)
+  print_status_many(lst, kdstream)
 
 def handle_status_all_command(out):
   
@@ -328,8 +379,6 @@ def handle_command(command, con):
     elif name == "daemon-version":
       handle_daemon_version_command(stream)
       commit = False
-    elif name == "startup":
-      handle_startup_command()
     elif name == "clear-cache":
       handle_clear_cache_command()
     elif name == "reload-config":
@@ -449,6 +498,8 @@ def make_list_command(op: Operation, entity_type=None, overdue=False):
         r["type"] = get_name_for_type(entity_type)
       if args.sort:
         r["sort"] = args.sort
+      if args.groups:
+        r["groups"] = args.groups
       
       return r
     
@@ -539,6 +590,12 @@ def handle_list_command(command, stream):
         op = Operation[str(command["operation"]).upper()]
       except Exception:
         raise ValueError(f"unknown `operation`: {command["operation"]}")
+  groups = None
+  if "groups" in command:
+    groups = command["groups"]
+    if not isinstance(groups, list):
+      raise ValueError("`groups` must be a list")
+  
   entity_type = None
 
   if "type" in command:
@@ -555,6 +612,16 @@ def handle_list_command(command, stream):
       return
     if entity_type:
       if not isinstance(entity, entity_type):
+        return
+    if groups is not None:
+      if not hasattr(entity, "groups"):
+        return
+      group_found = False
+      for group in groups:
+        if group in entity.groups:
+          group_found = True
+          break
+      if not group_found:
         return
     if overdue:
       if not hasattr(entity, "is_overdue"):
@@ -606,6 +673,29 @@ def make_send_simple_daemon_command(command):
     r = {"command": command}
     for k, v in vars(args).items():
       r[k] = v
+    return r
+  return make_send_daemon_wrapper(do)
+
+def make_send_all_daemon_command(cmd: str):
+  def do(args):
+    r = {
+      "command": cmd,
+      "type": "all"
+    }
+    if hasattr(args, "cancel") and args.cancel:
+      r["cancel"] = "yes"
+    return r
+  return make_send_daemon_wrapper(do)
+
+def make_send_group_daemon_command(cmd: str):
+  def do(args):
+    r = {
+      "command": cmd,
+      "type": "group",
+      "group": args.group
+    }
+    if hasattr(args, "cancel") and args.cancel:
+      r["cancel"] = "yes"
     return r
   return make_send_daemon_wrapper(do)
 

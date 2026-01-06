@@ -104,6 +104,8 @@ def make_arg_parser():
   list_args_parser.add_argument("--no_headers", action="store_true", default=False, help="do not print headers when outputting a table")
   list_args_parser.add_argument("--format", choices=TABLE_FORMATS, default="plain", help="either `json` or one of the formats defined by the tabulate library (see https://https://pypi.org/project/tabulate/#description)")
   list_args_parser.add_argument("--sort", choices=LIST_KEYS, help="the key (column) to sort for")
+  list_args_parser.add_argument("--groups", type=lambda s: s.split(','), default=None, help="limit the entities to the groups given")
+
 
   daemon_parser = subs.add_parser('daemon', parents=[shared_parser, socket_parser], help="starts zmirror in daemon mode")
   daemon_parser.set_defaults(func=daemon)
@@ -145,18 +147,31 @@ def make_arg_parser():
   # scrub_parser = subs.add_parser('scrub-overdue', parents=[], help='scrub devices that have not been scrubbed for too long')
   # scrub_parser.set_defaults(func=scrub)
 
-  online_parser = subs.add_parser('online', parents=[socket_parser, cancel_parser], help='request device to go online')
-  offline_parser = subs.add_parser('offline', parents=[socket_parser], help='request device to go offline')
-  status_parser = subs.add_parser('status', parents=[socket_parser], help='show device status')
-  trim_parser = subs.add_parser('trim', parents=[socket_parser], help='request device trim')
 
-  online_subs = online_parser.add_subparsers(required=True)
-  offline_subs = offline_parser.add_subparsers(required=True)
-  status_subs = status_parser.add_subparsers(required=True)
-  trim_subs = trim_parser.add_subparsers(required=True)
+  def make_groupable_parser(command: str, help: str, cancel: bool = False):
+    parents = [socket_parser]
+    if cancel:
+      parents = [socket_parser, cancel_parser]
+    groupable_parser = subs.add_parser(command, parents=parents, help=help.replace("${what}", "entity"))
 
-  scrub_parser = subs.add_parser("scrub", parents=[socket_parser, cancel_parser], help="request device to be scrubbed")
-  scrub_subs = scrub_parser.add_subparsers(required=True)
+    groupable_subs = groupable_parser.add_subparsers(required=True)
+
+    all_parser = groupable_subs.add_parser("all", help=help.replace("${what}", "all relevant entities"))
+    all_parser.set_defaults(func=make_send_all_daemon_command(command))
+
+    group_parser = groupable_subs.add_parser("group", help=help.replace("${what}", "group"))
+    group_parser.add_argument("group", help="the group name")
+    group_parser.set_defaults(func=make_send_group_daemon_command(command))
+
+
+    return groupable_subs
+
+
+  online_subs = make_groupable_parser("online", help="request ${what} to go online", cancel=True)
+  offline_subs = make_groupable_parser("offline", help="request ${what} to go offline", cancel=True)
+  trim_subs = make_groupable_parser("trim", help="request ${what} to be trimmed", cancel=True)
+  status_subs = make_groupable_parser("status", help="request ${what} to be trimmed")
+  scrub_subs = make_groupable_parser("scrub", help="request ${what} to be scrubbed", cancel=True)
 
   list_parser = subs.add_parser("list", parents=[socket_parser, list_args_parser], help="list devices fulfilling conditions")
   list_parser.set_defaults(func=make_list_command(op=None, overdue=False))

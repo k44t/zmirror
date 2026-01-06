@@ -14,7 +14,7 @@ Now you could now use https://github.com/jimsalterjrs/sanoid or some other ZFS r
 
 Your friends create a zfs volume (blockdevice) on their NAS and a wireguard VPN connection directly to the machine, where a NBD (network block device) server is running. Once the VPN is up and running, you can run an NBD client on your own NAS. Then you encrypt the volume with LUKS2 and use it as a mirror for your internal zfs pool.
 
-And now zmirror comes into play: your internal pool will become very slow, once the resilver is completed. zmirror's job is to disconnect the remote mirror once the resilver is completed, and reconnected it at an interval that you configure. This way your machine will be fast AND you have regular, fully encrypted backups of your whole pool.
+And now zmirror comes into play: your internal pool will become very slow, once the resilver is completed (because all write operations must finish on all currently connected mirrors, including the remote one). zmirror's job is to disconnect the remote mirror once the resilver is completed, and reconnected it at an interval that you configure. This way your machine will be fast AND you have regular, fully encrypted backups of your whole pool.
 
 And to ensure that you won't lose data through an accidental `zfs destroy`, you can use `zfs snapshot pool/your-volume` on your friend's machine every now and then. (a future version of zmirror will allow you to run arbitrary commands to accomplish this on each resilver).
 

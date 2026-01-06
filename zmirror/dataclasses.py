@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from .util import read_file
 from enum import Enum
+import shutil
 
 
 from kpyutils.kiify import yaml_data, yaml_enum, KiEnum, KdStream, yes_no_absent_or_dict, KiSymbol
@@ -266,6 +267,7 @@ class Entity:
   state: Since = field(default_factory=state_since_factory, metadata={"db": True})
   last_online: datetime = field(metadata={"db": True}, default=None)
   notes: str = None
+  groups: list = field(default_factory=list)
 
 
   # these are the fields we want serialized on change
@@ -943,6 +945,10 @@ def init_backing(self: DevicesAgregate, pool, blockdevs):
 class ZPool(Onlineable, Children):
   name: str = None
 
+  root: str = None
+
+  mount: bool = True
+
   backed_by: list = field(default_factory=list)
 
   on_backing_appeared: list = field(default_factory=list)
@@ -1077,7 +1083,9 @@ class ZPool(Onlineable, Children):
     if sufficient:
       log.info(f"{human_readable_id(self)}: sufficient backing devices available, importing zpool.")
       commands.add_command("udevadm settle")
-      return commands.add_command(f"zpool import {self.name}", unless_redundant = True)
+      root = f"-R {self.root}" if self.root else ""
+      nomount = f"" if self.mount else "-N"
+      return commands.add_command(f"zpool import {self.name} {root} {nomount}", unless_redundant = True)
     else:
       log.info(f"{human_readable_id(self)}: insufficient backing devices available.")
 
@@ -1252,7 +1260,23 @@ class DMCrypt(Onlineable, Embedded, Children):
     return commands.add_command(f"cryptsetup close {self.name}")
 
   def enact_online(self):
-    return commands.add_command(f"cryptsetup open {self.parent.dev_path()} {self.name} --key-file {self.key_file}")
+    if self.key_file:
+      return commands.add_command(f"cryptsetup open {self.parent.dev_path()} {self.name} --key-file {self.key_file}")
+    else:
+
+      def handler(self, returncode, results, errors):
+        if returncode != 0:
+      run_get_password_command(self, handler)
+  
+
+
+def run_get_password_command(entity, handler):
+  cmd = None
+  if shutil.which('systemd-ask-password') is not None:
+    cmd = f'systemd-ask-password --id "zmirror:{entity_id_string(entity)}" "zmirror: please enter key for: {human_readable_id(entity)}"'
+
+
+  commands.add_command(cmd, handler=handle)
 
 
 def uncached(cache, fn=None):
