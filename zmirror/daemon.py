@@ -322,17 +322,19 @@ def handle_client(con: socket.socket, client_address, event_queue: queue.Queue):
     log.error("communication error", exc_info=config.log_level <= logging.DEBUG)
 
 
-def handle_events(event_queue):
+def handle_events(event_queue, shutdown_fn):
   while True:
     handled = False
     try:
       event = event_queue.get()
       if event is None:
         # this is the SHUTDOWN, shutting down
+        log.info("handling shutdown event")
         try:
           save_cache_now()
         except BaseException as _ex:
           log.error("failed to save cache")
+        shutdown_fn()
         break
       elif isinstance(event, UserEvent):
         
@@ -390,7 +392,6 @@ def is_socket_active(socket_path):
 # and by handling we mean for now, that they simply get logged
 # so this is just a description for the next milestone
 def daemon(args):# pylint: disable=unused-argument
-
   
   # Check if systemd is available
   try:
@@ -458,14 +459,6 @@ def daemon(args):# pylint: disable=unused-argument
   config.event_queue = event_queue
 
 
-  # Create a thread-safe list
-  handle_event_thread = threading.Thread(target=handle_events,args=(event_queue,))
-  handle_event_thread.start()
-
-
-  # we load the config after we have started the server, so that we cannot miss any events that might change the config while it is being loaded
-  init_config(cache_path=args.cache_path, config_path=args.config_path)
-
   running = True
 
   def shutdown(*args):
@@ -487,7 +480,11 @@ def daemon(args):# pylint: disable=unused-argument
         pass
 
       event_queue.put(None)
-      handle_event_thread.join()
+      try:
+        # if it comes from the current thread this will raise an exception
+        handle_event_thread.join()
+      except:
+        pass
       log.info("zmirror daemon finished")
       
       # this is necessary if some timeouts are still pending (timer threads may keep running after sys.exit has been called)
@@ -498,6 +495,16 @@ def daemon(args):# pylint: disable=unused-argument
 
       # this is necessary if some timeouts are still pending (timer threads may keep running after sys.exit has been called)
       os.kill(os.getpid(), signal.SIGKILL) #pylint: disable=unreachable
+
+
+
+  # Create a thread-safe list
+  handle_event_thread = threading.Thread(target=handle_events,args=(event_queue, shutdown))
+  handle_event_thread.start()
+
+
+  # we load the config after we have started the server, so that we cannot miss any events that might change the config while it is being loaded
+  init_config(cache_path=args.cache_path, config_path=args.config_path)
 
 
   signal.signal(signal.SIGTERM, shutdown)

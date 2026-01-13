@@ -16,6 +16,7 @@ config_dict: dict = None
 cache_path = None
 config_path = None
 commands_enabled = False
+event_handlers_enabled = True
 last_request_at = datetime.now()
 log_level = logging.INFO
 event_queue = None

@@ -45,6 +45,7 @@ def init_config(cache_path, config_path):
 
   config.log_events = config.config_root.log_events
 
+
   os.makedirs(os.path.dirname(cache_path), exist_ok = True)
   log.info(f"loading cache from: {cache_path}") 
   config.cache_dict = dict()
@@ -70,6 +71,9 @@ def init_config(cache_path, config_path):
 
   config.commands_enabled = config.config_root.enable_commands
   log.info(f"command execution enabled: {to_yes(config.commands_enabled)}")
+
+  config.event_handlers_enabled = config.config_root.enable_event_handlers
+  log.info(f"event handlers enabled: {to_yes(config.event_handlers_enabled)}")
 
   commands.execute_commands()
 

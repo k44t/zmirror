@@ -236,17 +236,11 @@ def handle_reload_config_command():
   log.info("configuration reloaded")
 
 
-def handle_startup_command():
-  def do(entity):
-    if hasattr(entity, "on_startup"):
-      handlers = getattr(entity, "on_startup")
-      if handlers:
-        for action in handlers:
-          if action == "online":
-            entity.request(RequestType.ONLINE)
-          else:
-            log.error(f"unsupported action for startup command: {action}")
-  iterate_content_tree(config.config_root, do)
+def handle_shutdown_command():
+
+  config.event_queue.put(None)
+  log.info("shutdown requested")
+
 
 def handle_scrub_all_command():
   def do(entity):
@@ -305,6 +299,9 @@ def handle_set_command(command):
 
   if prop == "commands":
     config.commands_enabled = is_yes_or_true(value)
+    value = to_yes(value)
+  if prop == "event-handlers":
+    config.event_handlers_enabled = is_yes_or_true(value)
     value = to_yes(value)
   elif prop == "log-level":
     config.set_log_level(value)
@@ -378,6 +375,9 @@ def handle_command(command, con):
       commit = False
     elif name == "daemon-version":
       handle_daemon_version_command(stream)
+      commit = False
+    elif name == "shutdown":
+      handle_shutdown_command()
       commit = False
     elif name == "clear-cache":
       handle_clear_cache_command()

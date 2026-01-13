@@ -33,12 +33,17 @@ import dateparser
 import re
 
 def human_readable_id(entity):
+  if not entity:
+    raise ValueError("entity cannot be None")
   r = entity_id_string(entity)
   if hasattr(entity, "info"):
     entity = uncached(cached(entity))
-    v = entity.info
-    if v is not None:
-      return f"{r} ({v})"
+    if entity:
+      v = entity.info
+      if v is not None:
+        return f"{r} ({v})"
+    else:
+      return f"{r} (unconfigured)"
   return r
 
 config.human_readable_id = human_readable_id
@@ -172,6 +177,7 @@ zfs_operation_for_request = {value: key for key, value in request_for_zfs_operat
 class ZMirror:
   log_events: bool = False
   enable_commands: bool = True
+  enable_event_handlers: bool = True
   timeout: int = 300
   log_level: str = "info"
 
@@ -469,7 +475,11 @@ class Entity:
 
 
 
-def run_actions(self, event_name, excepted=None):
+def run_event_handlers(self, event_name, excepted=None):
+
+  if not config.event_handlers_enabled:
+    log.info(f"{human_readable_id(self)}: skipping event: {event_name} (event handlers are disabled)")
+    return
   handlers = getattr(self, "on_" + event_name)
   if handlers:
     for event in handlers:
@@ -597,7 +607,7 @@ class Children(Entity):
 
   def handle_children_offline(self):
     self.enact_requests()
-    run_actions(self, "children_offline")
+    run_event_handlers(self, "children_offline")
 
 
 
@@ -1023,7 +1033,7 @@ class ZPool(Onlineable, Children):
   def handle_backing_device_appeared(self):
     if (not is_online(self)) and self.run_on_backing(is_present_or_online):
       self.enact_requests()
-      run_actions(self, "backing_appeared")
+      run_event_handlers(self, "backing_appeared")
 
   def handle_children_offline(self):
     return super().handle_children_offline()
@@ -1134,7 +1144,7 @@ class ZFSVolume(Children):
   def handle_appeared(self, prev_state):
     succeed_request(self, RequestType.APPEAR)
     self.enact_requests()
-    run_actions(self, "appeared")
+    run_event_handlers(self, "appeared")
 
   def handle_children_offline(self):
     return super().handle_children_offline()
@@ -1229,7 +1239,7 @@ class DMCrypt(Onlineable, Embedded, Children):
   def handle_appeared(self, prev_state):
     succeed_request(self, RequestType.APPEAR)
     self.enact_requests()
-    run_actions(self, "appeared")
+    run_event_handlers(self, "appeared")
 
 
   def handle_child_online(self, child, prev_state):
@@ -1263,9 +1273,7 @@ class DMCrypt(Onlineable, Embedded, Children):
     if self.key_file:
       return commands.add_command(f"cryptsetup open {self.parent.dev_path()} {self.name} --key-file {self.key_file}")
     else:
-
-      def handler(self, returncode, results, errors):
-        if returncode != 0:
+      raise NotImplemented("not implemented in this version")
       run_get_password_command(self, handler)
   
 
@@ -1274,9 +1282,11 @@ def run_get_password_command(entity, handler):
   cmd = None
   if shutil.which('systemd-ask-password') is not None:
     cmd = f'systemd-ask-password --id "zmirror:{entity_id_string(entity)}" "zmirror: please enter key for: {human_readable_id(entity)}"'
+  else:
+    raise ValueError("no password requesting binary found")
 
-
-  commands.add_command(cmd, handler=handle)
+  # TODO implement properly
+  commands.add_command(cmd)
 
 
 def uncached(cache, fn=None):
@@ -1310,7 +1320,7 @@ def uncached_operation_handle_by_name(cache, name):
 
 def uncached_userevent_by_name(cache, name):
   def do(entity):
-    run_actions(entity, name)
+    run_event_handlers(entity, name)
   uncached(cache, do)
 
 def inaccurate_now():
@@ -1346,7 +1356,7 @@ def handle_resilver_started(cache):
 def handle_zdev_onlined(cache):
   zdev = uncached(cache)
   if not zdev:
-    log.debug(f"{human_readable_id(zdev)}: unconfigured, not assuming that it starts resilvering.")
+    log.debug(f"{human_readable_id(cache)}: unconfigured, not assuming that it starts resilvering.")
     handle_onlined(cache)
   else:
     if zdev.is_mirror:
@@ -1616,7 +1626,7 @@ class ZDev(Onlineable, Embedded, Entity):
 
   def handle_resilver_finished(self):
 
-    run_actions(self, "resilvered")
+    run_event_handlers(self, "resilvered")
 
 
   def print_status(self, kdstream):
@@ -1718,18 +1728,18 @@ class ZDev(Onlineable, Embedded, Entity):
     pool_id = f"ZPool|name:{self.pool}"
     if pool_id in config.config_dict:
       config.config_dict[pool_id].handle_backing_device_appeared()
-    run_actions(self, "appeared")
+    run_event_handlers(self, "appeared")
 
   def handle_scrub_started(self):
     succeed_request(self, RequestType.SCRUB)
 
   def handle_scrub_canceled(self):
     succeed_request(self, RequestType.CANCEL_SCRUB)
-    run_actions(self, "scrub_canceled")
+    run_event_handlers(self, "scrub_canceled")
 
   def handle_scrub_finished(self):
     succeed_request(self, RequestType.SCRUB)
-    run_actions(self, "scrubbed")
+    run_event_handlers(self, "scrubbed")
 
 
   def handle_trim_started(self):
@@ -1738,10 +1748,10 @@ class ZDev(Onlineable, Embedded, Entity):
   def handle_trim_canceled(self):
 
     succeed_request(self, RequestType.CANCEL_TRIM)
-    run_actions(self, "trim_canceled")
+    run_event_handlers(self, "trim_canceled")
 
   def handle_trim_finished(self):
-    run_actions(self, "trimmed")
+    run_event_handlers(self, "trimmed")
 
   def enact_offline(self):
     return commands.add_command(f"zpool offline {self.pool} {self.dev_name()}", unless_redundant = True)
