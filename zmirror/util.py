@@ -57,12 +57,13 @@ def terminate_thread(thread):
     raise SystemError("PyThreadState_SetAsyncExc failed")
 
 
-def myexec(command):
+def myexec(command, input = None):
   log.debug(f"Executing command: `{command}`")
   process = subprocess.Popen(command,
                  shell=True,
                  stdout=subprocess.PIPE,
-                 stderr=subprocess.PIPE)
+                 stderr=subprocess.PIPE, 
+                 stdin=subprocess.PIPE)
   formatted_output = []
   formatted_response = []
   formatted_error = []
@@ -70,6 +71,11 @@ def myexec(command):
   # wont block when the process already finished. this only works on linux systems!
   os.set_blocking(process.stdout.fileno(), False)
   os.set_blocking(process.stderr.fileno(), False)
+
+  if input:
+    if isinstance(input, str):
+      input = input.encode("utf-8")
+    process.communicate(input=input)
   try:
     timestamp_last_stdout_readline_start = datetime.now()
     timestamp_last_stderr_readline_start = datetime.now()

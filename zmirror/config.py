@@ -23,7 +23,7 @@ event_queue = None
 timeout = None
 timers = []
 cache_save_timeout = 4 # seconds
-
+running = True
 
 is_daemon = False
 

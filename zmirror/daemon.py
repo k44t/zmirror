@@ -459,12 +459,10 @@ def daemon(args):# pylint: disable=unused-argument
   config.event_queue = event_queue
 
 
-  running = True
 
   def shutdown(*args):
-    nonlocal running
-    if running:
-      running = False
+    if config.running:
+      config.running = False
       log.info("shutting down...")
       try:
         server.close()
@@ -511,7 +509,7 @@ def daemon(args):# pylint: disable=unused-argument
   signal.signal(signal.SIGINT, shutdown)
 
   try:
-    while running:
+    while config.running:
       # Wait for a connection
       connection, client_address = server.accept()
       # Start a new thread for the connection
@@ -520,5 +518,5 @@ def daemon(args):# pylint: disable=unused-argument
   except Exception as exception:
     log.error(str(exception))
   finally:
-    if running:
+    if config.running:
       shutdown()

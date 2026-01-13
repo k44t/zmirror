@@ -300,7 +300,7 @@ def handle_set_command(command):
   if prop == "commands":
     config.commands_enabled = is_yes_or_true(value)
     value = to_yes(value)
-  if prop == "event-handlers":
+  elif prop == "event-handlers":
     config.event_handlers_enabled = is_yes_or_true(value)
     value = to_yes(value)
   elif prop == "log-level":

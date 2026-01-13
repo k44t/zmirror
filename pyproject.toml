@@ -7,7 +7,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.9"
 dynamic = ["version"]
-version = "0.1.8b9"
+version = "0.1.8b10"
 
 
 
@@ -22,7 +22,10 @@ natsort = ">=8.4.0"
 pyyaml = ">=6.0.0"
 dateparser = ">=1.2.0"
 tabulate = ">=0.9.0"
-kpyutils = "0.1.8b9"
+
+promise = ">=2.3"
+
+# kpyutils = "0.1.8b9"
 cysystemd = { version = ">= 0.0.1", optional = true }
 
 [tool.poetry.extras]

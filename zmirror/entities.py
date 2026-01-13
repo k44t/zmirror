@@ -10,7 +10,6 @@ from .dataclasses import *
 from .logging import log
 from kpyutils.kiify import *
 
-
 from . import config
 from .config import iterate_content_tree, iterate_content_tree2, iterate_content_tree3, iterate_content_tree3_depth_first, log_level_for_name
 from . import util
@@ -44,6 +43,7 @@ def init_config(cache_path, config_path):
   config.timeout = int(config.config_root.timeout)
 
   config.log_events = config.config_root.log_events
+
 
 
   os.makedirs(os.path.dirname(cache_path), exist_ok = True)

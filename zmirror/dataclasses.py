@@ -18,9 +18,11 @@ from typing import Any
 from .util import read_file
 from enum import Enum
 import shutil
+from promise import Promise
 
 
 from kpyutils.kiify import yaml_data, yaml_enum, KiEnum, KdStream, yes_no_absent_or_dict, KiSymbol
+from kpyutils.escaping import backslash_escape
 
 
 
@@ -336,14 +338,17 @@ class Entity:
 
     attr = f"enact_{request_type.name.lower()}"
     if hasattr(self, attr):
-      def tell_request_enacted(cmd, returncode, _results, errors):
-        if returncode != 0:
-          request.fail(Reason.COMMAND_FAILED)
+      def on_fail(rslt):
+        request.fail(Reason.COMMAND_FAILED)
+        if isinstance(rslt, tuple) and len(rslt) == 4:
+          cmd, _, _, errors = rslt
           log.error(f"command `{cmd.command}` failed: \n\t{"\n\t".join(errors)}")
+        else:
+          log.error(f"command `{cmd.command}` failed: {rslt}")
 
       enact = getattr(self, attr)
-      command = enact()
-      command.on_execute.append(tell_request_enacted)
+      promise = enact()
+      promise.catch(on_fail)
       request.set_enacted()
     else:
       log.debug(f"{human_readable_id(self)}: request type cannot be enacted by this entity: {request_type}")
@@ -1273,8 +1278,35 @@ class DMCrypt(Onlineable, Embedded, Children):
     if self.key_file:
       return commands.add_command(f"cryptsetup open {self.parent.dev_path()} {self.name} --key-file {self.key_file}")
     else:
-      raise NotImplemented("not implemented in this version")
-      run_get_password_command(self, handler)
+      trials = 3
+      def on_error(exception: Exception):
+        nonlocal trials
+        import traceback
+        ex = ''.join(traceback.format_exception(type(exception), exception, exception.__traceback__))
+        trials -= 1
+        log.error(f"opening dm-crypt failed. Remaining trys: {trials}")
+        if trials > 0:
+          return request_password()
+        else:
+          raise exception
+      def on_password_given(rslt):
+        _cmd, _code, outs, _outr = rslt
+        pw = "\n".join(outs)
+        log.info(f"password received successfully")
+        rslt = commands.add_command(f"cryptsetup open {self.parent.dev_path()} {self.name}", input=pw + "\n").then(None, on_error)
+        return rslt
+      def request_password():
+        nonlocal trials
+        def on_reject(exc):
+          log.error("password request cancelled (or ssh-askpass not available)")
+          raise exc
+        if config.running:
+          return commands.add_command(f"DISPLAY=:0 ssh-askpass 'zmirror: encryption key for: {backslash_escape("'", human_readable_id(self))} (remaining trys: {trials})'").then(on_password_given, on_reject)
+          # return commands.add_command(f"systemd-ask-password --id='zmirror:{backslash_escape("'",entity_id_string(self))}' --timeout=60 --user --echo=masked 'zmirror: encryption key for: {backslash_escape("'", human_readable_id(self))} (remaining trys: {trials})'").then(on_password_given, on_error)
+        else:
+          raise ValueError("zmirror is shutting down")
+      return request_password()
+      
   
 
 

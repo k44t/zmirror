@@ -1,13 +1,10 @@
 **/*.pyc
 **/__pycache__
 *.code-workspace
-.vscode
+.*
 doc/Zmirror.one
-.venv
 dist
 temp
-.notifier
-.pytest_cache
 logs
 history.log
 temp.txt
