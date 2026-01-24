@@ -30,4 +30,4 @@ disable=
     logging-fstring-interpolation,
     broad-except,
     line-too-long
-    
+    trailing-whitespace
