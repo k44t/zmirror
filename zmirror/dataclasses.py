@@ -140,31 +140,34 @@ def is_present_or_online(entity):
 
 
 # returns the old state if the state changed if the state changed
-def set_cache_state(o, st, since_unknown=False):
-  if o.cache is not None:
-    o = o.cache
-  ost = o.state.what
+def set_cache_state(entity, st, since_unknown=False):
+  cache = cached(entity)
+  ost = cache.state.what
   now = None
   if not since_unknown:
     now = inaccurate_now()
   if st == EntityState.INACTIVE or st == EntityState.DISCONNECTED:
-    if o.state is not None and o.state.what == EntityState.ONLINE:
-      o.last_online = now
-      if hasattr(o, "operations") and Operation.RESILVER not in o.operations:
-        o.last_update = now
+    if cache.state is not None and cache.state.what == EntityState.ONLINE:
+      cache.last_online = now
+      if hasattr(cache, "last_update") and not since_in(Operation.RESILVER, cache.operations):
+        cache.last_update = now
   if ost != st:
-    o.state = Since(st, now)
+    cache.state = Since(st, now)
     return ost
 
 
-property_name_for_operation = {
+
+name_for_operation = {
   Operation.RESILVER: "update",
   Operation.SCRUB: enum_command_name(Operation.SCRUB),
   Operation.TRIM: enum_command_name(Operation.TRIM)
 }
 
 def get_last_property_name_for_operation(op: Operation):
-  return f"last_{property_name_for_operation[op]}"
+  return f"last_{name_for_operation[op]}"
+
+def get_name_for_operaiton(op: Operation):
+  return name_for_operation[op]
 
 request_for_zfs_operation = {
   Operation.RESILVER: RequestType.ONLINE,
@@ -203,10 +206,9 @@ class ZMirror:
 
 
 def cached(entity):
-  if entity.cache is None:
-    tp, kwargs = entity.id()
-    entity.cache = config.find_or_create_cache(tp, **kwargs)
-  return entity.cache
+  tp, kwargs = entity.id()
+  cache = config.find_or_create_cache(tp, **kwargs)
+  return cache
 
 
 
@@ -225,7 +227,9 @@ def get_name_for_type(tp):
 
 
 def get_type_for_name(nm):
-  return TYPE_FOR_NAME(nm)
+  if not nm in TYPE_FOR_NAME:
+    raise ValueError(f"unknown type: {nm}")
+  return TYPE_FOR_NAME[nm]
 
 
 
@@ -453,7 +457,7 @@ class Entity:
   def handle_parent_online(self, new_state=EntityState.INACTIVE):
     cache = cached(self)
     err_state = None
-    if cache.state.what != EntityState.DISCONNECTED:
+    if cache.state.what not in [EntityState.DISCONNECTED, EntityState.UNKNOWN] :
       err_state = cache.state.what
       if cache.state.what == EntityState.ONLINE:
         new_state = EntityState.ONLINE
@@ -1102,7 +1106,7 @@ class ZPool(Onlineable, Children):
       nomount = f"" if self.mount else "-N"
       return commands.add_command(f"zpool import {self.name} {root} {nomount}", unless_redundant = True)
     else:
-      log.info(f"{human_readable_id(self)}: insufficient backing devices available.")
+      log.info(f"{human_readable_id(self)}: insufficient backing devices available, or per-configuration required backing devices unavailable.")
 
 
   def run_on_backing(self, fn):
@@ -1322,14 +1326,12 @@ def run_get_password_command(entity, handler):
 
 
 def uncached(cache, fn=None):
-  if cache.cache is not None:
-    entity = cache
-  else:
-    entity = config.load_config_for_cache(cache)
-    if entity is None:
-      log.debug(f"entity not configured: {entity_id_string(cache)}")
-      return
-    entity.cache = cache
+  entity = config.load_config_for_cache(cache)
+  if entity is None:
+    log.debug(f"entity not configured: {entity_id_string(cache)}")
+    return
+  entity.cache = cache
+
   if fn:
     return fn(entity)
   else:
@@ -1380,9 +1382,10 @@ def inaccurate_datetime(td):
 def handle_resilver_started(cache):
   if not since_in(Operation.RESILVER, cache.operations):
     cache.operations.append(Since(Operation.RESILVER, inaccurate_now()))
-    handle_onlined(cache)
     cache_log_info(cache, "resilver started")
-
+  if not cache.state.what == EntityState.ONLINE:
+    cache.state = Since(EntityState.ONLINE)
+  cache.last_online = inaccurate_now()
 
 # used for zdevs when brought online via zpool online (instead of zpool import)
 def handle_zdev_onlined(cache):
@@ -1392,14 +1395,18 @@ def handle_zdev_onlined(cache):
     handle_onlined(cache)
   else:
     if zdev.is_mirror:
+      log.verbose(f"{human_readable_id(cache)}: is a mirror device, assuming resilver started")
       handle_resilver_started(cache)
     else:
+      log.verbose(f"{human_readable_id(cache)}: is not a mirror device, assuming that no resilvering is happening")
       handle_onlined(cache)
 
 
 def handle_resilver_finished(cache):
+  if not cache.state.what == EntityState.ONLINE:
+    cache.state = Since(EntityState.ONLINE)
   cache_log_info(cache, "resilvered (updated)")
-  cache.last_update = inaccurate_now()
+  cache.last_online = cache.last_update = inaccurate_now()
   since_remove(Operation.RESILVER, cache.operations)
   uncached_operation_handle_by_name(cache, "resilver_finished")
 
@@ -1592,7 +1599,7 @@ class ZDev(Onlineable, Embedded, Entity):
   def get_last_update(self):
     cache = cached(self)
     now = inaccurate_now()
-    if cache.state.what == EntityState.ONLINE and Operation.RESILVER not in cache.operations:
+    if cache.state.what == EntityState.ONLINE and not since_in(Operation.RESILVER, cache.operations):
       cache.last_update = now
       return KiSymbol("now")
     return cache.last_update
@@ -1617,7 +1624,7 @@ class ZDev(Onlineable, Embedded, Entity):
   
   def finalize_init(self):
     for op in Operation:
-      prop_name = f"{property_name_for_operation[op]}_interval"
+      prop_name = f"{name_for_operation[op]}_interval"
       val = getattr(self, prop_name)
       if val is None:
         val = getattr(config.config_root, prop_name)
@@ -1630,7 +1637,7 @@ class ZDev(Onlineable, Embedded, Entity):
   
 
   def configured_interval(self, op: Operation):
-    return getattr(self, f"{property_name_for_operation[op]}_interval")
+    return getattr(self, f"{name_for_operation[op]}_interval")
   
   def last(self, op: Operation):
     cache = cached(self)
@@ -1648,7 +1655,7 @@ class ZDev(Onlineable, Embedded, Entity):
       last = self.last(op)
       if last is None or allowed_delta > last:
         if op == Operation.RESILVER:
-          if cache.state.what == EntityState.ONLINE and Operation.RESILVER not in cache.operations:
+          if cache.state.what == EntityState.ONLINE and not since_in(Operation.RESILVER, cache.operations):
             return False
         if last is None:
           return inaccurate_datetime(allowed_delta - datetime.min)
@@ -1669,14 +1676,14 @@ class ZDev(Onlineable, Embedded, Entity):
     for op in Operation:
       kdstream.newline()
       if op is Operation.RESILVER:
-        kdstream.print_property_prefix("last_online")
-        last_online = self.get_last_online()
-        kdstream.print_obj(last_online, nil=KiSymbol("never"))
+        kdstream.print_property_prefix("last_update")
+        last_update = self.get_last_update()
+        kdstream.print_obj(last_update, nil=KiSymbol("never"))
       else:
         kdstream.print_property(cache, get_last_property_name_for_operation(op), nil=KiSymbol("never"))
       if self.is_overdue(op):
         kdstream.print_raw(" # OVERDUE")
-      kdstream.print_property(self, f"{property_name_for_operation[op]}_interval", hide_if_empty=True)
+      kdstream.print_property(self, f"{name_for_operation[op]}_interval", hide_if_empty=True)
 
     if cache.operations:
       kdstream.newline()
@@ -1684,8 +1691,9 @@ class ZDev(Onlineable, Embedded, Entity):
 
 
   def is_fulfilled(self, request: Request):
-    for op in self.operations:
-      if operation_corresponds_to_request(op, request.request_type):
+    cache = cached(self)
+    for op in cache.operations:
+      if operation_corresponds_to_request(op.what, request.request_type):
         return True
     return super().is_fulfilled(request)
   

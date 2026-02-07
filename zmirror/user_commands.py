@@ -481,10 +481,10 @@ def make_send_daemon_wrapper(fn, stream=sys.stdout):
 
 
 
-LIST_KEYS = ["id", "last_online", "last_update", "update_overdue", "last_trim", "trim_overdue", "last_scrub", "scrub_overdue"]
+LIST_KEYS = ["id", "last_online", "last_update", "update_overdue", "last_trim", "trim_overdue", "last_scrub", "scrub_overdue", "operations"]
 
 
-def make_list_command(op: Operation, entity_type=None, overdue=False):
+def make_list_command(op: Operation, overdue=False):
   def do(args):
     b = StringBuilder()
     def make_command(_args):
@@ -494,8 +494,8 @@ def make_list_command(op: Operation, entity_type=None, overdue=False):
         r["operation"] = op.name.lower()
       if overdue:
         r["overdue"] = True
-      if entity_type:
-        r["type"] = get_name_for_type(entity_type)
+      if args.types:
+        r["types"] = args.types
       if args.sort:
         r["sort"] = args.sort
       if args.groups:
@@ -561,12 +561,13 @@ def entity_to_table_entry(entity: Entity):
     return {
         "id" : entity_id_string(entity),
         "last_online": special_ki_to_json(to_kd_date(entity.get_last_online())),
-        "last_update": special_ki_to_json(to_kd_date(cache.get_last_update())),
+        "last_update": special_ki_to_json(to_kd_date(entity.get_last_update())),
         "update_overdue": to_kd_date(entity.is_overdue(Operation.RESILVER)),
         "last_trim": to_kd_date(cache.last_trim),
         "trim_overdue": to_kd_date(entity.is_overdue(Operation.TRIM)),
         "last_scrub": to_kd_date(cache.last_scrub),
-        "scrub_overdue": to_kd_date(entity.is_overdue(Operation.SCRUB))
+        "scrub_overdue": to_kd_date(entity.is_overdue(Operation.SCRUB)),
+        "operations": ','.join([get_name_for_operaiton(op.what) for op in cache.operations])
       }
   else:
     return {
@@ -577,7 +578,8 @@ def entity_to_table_entry(entity: Entity):
         "last_trim": None,
         "trim_overdue": None,
         "last_scrub": None,
-        "scrub_overdue": None
+        "scrub_overdue": None,
+        "operations": None
       }
 
 def handle_list_command(command, stream):
@@ -596,23 +598,17 @@ def handle_list_command(command, stream):
     if not isinstance(groups, list):
       raise ValueError("`groups` must be a list")
   
-  entity_type = None
 
-  if "type" in command:
-    tp = command["type"]
-    try:
-      entity_type = TYPE_FOR_NAME[tp]
-    except:
-      raise ValueError(f"unknown type: {tp}")
+  types = None
+  if "types" in command:
+    types =  [get_type_for_name(tp) for tp in command["types"]]
 
   
   result = []
+
   def do(entity):
     if isinstance(entity, ZMirror):
       return
-    if entity_type:
-      if not isinstance(entity, entity_type):
-        return
     if groups is not None:
       if not hasattr(entity, "groups"):
         return
@@ -622,6 +618,15 @@ def handle_list_command(command, stream):
           group_found = True
           break
       if not group_found:
+        return
+      
+    if types is not None:
+      type_found = False
+      for type in types:
+        if isinstance(entity, type):
+          type_found = True
+          break
+      if not type_found:
         return
     if overdue:
       if not hasattr(entity, "is_overdue"):

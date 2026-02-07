@@ -134,8 +134,9 @@ def handle(env):
       cache = find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path)
       if zevent == "vdev_online":
         # we have no event by witch we can reliably capture that a resilver started for a zdev
-        # (resilver_started is a pool event). Hence we automatically assume that a zdev
-        # that has been onlined in an active pool will resilver
+        # (resilver_started is a pool event). Hence we automatically assume that a zdev 
+        # that is configured to be within a mirror (zpool.backing)
+        # and that has been onlined in an active pool will resilver
         handle_zdev_onlined(cache)
         event_handled = True
       elif zevent == "statechange":
@@ -160,6 +161,10 @@ def handle(env):
     # zool-vdev event
     elif zevent in ["resilver_start", "resilver_finish"]:
 
+      # sometimes resilver_finish is not being recognized
+      # maybe the zevent is too fast, so we wait just a little
+      time.sleep(0.25)
+
       zpool_status = config.get_zpool_status(zpool)
       
       for match in POOL_DEVICES_REGEX.finditer(zpool_status):
@@ -167,12 +172,16 @@ def handle(env):
           dev = match.group("dev")
           cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
 
+
           if zevent == "resilver_start":
             if "resilvering" in (match.group("operations") or ""):
               # this method will only have an effect if the operation is not currently resilvering
+              # hence this should never have an effect, because we assume that mirrored devices will
+              # start resilvering the moment they come online.
               handle_resilver_started(cache)
               event_handled = True
           else:
+            log.verbose(f"{human_readable_id(cache)}: handling resilver_finish")
             if "resilvering" not in (match.group("operations") or ""):
               if since_in(Operation.RESILVER, cache.operations):
                 handle_resilver_finished(cache)

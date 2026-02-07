@@ -333,6 +333,9 @@ class Request:
       self.depending_on.append(dependency)
       dependency.depended_by.append(self)
   
+  def __kiify__(self, kdstream: KdStream):
+    kdstream.print_raw("Request ")
+    kdstream.print_obj(self.request_type)
 
 
 @dataclass

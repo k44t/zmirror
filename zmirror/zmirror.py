@@ -105,6 +105,7 @@ def make_arg_parser():
   list_args_parser.add_argument("--format", choices=TABLE_FORMATS, default="plain", help="either `json` or one of the formats defined by the tabulate library (see https://https://pypi.org/project/tabulate/#description)")
   list_args_parser.add_argument("--sort", choices=LIST_KEYS, help="the key (column) to sort for")
   list_args_parser.add_argument("--groups", type=lambda s: s.split(','), default=None, help="limit the entities to the groups given")
+  list_args_parser.add_argument("--types", type=lambda s: s.split(','), default=None, help="limit the entitiies to the types given")
 
 
   daemon_parser = subs.add_parser('daemon', parents=[shared_parser, socket_parser], help="starts zmirror in daemon mode")
@@ -177,7 +178,7 @@ def make_arg_parser():
   list_parser.set_defaults(func=make_list_command(op=None, overdue=False))
 
   list_subs = list_parser.add_subparsers()
-  list_subs.add_parser("overdue", parents=[list_args_parser], help="list all overdue devices").set_defaults(func=make_list_command(op=None, overdue=True, entity_type=ZDev))
+  list_subs.add_parser("overdue", parents=[list_args_parser], help="list all overdue devices").set_defaults(func=make_list_command(op=None, overdue=True))
 
   list_scrub_subs = list_subs.add_parser("scrub", help="list devices based on current/last scrub state").add_subparsers(required=True)
   list_scrub_subs.add_parser("overdue", parents=[list_args_parser], help="list devices on which a scrub is overdue").set_defaults(func=make_list_command(Operation.SCRUB, overdue=True))
