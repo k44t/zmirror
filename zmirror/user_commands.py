@@ -141,6 +141,7 @@ def handle_request_command(command):
 
 
 def handle_group_request(rqst: RequestType, group: str, cancel: bool = False):
+  log.info(f"handling group request for group: {group}")
   def do(entity):
     if hasattr(entity, "groups"):
       if entity.groups and group in entity.groups:

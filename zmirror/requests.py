@@ -151,6 +151,7 @@ class Request:
         d.dependent_cancelled(self)
       for d in self.depended_by.copy():
         d.dependency_cancelled(self)
+      self.entity.enact_cancel(self.request_type)
       self.stop99()
 
   def stop0(self, stop_mode, reason: Reason = None):

@@ -336,6 +336,23 @@ class Entity:
     r = state_corresponds_to_request(state, request.request_type)
     return r
 
+  def enact_cancel(self, request_type):
+
+    attr = f"enact_cancel_{request_type.name.lower()}"
+    if hasattr(self, attr):
+      def on_fail(rslt):
+        if isinstance(rslt, tuple) and len(rslt) == 4:
+          cmd, _, _, errors = rslt
+          log.error(f"command `{cmd.command}` failed: \n\t{"\n\t".join(errors)}")
+        else:
+          log.error(f"command `{cmd.command}` failed: {rslt}")
+
+      enact = getattr(self, attr)
+      promise = enact()
+      promise.catch(on_fail)
+    else:
+      log.debug(f"{human_readable_id(self)}: request type cannot be cancelled by this entity: {request_type}")
+
   def enact(self, request):
 
     request_type = request.request_type
@@ -487,7 +504,7 @@ class Entity:
 def run_event_handlers(self, event_name, excepted=None):
 
   if not config.event_handlers_enabled:
-    log.info(f"{human_readable_id(self)}: skipping event: {event_name} (event handlers are disabled)")
+    log.info(f"{human_readable_id(self)}: {event_name}. Skipping event handlers (disabled)")
     return
   handlers = getattr(self, "on_" + event_name)
   if handlers:
@@ -982,7 +999,7 @@ class ZPool(Onlineable, Children):
   
   def state_allows(self, request_type):
     state = cached(self).state.what
-    if state == EntityState.ONLINE and request_type == RequestType.OFFLINE:
+    if state == EntityState.ONLINE and request_type in [RequestType.OFFLINE, RequestType.TRIM, RequestType.SCRUB]:
       return True
     # a zpool is never INACTIVE, it is only ever DISCONNECTED, and whether
     # the state allows a request, depends solely on the request this 
@@ -995,12 +1012,23 @@ class ZPool(Onlineable, Children):
   # def handle_appeared(self, prev_state):
   #  pass
 
+  
+
+  def unsupported_request(self, request_type: RequestType):
+    if request_type in [RequestType.OFFLINE, RequestType.ONLINE, RequestType.SCRUB, RequestType.TRIM]:
+      return None
+    return Children.unsupported_request(self, request_type)
+
 
   def request_dependencies(self, request_type, enactment_level: int = sys.maxsize):
-    if request_type == RequestType.ONLINE:
+    def request_backing(type):
       def do(backing):
-        return backing.request(RequestType.APPEAR, enactment_level - 1)
+        return backing.request(type, enactment_level - 1)
       return list(map(do, self.backed_by))
+    if request_type == RequestType.ONLINE:
+      return request_backing(RequestType.APPEAR)
+    elif request_type == RequestType.SCRUB:
+      return request_backing(RequestType.ONLINE)
     else:
       return super().request_dependencies(request_type, enactment_level= enactment_level)
 
@@ -1089,6 +1117,21 @@ class ZPool(Onlineable, Children):
     return commands.add_command(f"zpool scrub -s {self.name}", unless_redundant = True)
 
 
+  def enact_trim(self):
+    self.stop_scrub()
+    return commands.add_command(f"zpool trim {self.name}", unless_redundant = True)
+
+  def stop_trim(self):
+    return commands.add_command(f"zpool trim -s {self.name}", unless_redundant = True)
+
+
+
+  def enact_cancel_scrub(self):
+    return self.stop_scrub()
+
+
+  def enact_cancel_trim(self):
+    return self.stop_trim()
 
   def enact_offline(self):
     return commands.add_command(f"zpool export {self.name}", unless_redundant = True)
@@ -1391,14 +1434,14 @@ def handle_resilver_started(cache):
 def handle_zdev_onlined(cache):
   zdev = uncached(cache)
   if not zdev:
-    log.debug(f"{human_readable_id(cache)}: unconfigured, not assuming that it starts resilvering.")
+    log.verbose(f"{human_readable_id(cache)}: ONLINE. Unconfigured, not assuming that it starts resilvering.")
     handle_onlined(cache)
   else:
     if zdev.is_mirror:
-      log.verbose(f"{human_readable_id(cache)}: is a mirror device, assuming resilver started")
+      log.verbose(f"{human_readable_id(cache)}: ONLINE. This is (configured as) a mirror device, assuming resilver started.")
       handle_resilver_started(cache)
     else:
-      log.verbose(f"{human_readable_id(cache)}: is not a mirror device, assuming that no resilvering is happening")
+      log.verbose(f"{human_readable_id(cache)}: ONLINE. This is not (configured as) a mirror device, assuming that no resilvering is happening.")
       handle_onlined(cache)
 
 
@@ -1808,6 +1851,12 @@ class ZDev(Onlineable, Embedded, Entity):
 
   def stop_scrub(self):
     return commands.add_command(f"zpool scrub -s {self.pool}", unless_redundant = True)
+
+  def enact_cancel_scrub(self):
+    return self.stop_scrub()
+
+  def enact_cancel_trim(self):
+    return self.stop_trim()
 
   def stop_trim(self):
     return commands.add_command(f"zpool trim -s {self.pool} {self.dev_name()}", unless_redundant = True)

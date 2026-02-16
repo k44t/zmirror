@@ -199,8 +199,8 @@ def make_arg_parser():
   get_subs = subs.add_parser('get', parents=[socket_parser], help='get zmirror daemon property value').add_subparsers(required=True)
 
   def add_enable_disable_parsers(name, help=None):
-    enable_parser = enable_subs.add_parser(name, help=f"enable {help}")
-    disable_parser = disable_subs.add_parser(name, help=f"disable {help}")
+    enable_parser = enable_subs.add_parser(name, help=f"temporarily enable {help}")
+    disable_parser = disable_subs.add_parser(name, help=f"temporarily disable {help}")
 
     enable_parser.set_defaults(func=make_send_set_property_daemon_command(name, "yes"))
     disable_parser.set_defaults(func=make_send_set_property_daemon_command(name, "no"))
@@ -208,9 +208,9 @@ def make_arg_parser():
 
     get_subs.add_parser(name, help=f"get {help}").set_defaults(func=make_send_get_property_daemon_command(name))
 
-  add_enable_disable_parsers("commands", help="command execution")
-  add_enable_disable_parsers("log-events", help="logging of all UDEV and ZED events received by zmirror")
-  add_enable_disable_parsers("event-handlers", help="running event handlers as per user configuration. This can be useful for debugging or maintenance.")
+  add_enable_disable_parsers("commands", help="command execution (in most cases it is recommended to disable event-handlers instead)")
+  add_enable_disable_parsers("log-events", help="logging of all `udev` and `zed` events received by zmirror (including those not handled by zmirror)")
+  add_enable_disable_parsers("event-handlers", help="running user-configured event-handlers")
 
 
   def add_set_property_parser(name, set_help=None, get_help=None):
