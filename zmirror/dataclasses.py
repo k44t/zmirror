@@ -23,7 +23,7 @@ from promise import Promise
 
 from kpyutils.kiify import yaml_data, yaml_enum, KiEnum, KdStream, yes_no_absent_or_dict, KiSymbol
 from kpyutils.escaping import backslash_escape
-
+from kpyutils.promises import fulfilled_promise
 
 
 from .logging import log
@@ -1139,7 +1139,7 @@ class ZPool(Onlineable, Children):
   def enact_online(self):
     if is_online(self):
       log.debug(f"zpool {self.name} already online")
-      return
+      return fulfilled_promise()
 
     sufficient = self.run_on_backing(is_present_or_online)
     if sufficient:
