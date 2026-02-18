@@ -232,7 +232,7 @@ def make_arg_parser():
     online = online_subs.add_parser(command_name, parents=[common_parser, cancel_parser])
     online.set_defaults(func=make_send_request_daemon_command(RequestType.ONLINE, typ))
 
-    if typ in {ZDev}:
+    if typ in {ZDev, ZPool}:
       trim = trim_subs.add_parser(command_name, parents=[common_parser, cancel_parser])
       trim.set_defaults(func=make_send_request_daemon_command(RequestType.TRIM, typ))
 
