@@ -172,6 +172,9 @@ def simple_string_command(command, error, logfn=log.error):
   
 def get_zfs_volume_mode(zfs_path):
   return simple_string_command(f"zfs get volmode {zfs_path} -o value -H", f"failed to get volmode of zfs volume {zfs_path}", log.debug)
+  
+def get_zfs_mounted(zfs_path):
+  return simple_string_command(f"zfs get mounted {zfs_path} -o value -H", f"failed to get volmode of zfs volume {zfs_path}", log.debug)
 
 
 
@@ -241,3 +244,4 @@ config.find_or_create_cache = find_or_create_cache
 config.get_zpool_backing_device_state = get_zpool_backing_device_state
 config.get_zpool_status = get_zpool_status
 config.get_zfs_volume_mode = get_zfs_volume_mode
+config.get_zfs_mounted = get_zfs_mounted

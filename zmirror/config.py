@@ -59,6 +59,9 @@ def set_log_level(level):
 def get_zfs_volume_mode(zfs_path):
   raise NotImplementedError()
 
+def get_zfs_mounted(zfs_path):
+  raise NotImplementedError()
+
 def get_zpool_backing_device_state(pool, dev):
   raise NotImplementedError()
 

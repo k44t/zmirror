@@ -813,8 +813,8 @@ class BackingDevice:
   def unsupported_request(self, request_type):
     return self.device.unsupported_request(request_type)
   
-  def state_supports(self, request_type):
-    return self.device.state_supports(request_type)
+  def state_allows(self, request_type):
+    return self.device.state_allows(request_type)
 
   def request(self, request_type, enactment_level: int = sys.maxsize):
     return self.device.request(request_type, enactment_level)
@@ -1159,6 +1159,82 @@ class ZPool(Onlineable, Children):
         sufficient = False
     return sufficient
 
+
+
+
+
+# TODO capture online/offline events and write tests for this one
+@yaml_data
+class ZFSDataset(Entity):
+  pool: str = None
+  name: str = None
+
+
+  on_appeared: list = field(default_factory=list)
+
+
+  @classmethod
+  def id_fields(cls):
+    return ["pool", "name"]
+
+
+  def unsupported_request(self, request_type):
+    if request_type not in {RequestType.ONLINE, RequestType.OFFLINE, RequestType.SNAPSHOT}:
+      return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
+
+  def request_dependencies(self, request_type, enactment_level = sys.maxsize):
+    if request_type == RequestType.SNAPSHOT:
+      return [self.request(RequestType.ONLINE, enactment_level = -1)]
+    return super().request_dependencies(request_type, enactment_level)
+
+  def id(self):
+    return make_id(self, pool=self.get_pool(), name=self.name)
+
+  def state_allows(self, request_type):
+    state = cached(self).state.what
+    if state == EntityState.ONLINE and request_type == RequestType.SNAPSHOT:
+      return True
+    return super().state_allows(request_type)
+
+  def handle_appeared(self, prev_state):
+    succeed_request(self, RequestType.APPEAR)
+    self.enact_requests()
+    run_event_handlers(self, "appeared")
+
+
+  def handle_parent_online(self, new_state=EntityState.INACTIVE):
+    state = self.load_initial_state()
+    if state == EntityState.INACTIVE:
+      handle_appeared(cached(self))
+    elif state == EntityState.ONLINE:
+      handle_onlined(cached(self))
+    else:
+      log.error(f"{human_readable_id(self)}: inconsistent initial state ({state}). This is likely due to a misconfiguration.")
+
+
+  def get_pool(self):
+    if self.parent is not None:
+      return self.parent.name
+    else:
+      return self.pool
+
+  def load_initial_state(self):
+    zfs_state = config.get_zfs_mounted(f"{self.get_pool()}/{self.name}")
+    if zfs_state == "yes":
+      return EntityState.ONLINE
+    elif zfs_state == "no":
+      return EntityState.INACTIVE
+    else:
+      return EntityState.DISCONNECTED
+
+  def enact_online(self):
+    return commands.add_command(f"zfs mount {self.parent.name}/{self.name}")
+
+  def enact_offline(self):
+    return commands.add_command(f"zfs umount {self.parent.name}/{self.name}")
+
+  def enact_snapshot(self):
+    return commands.add_command(f"zfs snapshot {self.parent.name}/{self.name}@zmirror-{inaccurate_now().strftime("%Y-%m-%d_%H-%M-%S")}")
 
 
 
