@@ -1769,8 +1769,10 @@ class ZDev(Onlineable, Embedded, Entity):
     if interval is not None:
       cache = cached(self)
       # parsing the schedule delta will result in a timestamp calculated from now
-      allowed_delta = dateparser.parse(interval)
-          # this means that allowed_delta is a timestamp in the past
+      allowed_delta = dateparser.parse(interval).replace(microsecond=0, second=0)
+      if (datetime.now() - allowed_delta) > timedelta(hours=24):
+        allowed_delta = allowed_delta.replace(hour=0, minute=0)
+      # this means that allowed_delta is a timestamp in the past
       last = self.last(op)
       if last is None or allowed_delta > last:
         if op == Operation.RESILVER:
