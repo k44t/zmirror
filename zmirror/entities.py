@@ -2,8 +2,9 @@ import os
 from datetime import datetime
 import re
 import logging
+from typing import Optional
 
-from .util import load_yaml_cache, load_yaml_config, save_yaml_cache, remove_yaml_cache, require_path
+from .util import init_cache_db, load_yaml_config, remove_cache_db, require_path
 from .util import myexec as myexec #pylint: disable=redefined-builtin
 from .dataclasses import *
 
@@ -46,10 +47,12 @@ def init_config(cache_path, config_path):
 
 
 
-  os.makedirs(os.path.dirname(cache_path), exist_ok = True)
+  cache_parent = os.path.dirname(cache_path)
+  if cache_parent:
+    os.makedirs(cache_parent, exist_ok = True)
   log.info(f"loading cache from: {cache_path}") 
   config.cache_dict = dict()
-  cache_entities = load_yaml_cache(cache_path)
+  cache_entities = load_cache(cache_path)
   if cache_entities:
     for cache in cache_entities:
       config.cache_dict[entity_id_string(cache)] = cache
@@ -179,7 +182,207 @@ def get_zfs_mounted(zfs_path):
 
 
 def remove_cache(cache_path):
-  remove_yaml_cache(cache_path)
+  remove_cache_db(cache_path)
+
+
+def datetime_to_str(value: Optional[datetime]):
+  if value is None:
+    return None
+  return value.isoformat(sep=" ")
+
+
+def parse_datetime(value):
+  if value is None:
+    return None
+  return datetime.fromisoformat(value)
+
+
+def parse_cache_identifier(identifier):
+  parts = identifier.split("|")
+  typ = None
+  type_name = parts[0]
+  if type_name in TYPE_FOR_NAME:
+    typ = get_type_for_name(type_name)
+  else:
+    for tp in NAME_FOR_TYPE:
+      if tp is not None and tp.__name__ == type_name:
+        typ = tp
+        break
+  if typ is None:
+    raise ValueError(f"unknown cache type: {type_name}")
+  kwargs = dict()
+  for part in parts[1:]:
+    if ":" in part:
+      key, value = part.split(":", 1)
+      kwargs[key] = value
+  return typ, kwargs
+
+
+def cache_from_identifier(identifier):
+  typ, kwargs = parse_cache_identifier(identifier)
+  return typ(**kwargs)
+
+
+def copy_cache_fields(source, target):
+  state_what = source.get("state_what")
+  if state_what is not None and hasattr(target, "state"):
+    target.state = Since(EntityState[state_what], parse_datetime(source.get("state_since")))
+
+  for attr in ["last_online", "last_update", "last_trim", "last_scrub"]:
+    if hasattr(target, attr):
+      setattr(target, attr, parse_datetime(source.get(attr)))
+
+  if hasattr(target, "operations"):
+    target.operations = []
+    for what, since in source.get("operations", []):
+      if what in Operation.__members__:
+        target.operations.append(Since(Operation[what], parse_datetime(since)))
+
+
+def is_sqlite_file(path):
+  if not os.path.exists(path):
+    return False
+  try:
+    with open(path, "rb") as stream:
+      return stream.read(16) == b"SQLite format 3\x00"
+  except Exception:
+    return False
+
+
+def load_cache(cache_path):
+  if os.path.exists(cache_path) and not is_sqlite_file(cache_path):
+    raise ValueError(f"cache file is not a sqlite database: {cache_path}")
+
+  cache_list = []
+
+  conn = init_cache_db(cache_path)
+  try:
+    op_rows = conn.execute("SELECT entity_id, what, since FROM cache_operations")
+    operations_by_entity = dict()
+    for entity_id, what, since in op_rows:
+      if entity_id not in operations_by_entity:
+        operations_by_entity[entity_id] = []
+      operations_by_entity[entity_id].append((what, since))
+
+    rows = conn.execute("""
+      SELECT id, state_what, state_since, last_online, last_update, last_trim, last_scrub
+      FROM cache_entries
+    """)
+    for identifier, state_what, state_since, last_online, last_update, last_trim, last_scrub in rows:
+      try:
+        cache = cache_from_identifier(identifier)
+      except Exception as ex:
+        log.warning(f"failed to load cache entry {identifier}: {ex}")
+        continue
+
+      copy_cache_fields({
+        "state_what": state_what,
+        "state_since": state_since,
+        "last_online": last_online,
+        "last_update": last_update,
+        "last_trim": last_trim,
+        "last_scrub": last_scrub,
+        "operations": operations_by_entity.get(identifier, [])
+      }, cache)
+      cache_list.append(cache)
+  finally:
+    conn.close()
+
+  return cache_list
+
+
+def save_cache_entries(conn, cache_id, cache):
+  state_what = None
+  state_since = None
+  if hasattr(cache, "state") and cache.state is not None and cache.state.what is not None:
+    state_what = cache.state.what.name
+    state_since = datetime_to_str(cache.state.when)
+
+  values = {
+    "id": cache_id,
+    "state_what": state_what,
+    "state_since": state_since,
+    "last_online": datetime_to_str(getattr(cache, "last_online", None)),
+    "last_update": datetime_to_str(getattr(cache, "last_update", None)),
+    "last_trim": datetime_to_str(getattr(cache, "last_trim", None)),
+    "last_scrub": datetime_to_str(getattr(cache, "last_scrub", None)),
+  }
+
+  conn.execute("""
+    INSERT INTO cache_entries(id, state_what, state_since, last_online, last_update, last_trim, last_scrub)
+    VALUES(:id, :state_what, :state_since, :last_online, :last_update, :last_trim, :last_scrub)
+    ON CONFLICT(id) DO UPDATE SET
+      state_what = excluded.state_what,
+      state_since = excluded.state_since,
+      last_online = excluded.last_online,
+      last_update = excluded.last_update,
+      last_trim = excluded.last_trim,
+      last_scrub = excluded.last_scrub
+    WHERE
+      cache_entries.state_what IS NOT excluded.state_what OR
+      cache_entries.state_since IS NOT excluded.state_since OR
+      cache_entries.last_online IS NOT excluded.last_online OR
+      cache_entries.last_update IS NOT excluded.last_update OR
+      cache_entries.last_trim IS NOT excluded.last_trim OR
+      cache_entries.last_scrub IS NOT excluded.last_scrub
+  """, values)
+
+
+def save_cache_operations(conn, cache_id, cache):
+  if not hasattr(cache, "operations"):
+    conn.execute("DELETE FROM cache_operations WHERE entity_id = ?", (cache_id,))
+    return
+
+  desired = dict()
+  for operation in cache.operations:
+    desired[operation.what.name] = datetime_to_str(operation.when)
+
+  existing_rows = conn.execute(
+    "SELECT what, since FROM cache_operations WHERE entity_id = ?",
+    (cache_id,)
+  ).fetchall()
+  existing = {what: since for what, since in existing_rows}
+
+  if desired == existing:
+    return
+
+  for what, since in desired.items():
+    conn.execute("""
+      INSERT INTO cache_operations(entity_id, what, since)
+      VALUES (?, ?, ?)
+      ON CONFLICT(entity_id, what) DO UPDATE SET
+        since = excluded.since
+      WHERE cache_operations.since IS NOT excluded.since
+    """, (cache_id, what, since))
+
+  existing_what = set(existing.keys())
+  desired_what = set(desired.keys())
+  removed = existing_what - desired_what
+  for what in removed:
+    conn.execute(
+      "DELETE FROM cache_operations WHERE entity_id = ? AND what = ?",
+      (cache_id, what)
+    )
+
+
+def save_cache_db(cache_dict, cache_path):
+  log.verbose("writing cache")
+  conn = init_cache_db(cache_path)
+  try:
+    with conn:
+      ids = list(cache_dict.keys())
+      if ids:
+        placeholders = ",".join("?" for _ in ids)
+        conn.execute(f"DELETE FROM cache_entries WHERE id NOT IN ({placeholders})", ids)
+      else:
+        conn.execute("DELETE FROM cache_entries")
+
+      for cache_id, cache in cache_dict.items():
+        save_cache_entries(conn, cache_id, cache)
+        save_cache_operations(conn, cache_id, cache)
+  finally:
+    conn.close()
+  log.debug("cache written.")
 
 
 
@@ -200,7 +403,7 @@ def save_cache():
 
 
 def save_cache_now():
-  save_yaml_cache(list(config.cache_dict.values()), config.cache_path)
+  save_cache_db(config.cache_dict, config.cache_path)
 
 
 def get_zpool_backing_device_state(zpool, dev):

@@ -4,6 +4,7 @@ import errno
 import subprocess
 import sys
 import ctypes
+import sqlite3
 import yaml
 
 from .logging import log
@@ -157,35 +158,60 @@ def myexec(command, input = None):
   return process.returncode, formatted_output, formatted_response, formatted_error
 
 
-def load_yaml_cache(cache_file_path):
-  cache_list = None
+def init_cache_db(cache_file_path):
+  conn = sqlite3.connect(cache_file_path)
+  conn.execute("PRAGMA foreign_keys = ON")
+
+  version = conn.execute("PRAGMA user_version").fetchone()[0]
+  if version == 0:
+    conn.execute("""
+      CREATE TABLE IF NOT EXISTS cache_entries (
+        id TEXT PRIMARY KEY,
+        state_what TEXT,
+        state_since TEXT,
+        last_online TEXT,
+        last_update TEXT,
+        last_trim TEXT,
+        last_scrub TEXT
+      )
+    """)
+    conn.execute("""
+      CREATE TABLE IF NOT EXISTS cache_operations (
+        id INTEGER PRIMARY KEY,
+        entity_id TEXT NOT NULL,
+        what TEXT NOT NULL,
+        since TEXT,
+        UNIQUE(entity_id, what),
+        FOREIGN KEY (entity_id) REFERENCES cache_entries(id) ON DELETE CASCADE
+      )
+    """)
+    conn.execute("PRAGMA user_version = 1")
+    conn.commit()
+
+  return conn
+
+
+def remove_cache_db(cache_file_path):
+  log.info(f"removing {cache_file_path}")
   try:
-    with open(cache_file_path, encoding="utf-8") as stream:
-      cache_list = yaml.full_load(stream)
-  except FileNotFoundError:
-    log.warning("failed to load cache: cache file does not exist")
-  except BaseException:
-    log.warning("failed to load cache")
-  return cache_list
-
-
-
-def save_yaml_cache(cache_list, cache_file_path):
-  log.verbose("writing cache")
-  with open(cache_file_path, 'w', encoding="utf-8") as stream:
-    yaml.dump(cache_list, stream)
-  log.debug("cache written.")
+    os.remove(cache_file_path)
+  except Exception as exception:
+    log.error(f"failed to remove {cache_file_path}. {str(exception)}")
 
 
 
 def find_or_create_cache(cache_dict, typ, create_args=None, identifier_prefix=None, **kwargs):
-  identifier = typ.__name__
+  from .dataclasses import make_id_string  # pylint: disable=import-outside-toplevel
+
+  id_values = {}
   if identifier_prefix is not None:
     for _, (key, value) in enumerate(identifier_prefix.items()):
-      identifier = f"{identifier}|{key}:{value}"
+      id_values[key] = value
 
   for _, (key, value) in enumerate(kwargs.items()):
-    identifier = f"{identifier}|{key}:{value}"
+    id_values[key] = value
+
+  identifier = make_id_string(typ, **id_values)
 
   cache = None
   if identifier in cache_dict:
@@ -230,14 +256,6 @@ def print_headlined(headline, config):
   outs.newlines(2)
 
   stream.print_obj(config)
-
-
-def remove_yaml_cache(cache_file_path):
-  log.info(f"removing {cache_file_path}")
-  try:
-    os.remove(cache_file_path)
-  except Exception as exception:
-    log.error(f"failed to remove {cache_file_path}. {str(exception)}")
 
 
 def copy_attrs(lft, rgt):

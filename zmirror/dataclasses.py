@@ -1886,7 +1886,7 @@ class ZDev(Onlineable, Embedded, Entity):
 
   def handle_appeared(self, prev_state):
     succeed_request(self, RequestType.APPEAR)
-    pool_id = f"ZPool|name:{self.pool}"
+    pool_id = make_id_string(ZPool, name=self.pool)
     if pool_id in config.config_dict:
       config.config_dict[pool_id].handle_backing_device_appeared()
     run_event_handlers(self, "appeared")
