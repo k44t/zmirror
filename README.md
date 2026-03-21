@@ -1,190 +1,187 @@
 # zmirror
 
-This project is in the beta phase. Bugs might exist, changes to API and CLI might happen frequently, documentation might not be up to date.
+`zmirror` is a Linux CLI + daemon for managing ZFS mirror backup devices, including LUKS/dm-crypt backed devices.
 
-## Description
+It listens to `udev` and ZFS events, tracks device/pool state, and can automatically handle operations such as opening encrypted devices, importing pools, onlining/offlining backing devices, and maintenance requests.
 
-`zmirror` is a linux system service that enables you to use (optionally LUKS encrypted) ZFS mirror devices as backups. The following scenarios describe what you can do with zmirror:
+Status: beta. Interfaces and behavior can still change.
 
-### Scenario 1: Friends
+## Why zmirror
 
-Say you are friends with a family who also runs a homeserver with ZFS. You might agree with them that they provide storage for an off-site backup for you, while in turn you provide storage for their offsite backup. 
+`zmirror` is useful when backup mirrors are not always connected (for example removable disks or off-site/network-backed block devices). It helps keep your main pool performant by allowing backup mirrors to be connected for sync windows and then disconnected again, while still tracking state and maintenance cadence.
 
-Now you could now use https://github.com/jimsalterjrs/sanoid or some other ZFS replication tool for this purpose. This would however require your friends to have access to the ZFS datasets, at least to some degree. Replicating encrypted datasets with ZFS on linux had data corruption bugs for some time (https://github.com/openzfs/zfs/issues/10019) which might still be lurking around on some distributions. And ZFS encryption does not decrypt filenames and metadata. So if you care about privacy as I do, then you can do the following.
+## Key Features
 
-Your friends create a zfs volume (blockdevice) on their NAS and a wireguard VPN connection directly to the machine, where a NBD (network block device) server is running. Once the VPN is up and running, you can run an NBD client on your own NAS. Then you encrypt the volume with LUKS2 and use it as a mirror for your internal zfs pool.
+- Event-driven daemon (`udev` + ZFS events)
+- LUKS/dm-crypt open/close integration
+- ZFS pool import/export and backing-device online/offline flows
+- Maintenance requests (`scrub`, `trim`, `resilver`) and overdue reporting
+- YAML configuration (`example-config.yml` is the reference)
+- Persistent cache in SQLite (`/var/lib/zmirror/zmirror-cache.db` by default)
 
-And now zmirror comes into play: your internal pool will become very slow, once the resilver is completed (because all write operations must finish on all currently connected mirrors, including the remote one). zmirror's job is to disconnect the remote mirror once the resilver is completed, and reconnected it at an interval that you configure. This way your machine will be fast AND you have regular, fully encrypted backups of your whole pool.
+## Security and Safety Notes
 
-And to ensure that you won't lose data through an accidental `zfs destroy`, you can use `zfs snapshot pool/your-volume` on your friend's machine every now and then. (a future version of zmirror will allow you to run arbitrary commands to accomplish this on each resilver).
-
-
-
-
-### How it works
-
-For every internal zpool for which you want a backup you mirror its devices on one or more external disks (`zpool attach`). When you want to make a backup you connect those external disks over night. `zmirror` will then (if you configure it thus) ensure that once the activity LED stops blinking, the backup is complete, and you can disconnect the disk. 
-
-`zmirror` writes detailed system logs, and keeps track of the state of your backups. You can for example ask it to list devices for which a scrub is overdue: 
-
-```
-zmirror list scrub overdue
-```
-
-`zmirror` can handle some quite complex configurations: `zpool`s whose `zdev`s (backing devices) are stored on ZFS Volumes which are within `zpools` backed by `zdev`s stored within LUKS encrypted containers for example.
-
-`zmirror` listens to `udev` and `ZED` events to online or offline devices and zpools based on configuration.
-
-`zmirror`'s YAML configuration file gives you fine-grained control over how zmirror should treat each disk, zpool and zdev. 
-
-All configuration features are documented inside `example-config.yml` which incidentally
-is the active configuration of the devvythelopper of `zmirror` (sic).
-
-
-
-### Risk Mitigation
-
-`zmirror`'s backup strategy mitigates the following risks:
-
-- internal (or always connected external) disk failure
-- failure of server and all connected disks (e.g. caused by a power surge)
-- EMP (and radiation-caused bitrot) 
-  - as long as the backup disks are stored in an EMP safe enclosure
-- bitrot
-  - as long as the backup disks are connected often enough
-- local catastrophe
-  - as long as the backup disks are stored in multiple physical locations
-
-`zmirror`'s backup strategy **CANNOT** mitigate the following risks:
-
-- bugs in ZFS that cause data loss on the backup disks
-- hackers that maliciously delete data WHILE a backup disk is connected
-
-To mitigate these types of risks one would need permanent backups (i.e. millenium disks or tape backups). Since this is more time-consuming one might wish to combine permanent backups for the most important data with `zmirror` based backups for everything else.
-
-
-
-### Features
-
-The following features are implemented:
-
-- opening/closing LUKS encrypted partitions (in which the zpools reside)
-- importing/exporting `zpool`s
-- onlining/offlining the `zpool`s backing devices (`zdev`)
-- maintenance schedules for `scrub`, `resilver` and `trim`
-- reporting maintenance status
-- event handlers
-- force-enabling TRIM (sometimes the kernel fails to recognize TRIM capabilities 
-  over USB)
-- manual commands
-
-
-### Scheduling
-
-`zmirror daemon` itself does not have an inbuilt scheduler. Instead it relies
-on `systemd` or `cron` to run `zmirror maintenance` at some user-specified 
-time of day (or week, etc.).
-
+- `zmirror` issues storage commands (`zpool`, `zfs`, `cryptsetup`) and should run as `root`.
+- Misconfiguration can cause pool import mistakes or data loss. Validate config carefully in a test setup first.
+- Keep independent snapshots/backup retention policies outside `zmirror` as well.
 
 ## Installation
 
-Unless there is an official package for your linux distribution clone the project:
+### Recommended on Debian/Ubuntu (global, root-managed)
+
+For a system service intended to run as `root`, the standard Ubuntu approach is:
+
+1. Install from an `apt` package (official repo/PPA/internal repo)
+2. Run daemon as a `systemd` service
+3. Execute administrative CLI commands via `sudo`
+
+When published as a Debian/Ubuntu package, installation should look like:
+
+```bash
+sudo apt update
+sudo apt install zmirror
+```
+
+Why this is preferred over `pip install` system-wide:
+
+- integrates with `systemd`, file ownership, and distro policy
+- gets safer upgrades/rollbacks
+- avoids conflicts with system Python packaging rules (PEP 668)
+
+Build a package from source:
+
+```bash
+sudo apt update
+sudo apt install build-essential debhelper dh-python python3-all
+dpkg-buildpackage -us -uc -b
+```
+
+This creates a `.deb` in the parent directory.
+
+### Install from source (developer/local)
 
 ```bash
 git clone https://github.com/k44t/zmirror.git
 cd zmirror
+poetry install
 ```
 
-
-Build the project (after installing poetry):
+Run directly from source:
 
 ```bash
-poetry build
+poetry run python -m zmirror --help
 ```
 
-Install system-wide:
+## System Integration (manual setup for non-Debian packaging)
 
-```
-sudo pip3 install dist/zmirror-*.whl
-```
+If you are not using the Debian package, these integration pieces are still
+needed on most distributions and should be installed manually:
 
-Install systemd bindings for python so that zmirror can write its log messages to the system log. On ubuntu this can be done with:
+- CLI wrappers in your executable path (`zmirror`, `zmirror-trigger`)
+- main daemon unit (`zmirror.service`)
+- maintenance scheduler (`zmirror-maintenance.service` and `.timer`)
+- udev rule (`99-zmirror.rules`) that triggers `zmirror-trigger`
+- ZFS ZED hook (`all-zmirror.sh`) to propagate ZFS events into zmirror
+
+Reference files are in the repository under:
+
+- `debian/bin/`
+- `debian/zmirror.service`
+- `debian/zmirror-maintenance.service`
+- `debian/zmirror-maintenance.timer`
+- `debian/udev/99-zmirror.rules`
+- `debian/zed/all-zmirror.sh`
+
+After manual installation, reload integration points:
 
 ```bash
-apt install python3-systemd
-```
-
-At this point you might want to open a window to follow the logs:
-
-```
-journalctl -f
-```
-
-On ubuntu (or any other debian-like distribution), you can simply install udev rules (`/etc/udev/rules.d/99-zmirror.rules`), ZED script (`/etc/zfs/zed.d/all-zmirror.sh`) and the `/usr/sbin/zmirror` and `/usr/sbin/zmirror-trigger` scripts by copying them:
-
-```
-sudo rsync -av ./debian/ /
-```
-
-On other distributions locations and script contents (paths) might need adapting.
-
-Reload udev rules:
-
-```
 sudo udevadm control --reload-rules
-```
-
-Restart the ZFS event daemon (ZED)
-
-```
+sudo systemctl daemon-reload
 sudo systemctl restart zfs-zed
 ```
 
-Properly configure `zmirror` at this point. You may copy `example-config.yml` to `/etc/zmirror/zmirror.yml` and adapt carefully.
-
-Most instances of malconfiguration should simply result in error messages or `zmirror` just not being able to do what you desire.
-
-Dataloss can occur for example if `zmirror` imports a pool when only a device is present that does not have the newest data. This might also be the result of not configuring a "leader" mirror device (the one with the newest data) properly (for example the wrong path to the key-file) while configuring "follower" mirror device properly, so that zmirror imports the pool with only the "follower" device and later imports the "leader" device once configuration has been corrected (which results in ZFS discarding the newer data on the leader device).
-
-Misconfiguration of zpools (outside of zmirror) might result in system instability. This might be the result of a zpool that is usually imported with a different root path `-R /some/path`, and `zmirror` which knows nothing of changing pool root on import imports it under `/`.
-
-The developers are not responsible for any damages caused by using `zmirror`. Use at your own risk as agreed per the `LICENSE`.
-
-Start `zmirror`:
-
-```
-sudo systemctl start zmirror
-```
-
-Alternatively you can also run zmirror from the project directory. 
-
-First prepare:
+Enable runtime units as needed:
 
 ```bash
-# create venv
+sudo systemctl enable --now zmirror.service
+sudo systemctl enable --now zmirror-maintenance.timer
+```
+
+## Configuration
+
+- Default config path: `/etc/zmirror/zmirror.yml`
+- Start from `example-config.yml` and adapt for your host.
+
+Typical bootstrap:
+
+```bash
+sudo install -d /etc/zmirror
+sudo cp example-config.yml /etc/zmirror/zmirror.yml
+sudoedit /etc/zmirror/zmirror.yml
+```
+
+## Running
+
+Start and enable daemon:
+
+```bash
+sudo systemctl enable --now zmirror
+```
+
+View logs:
+
+```bash
+journalctl -u zmirror -f
+```
+
+Use CLI (as root or via sudo):
+
+```bash
+sudo zmirror list
+sudo zmirror status all
+sudo zmirror maintenance
+```
+
+For full command reference:
+
+```bash
+zmirror --help
+zmirror list --help
+```
+
+## Scheduling
+
+The daemon is event-driven. Periodic maintenance should be scheduled externally (for example with `systemd` timers or `cron`) by invoking commands like `zmirror maintenance`.
+
+The Debian package ships a `zmirror-maintenance.timer` for this purpose.
+
+## Optional boot flow tutorial
+
+`zmirror-local-fs.service` is intentionally not installed by default because it
+depends on host-specific boot/storage layout.
+
+See `doc/tutorial-local-fs.md` for an optional setup guide.
+
+## Development
+
+Install dependencies:
+
+```bash
 poetry install
-
-# activate venv
-source ./.venv/bin/activate
 ```
 
-As the user under which you want to run zmirror (must be `root` if you want zmirror to not just report things but also do its job):
+Run tests:
 
-```
-# start zmirror daemon
-python -m zmirror daemon
-```
-
-If it starts successfully, you can then run commands as the same user (or as `root`):
-
-```
-zmirror list
+```bash
+poetry run pytest
 ```
 
-See `zmirror --help` for all the things you can tell the `zmirror daemon` to do for you. Equally helpful are the help texts for each subcommand (`zmirror list --help` or `zmirror list overdue --help` or `zmirror online zdev --help` etc.)
+Run a subset:
 
-
+```bash
+poetry run pytest tests/commands/test_commands.py
+```
 
 ## License
 
-The code is fully MIT licensed. See the `LICENSE` file.
+MIT. See `LICENSE`.

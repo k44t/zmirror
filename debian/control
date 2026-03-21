@@ -1,0 +1,18 @@
+Source: zmirror
+Section: admin
+Priority: optional
+Maintainer: devvythelopper <devvythelopper@example.invalid>
+Build-Depends: debhelper-compat (= 13), dh-python, python3-all
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://github.com/k44t/zmirror
+
+Package: zmirror
+Architecture: all
+Depends: ${misc:Depends}, ${python3:Depends}, python3, python3-kpyutils, python3-yaml, python3-dateparser, python3-tabulate, python3-natsort, zfsutils-linux, cryptsetup, udev, systemd
+Description: event-driven ZFS mirror backup manager daemon
+ zmirror is a Python CLI and daemon for managing ZFS mirror backup devices,
+ including LUKS/dm-crypt backed devices.
+ .
+ It reacts to udev and ZFS events, tracks pool/device state, and can run
+ maintenance operations such as scrub/trim/resilver on schedule.

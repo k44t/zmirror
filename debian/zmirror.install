@@ -1,0 +1,8 @@
+zmirror usr/lib/python3/dist-packages
+debian/bin/zmirror usr/bin
+debian/bin/zmirror-trigger usr/bin
+debian/zmirror.service lib/systemd/system
+debian/zmirror-maintenance.service lib/systemd/system
+debian/zmirror-maintenance.timer lib/systemd/system
+debian/udev/99-zmirror.rules etc/udev/rules.d
+debian/zed/all-zmirror.sh etc/zfs/zed.d

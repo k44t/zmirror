@@ -1,0 +1,7 @@
+zmirror (0.1.8~b10-1) unstable; urgency=medium
+
+  * Add Debian package metadata and integration assets.
+  * Package daemon/service, maintenance timer, udev rule, and ZED hook.
+  * Document manual integration and optional local-fs boot flow.
+
+ -- devvythelopper <devvythelopper@example.invalid>  Sat, 21 Mar 2026 12:00:00 +0000

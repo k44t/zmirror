@@ -1,0 +1,17 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+  configure)
+    if command -v udevadm >/dev/null 2>&1; then
+      udevadm control --reload-rules || true
+    fi
+
+    if command -v systemctl >/dev/null 2>&1; then
+      systemctl daemon-reload || true
+      systemctl try-restart zfs-zed.service || true
+    fi
+    ;;
+esac
+
+exit 0

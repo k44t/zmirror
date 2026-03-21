@@ -1,0 +1,7 @@
+[Unit]
+Description=ZMirror Maintenance Run
+ConditionPathExists=/etc/zmirror/zmirror.yml
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/zmirror maintenance

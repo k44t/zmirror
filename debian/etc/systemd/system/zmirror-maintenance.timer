@@ -1,7 +1,0 @@
-[Unit]
-
-[Timer]
-OnCalendar=03:00
-
-[Install]
-WantedBy=timers.target

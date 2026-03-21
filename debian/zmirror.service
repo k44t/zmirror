@@ -1,0 +1,14 @@
+[Unit]
+Description=Advanced ZFS mirroring service
+Wants=remote-fs.target
+After=local-fs.target remote-fs.target
+ConditionPathExists=/etc/zmirror/zmirror.yml
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/zmirror daemon
+ExecReload=/usr/bin/zmirror reload-config
+TimeoutStopSec=20s
+
+[Install]
+WantedBy=remote-fs.target
