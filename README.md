@@ -155,12 +155,11 @@ The daemon is event-driven. Periodic maintenance should be scheduled externally 
 
 The Debian package ships a `zmirror-maintenance.timer` for this purpose.
 
-## Optional boot flow tutorial
+## Tutorial
 
-`zmirror-local-fs.service` is intentionally not installed by default because it
-depends on host-specific boot/storage layout.
-
-See `doc/tutorial-local-fs.md` for an optional setup guide.
+For the detailed scenario walkthrough, risk discussion, manual integration on
+non-Debian distributions, and optional `zmirror-local-fs.service` setup, see
+`doc/tutorial.md`.
 
 ## Development
 
