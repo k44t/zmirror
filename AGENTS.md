@@ -51,4 +51,6 @@ This file is for coding agents working in this repository.
 ## Known practical notes
 
 - Development commonly depends on a local path dependency `../kpyutils` from `pyproject.toml`.
+- The deployed stow package directory for this project is `/#/system/zmirror`.
+- Systemd units for this package are under `/#/system/zmirror/etc/systemd/system/` (for example, `zmirror-local-fs.service`).
 - The repository may contain generated/temp artifacts (`temp/`, `__pycache__/`, etc.); avoid relying on them.

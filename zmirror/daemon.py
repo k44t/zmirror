@@ -33,6 +33,25 @@ from kpyutils.kiify import *
 from . import config as globals
 
 
+class EnvKey(Enum):
+  ZEVENT_SUBCLASS = "ZEVENT_SUBCLASS"
+  ZEVENT_POOL = "ZEVENT_POOL"
+  ZEVENT_VDEV_PATH = "ZEVENT_VDEV_PATH"
+  ZEVENT_VDEV_STATE_STR = "ZEVENT_VDEV_STATE_STR"
+  DEVTYPE = "DEVTYPE"
+  ACTION = "ACTION"
+  ID_PART_TABLE_UUID = "ID_PART_TABLE_UUID"
+  DM_NAME = "DM_NAME"
+  DEVPATH = "DEVPATH"
+  DEVLINKS = "DEVLINKS"
+  PARTNAME = "PARTNAME"
+  DM_ACTIVATION = "DM_ACTIVATION"
+  ZMIRROR_COMMAND = "ZMIRROR_COMMAND"
+
+
+LOGGABLE_ENV_KEYS = tuple(sorted(key.value for key in EnvKey))
+
+
 @dataclass
 class UserEvent:
   event: dict
@@ -47,16 +66,19 @@ def handle(env):
   cache = None
 
   if config.log_events:
-    sorted_dict = OrderedDict(sorted(env.items(), key=lambda item: item[0]))
-    log.info(object_to_kdstring(sorted_dict))
+    relevant_env = OrderedDict((key, env[key]) for key in LOGGABLE_ENV_KEYS if key in env)
+    if relevant_env:
+      log.info(object_to_kdstring(relevant_env))
+    else:
+      log.info("event with no relevant keys registered")
 
   event_handled = False
 
   now = datetime.now()
-  if "ZEVENT_SUBCLASS" in env:
-    zevent = env["ZEVENT_SUBCLASS"]
+  if EnvKey.ZEVENT_SUBCLASS.value in env:
+    zevent = env[EnvKey.ZEVENT_SUBCLASS.value]
     log.debug(f"handling zfs event: {zevent}")
-    zpool = env["ZEVENT_POOL"]
+    zpool = env[EnvKey.ZEVENT_POOL.value]
 
     if zevent == "pool_export" or zevent == "pool_destroy":
 
@@ -130,7 +152,7 @@ def handle(env):
         # ZEVENT_VDEV_PATH:: /dev/{vg_bak_gamma/lv_bak_gamma}
         # ZEVENT:: /dev/{sda3}
         # ZEVENT:: /dev/disk/by-partlabel/mypartlabel
-      vdev_path = env["ZEVENT_VDEV_PATH"]
+      vdev_path = env[EnvKey.ZEVENT_VDEV_PATH.value]
       cache = find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path)
       if zevent == "vdev_online":
         # we have no event by witch we can reliably capture that a resilver started for a zdev
@@ -140,7 +162,7 @@ def handle(env):
         handle_zdev_onlined(cache)
         event_handled = True
       elif zevent == "statechange":
-        new_state = env["ZEVENT_VDEV_STATE_STR"]
+        new_state = env[EnvKey.ZEVENT_VDEV_STATE_STR.value]
         if new_state == "OFFLINE":
           handle_deactivated(cache)
           event_handled = True
@@ -188,16 +210,16 @@ def handle(env):
                 event_handled = True
           
 
-  elif "DEVTYPE" in env:
-    action = env["ACTION"]
-    devtype = env["DEVTYPE"]
+  elif EnvKey.DEVTYPE.value in env:
+    action = env[EnvKey.ACTION.value]
+    devtype = env[EnvKey.DEVTYPE.value]
     log.debug(f"handling udev block event: {action}")
 
 
     if action == "add" or action == "remove":
       if devtype == "disk":
-        if "ID_PART_TABLE_UUID" in env:
-          cache = find_or_create_cache(Disk, uuid=env["ID_PART_TABLE_UUID"])
+        if EnvKey.ID_PART_TABLE_UUID.value in env:
+          cache = find_or_create_cache(Disk, uuid=env[EnvKey.ID_PART_TABLE_UUID.value])
           udev_event_action(cache, action, now)
           event_handled = True
 
@@ -211,8 +233,8 @@ def handle(env):
         #  event_handled = True
 
         # dm_crypts
-        elif "DM_NAME" in env:
-          cache = find_or_create_cache(DMCrypt, name=env["DM_NAME"])
+        elif EnvKey.DM_NAME.value in env:
+          cache = find_or_create_cache(DMCrypt, name=env[EnvKey.DM_NAME.value])
           if action == "add":
             handle_onlined(cache)
           else:
@@ -220,9 +242,9 @@ def handle(env):
           event_handled = True
 
         # virtual device
-        elif "DEVPATH" in env and env["DEVPATH"].startswith("/devices/virtual/block/"):
-          if env["DEVPATH"].startswith("/devices/virtual/block/zd"):
-            devlinks = env["DEVLINKS"].split(" ")
+        elif EnvKey.DEVPATH.value in env and env[EnvKey.DEVPATH.value].startswith("/devices/virtual/block/"):
+          if env[EnvKey.DEVPATH.value].startswith("/devices/virtual/block/zd"):
+            devlinks = env[EnvKey.DEVLINKS.value].split(" ")
             for devlink in devlinks:
               match = re.match(r'/dev/zvol/(?P<pool>[^/]+)/(?P<volume>.+)$', devlink)
               if match and not re.match(r'-part[0-9]+$', match.group("volume")):
@@ -251,14 +273,14 @@ def handle(env):
       elif devtype == "partition":
         # sometimes, while modifying partitions, there appears an event concerning the partition
         # that not yet contains a PARTNAME
-        if "PARTNAME" in env:
-          cache = find_or_create_cache(Partition, name=env["PARTNAME"])
+        if EnvKey.PARTNAME.value in env:
+          cache = find_or_create_cache(Partition, name=env[EnvKey.PARTNAME.value])
           udev_event_action(cache, action, now)
           event_handled = True
     
     # this UDEV event means that the DMCrypt was `open`ed
-    elif action == "change" and "DM_ACTIVATION" in env and env["DM_ACTIVATION"] == "1":
-      devlinks = env["DEVLINKS"].split(" ")
+    elif action == "change" and EnvKey.DM_ACTIVATION.value in env and env[EnvKey.DM_ACTIVATION.value] == "1":
+      devlinks = env[EnvKey.DEVLINKS.value].split(" ")
       for devlink in devlinks:
         match = re.match(r'/dev/mapper/([^/]+)$', devlink)
         if match:
@@ -321,8 +343,8 @@ def handle_client(con: socket.socket, client_address, event_queue: queue.Queue):
 
     message = data.decode('utf-8')
     event = json.loads(message)
-    if "ZMIRROR_COMMAND" in event:
-      event_queue.put(UserEvent(event["ZMIRROR_COMMAND"], con))
+    if EnvKey.ZMIRROR_COMMAND.value in event:
+      event_queue.put(UserEvent(event[EnvKey.ZMIRROR_COMMAND.value], con))
     else:
       event_queue.put(event)
     log.debug("registered event")
