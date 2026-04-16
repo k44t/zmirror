@@ -610,7 +610,7 @@ class Tests():
 
     blockdev = config.cache_dict["zdev|pool:zmirror-bak-a|name:zmirror-bak-a"]
 
-    assert blockdev.state.what == EntityState.CONNECTED
+    assert blockdev.state.what == EntityState.ACTIVE
 
     assert_commands([
       "zpool online zmirror-sysfs zvol/zmirror-bak-a/sysfs"
@@ -712,7 +712,7 @@ class Tests():
     bak_a = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     bak_b = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
 
-    assert s.state.what == EntityState.CONNECTED
+    assert s.state.what == EntityState.ACTIVE
 
     assert since_in(Operation.SCRUB, a.operations)
     assert since_in(Operation.SCRUB, b.operations)
@@ -746,7 +746,7 @@ class Tests():
     assert not since_in(Operation.SCRUB, bak_a.operations)
     assert not since_in(Operation.SCRUB, bak_b.operations)
 
-    assert s.state.what == EntityState.CONNECTED
+    assert s.state.what == EntityState.ACTIVE
     assert not a.errors
     assert not b.errors
     assert not s.errors
@@ -778,12 +778,12 @@ class Tests():
     
     s = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
-    assert s.state.what == EntityState.CONNECTED
+    assert s.state.what == EntityState.ACTIVE
 
 
     trigger_event()
 
-    assert s.state.what == EntityState.CONNECTED
+    assert s.state.what == EntityState.ACTIVE
 
     assert since_in(Operation.TRIM, s.operations)
 
@@ -799,7 +799,7 @@ class Tests():
     s = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
 
-    assert s.state.what == EntityState.CONNECTED
+    assert s.state.what == EntityState.ACTIVE
 
 
     assert not since_in(Operation.TRIM, s.operations)
@@ -818,7 +818,7 @@ class Tests():
 
     s = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
-    assert s.state.what == EntityState.CONNECTED
+    assert s.state.what == EntityState.ACTIVE
     assert not since_in(Operation.TRIM, s.operations)
 
     assert_commands([

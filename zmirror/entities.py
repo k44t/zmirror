@@ -435,7 +435,7 @@ def get_zpool_backing_device_state(zpool, dev):
     if match.group("dev") == dev:
       state = match.group("state")
       if state == "ONLINE":
-        state = EntityState.CONNECTED
+        state = EntityState.ACTIVE
         if scrubbing:
           opers.add(Operation.SCRUB)
       else:

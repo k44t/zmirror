@@ -104,8 +104,12 @@ class EntityState(KiEnum):
   # present and online (active)
   CONNECTED = 1
 
-  # present and fully active
-  ACTIVE = 4
+  # ACTIVE means: CONNECTED, and children/dependents are wired/usable.
+  # IMPORTANT: this numeric value MUST NOT collide with RequestType values.
+  # state_corresponds_to_request(...) falls back to `state.value == request.value`
+  # for request types without explicit mapping, so collisions would create false
+  # request/state matches. 100 is chosen to stay away from RequestType numbers.
+  ACTIVE = 100
 
   # present and offline (inactive)
   INACTIVE = 2
@@ -138,7 +142,7 @@ def enum_command_name(enum):
 
 
 def is_online_state(state):
-  return state == EntityState.CONNECTED
+  return state in {EntityState.CONNECTED, EntityState.ACTIVE}
 
 
 def is_online(entity):
@@ -504,6 +508,9 @@ class Entity:
 
   def get_state(self):
     return cached(self).state.what
+
+  def is_automatically_active(self):
+    return False
 
   def handle_disconnected(self, prev_state):
     succeed_request(self, RequestType.OFFLINE)
@@ -1564,9 +1571,16 @@ def handle_resilver_started(cache):
   if not since_in(Operation.RESILVER, cache.operations):
     cache.operations.append(Since(Operation.RESILVER, inaccurate_now()))
     cache_log_info(cache, "resilver started")
-  if not is_online_state(cache.state.what):
-    cache.state = Since(EntityState.CONNECTED)
+  if cache.state.what != EntityState.ACTIVE:
+    cache.state = Since(EntityState.ACTIVE)
   cache.last_online = inaccurate_now()
+
+
+def handle_activated(cache):
+  prev_state = set_cache_state(cache, EntityState.ACTIVE)
+  if prev_state is not None:
+    cache_log_info(cache, "onlined")
+    uncached_handle_by_name(cache, "onlined", prev_state)
 
 # used for zdevs when brought online via zpool online (instead of zpool import)
 def handle_zdev_onlined(cache):
@@ -1580,12 +1594,12 @@ def handle_zdev_onlined(cache):
       handle_resilver_started(cache)
     else:
       log.verbose(f"{human_readable_id(cache)}: ONLINE. This is not (configured as) a mirror device, assuming that no resilvering is happening.")
-      handle_onlined(cache)
+      handle_activated(cache)
 
 
 def handle_resilver_finished(cache):
-  if not is_online_state(cache.state.what):
-    cache.state = Since(EntityState.CONNECTED)
+  if cache.state.what != EntityState.ACTIVE:
+    cache.state = Since(EntityState.ACTIVE)
   cache_log_info(cache, "resilvered (updated)")
   cache.last_online = cache.last_update = inaccurate_now()
   since_remove(Operation.RESILVER, cache.operations)
@@ -1678,7 +1692,12 @@ def handle_appeared(cache):
 
 # the device has activated
 def handle_onlined(cache):
-  prev_state = set_cache_state(cache, EntityState.CONNECTED)
+  state = EntityState.CONNECTED
+  entity = uncached(cache)
+  if isinstance(entity, Entity):
+    if entity.is_automatically_active():
+      state = EntityState.ACTIVE
+  prev_state = set_cache_state(cache, state)
   if prev_state is not None:
     cache_log_info(cache, "onlined")
     uncached_handle_by_name(cache, "onlined", prev_state)
@@ -1798,7 +1817,10 @@ class ZDev(Onlineable, Embedded, Entity):
     if request_type in [RequestType.OFFLINE, RequestType.ONLINE, RequestType.SCRUB, RequestType.TRIM]:
       return None
     return Embedded.unsupported_request(self, request_type)
-  
+
+  def is_automatically_active(self):
+    return True
+
 
   def state_allows(self, request_type: RequestType):
     cache = cached(self)
@@ -1949,7 +1971,9 @@ class ZDev(Onlineable, Embedded, Entity):
       opers = set()
     else:
       state, opers = state
-    if not is_online_state(state):
+    if is_online_state(state):
+      state = EntityState.ACTIVE
+    else:
       dev = self.parent.dev_path()
       if config.dev_exists(dev):
         state = EntityState.INACTIVE

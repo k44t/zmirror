@@ -155,7 +155,7 @@ class Tests():
 
     trigger_event()
 
-    assert a.state.what == EntityState.CONNECTED
+    assert a.state.what == EntityState.ACTIVE
     assert pool.state.what == EntityState.CONNECTED
 
     assert zdev_s.requested == {}
@@ -309,7 +309,7 @@ class Tests():
     assert disk.state.what == EntityState.CONNECTED
     assert partition.state.what == EntityState.CONNECTED
     assert crypt.state.what == EntityState.CONNECTED
-    assert zdev.state.what == EntityState.CONNECTED
+    assert zdev.state.what == EntityState.ACTIVE
 
 
     trigger_event()
@@ -321,7 +321,7 @@ class Tests():
     # we rely on udev to to tell us that the partition disappears, so no internal state change has happened yet
     assert partition.state.what == EntityState.CONNECTED
     assert crypt.state.what == EntityState.CONNECTED
-    assert zdev.state.what == EntityState.CONNECTED
+    assert zdev.state.what == EntityState.ACTIVE
 
     assert_commands([
 
@@ -342,7 +342,7 @@ class Tests():
     assert disk.state.what == EntityState.DISCONNECTED
     assert partition.state.what == EntityState.DISCONNECTED
     assert crypt.state.what == EntityState.CONNECTED
-    assert zdev.state.what == EntityState.CONNECTED
+    assert zdev.state.what == EntityState.ACTIVE
 
     assert_commands([
       # zmirror needs to take the zdev offline
@@ -458,7 +458,7 @@ class Tests():
     trigger_event()
 
 
-    assert a.state.what == EntityState.CONNECTED
+    assert a.state.what == EntityState.ACTIVE
     assert b.state.what == EntityState.DISCONNECTED
 
     assert pool.state.what == EntityState.CONNECTED
@@ -541,7 +541,7 @@ class Tests():
     trigger_event()
 
 
-    assert b.state.what == EntityState.CONNECTED
+    assert b.state.what == EntityState.ACTIVE
 
 
     assert_commands([
@@ -594,7 +594,7 @@ class Tests():
 
     blockdev = config.cache_dict["zdev|pool:zmirror-bak-a|name:zmirror-bak-a"]
 
-    assert blockdev.state.what == EntityState.CONNECTED
+    assert blockdev.state.what == EntityState.ACTIVE
 
     zdev_sysfs = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
 
@@ -635,7 +635,7 @@ class Tests():
 
     blockdev = config.cache_dict["zdev|pool:zmirror-big|name:zvol/zmirror-bak-a/big"]
 
-    assert blockdev.state.what == EntityState.CONNECTED
+    assert blockdev.state.what == EntityState.ACTIVE
 
 
     assert_commands([
@@ -661,7 +661,7 @@ class Tests():
 
     blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
 
-    assert blockdev.state.what == EntityState.CONNECTED
+    assert blockdev.state.what == EntityState.ACTIVE
 
 
     assert_commands([
@@ -894,8 +894,8 @@ class Tests():
     trigger_event()
 
     assert zpool.state.what == EntityState.CONNECTED
-    assert blockdev_alpha.state.what == EntityState.CONNECTED
-    assert blockdev_beta.state.what == EntityState.CONNECTED
+    assert blockdev_alpha.state.what == EntityState.ACTIVE
+    assert blockdev_beta.state.what == EntityState.ACTIVE
 
     assert_commands([
       # zvols now transition virtually with pool online
@@ -960,12 +960,12 @@ class Tests():
   def test_zdev_bak_b_sysfs_resilver_finish(self):
 
     blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
-    assert blockdev.state.what == EntityState.CONNECTED
+    assert blockdev.state.what == EntityState.ACTIVE
     assert since_in(Operation.RESILVER, blockdev.operations)
 
     trigger_event()
 
-    assert blockdev.state.what == EntityState.CONNECTED
+    assert blockdev.state.what == EntityState.ACTIVE
     assert not since_in(Operation.RESILVER, blockdev.operations)
 
     assert_commands([
@@ -981,7 +981,7 @@ class Tests():
   # when it the event from taking it offline in the pool appears
   def test_zdev_bak_b_sysfs_disconnected(self):
     blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
-    assert blockdev.state.what == EntityState.CONNECTED
+    assert blockdev.state.what == EntityState.ACTIVE
     
     trigger_event()
 
@@ -1036,8 +1036,8 @@ class Tests():
     assert dm_alpha.state.what == EntityState.CONNECTED
     assert dm_beta.state.what == EntityState.CONNECTED
 
-    assert blockdev_alpha.state.what == EntityState.CONNECTED
-    assert blockdev_beta.state.what == EntityState.CONNECTED
+    assert blockdev_alpha.state.what == EntityState.ACTIVE
+    assert blockdev_beta.state.what == EntityState.ACTIVE
 
     assert zpool.state.what == EntityState.CONNECTED
 
