@@ -302,6 +302,43 @@ class Tests():
     assert disk_cache.state.what == EntityState.ACTIVE
 
 
+  def test_partition_activates_on_child_online(self):
+    partition = config.config_dict["partition|name:zmirror-sysfs-s"]
+    dmcrypt = config.config_dict["dm-crypt|name:zmirror-sysfs-s"]
+    partition_cache = cached(partition)
+
+    partition_cache.state.what = EntityState.CONNECTED
+    partition.handle_child_online(dmcrypt, EntityState.INACTIVE)
+
+    assert partition_cache.state.what == EntityState.ACTIVE
+
+
+  def test_partition_deactivates_to_connected_on_children_offline(self):
+    partition = config.config_dict["partition|name:zmirror-sysfs-s"]
+    dmcrypt = config.config_dict["dm-crypt|name:zmirror-sysfs-s"]
+    partition_cache = cached(partition)
+    dmcrypt_cache = cached(dmcrypt)
+
+    partition_cache.state.what = EntityState.ACTIVE
+    dmcrypt_cache.state.what = EntityState.DISCONNECTED
+    partition.handle_child_offline(dmcrypt, EntityState.CONNECTED)
+
+    assert partition_cache.state.what == EntityState.CONNECTED
+
+
+  def test_partition_onlined_with_online_child_becomes_active(self):
+    partition = config.config_dict["partition|name:zmirror-sysfs-s"]
+    dmcrypt = config.config_dict["dm-crypt|name:zmirror-sysfs-s"]
+    partition_cache = cached(partition)
+    dmcrypt_cache = cached(dmcrypt)
+
+    partition_cache.state.what = EntityState.DISCONNECTED
+    dmcrypt_cache.state.what = EntityState.CONNECTED
+    handle_onlined(partition_cache)
+
+    assert partition_cache.state.what == EntityState.ACTIVE
+
+
   def test_dmcrypt_activates_on_child_online(self):
     dmcrypt = config.config_dict["dm-crypt|name:zmirror-sysfs-s"]
     zdev = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]

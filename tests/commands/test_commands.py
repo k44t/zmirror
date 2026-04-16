@@ -307,7 +307,7 @@ class Tests():
     zdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     assert disk.state.what == EntityState.ACTIVE
-    assert partition.state.what == EntityState.CONNECTED
+    assert partition.state.what == EntityState.ACTIVE
     assert crypt.state.what == EntityState.CONNECTED
     assert zdev.state.what == EntityState.ACTIVE
 
@@ -319,7 +319,7 @@ class Tests():
     assert disk.state.what == EntityState.DISCONNECTED
 
     # we rely on udev to to tell us that the partition disappears, so no internal state change has happened yet
-    assert partition.state.what == EntityState.CONNECTED
+    assert partition.state.what == EntityState.ACTIVE
     assert crypt.state.what == EntityState.CONNECTED
     assert zdev.state.what == EntityState.ACTIVE
 

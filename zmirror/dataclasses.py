@@ -871,6 +871,21 @@ class Partition(ManualChildren):
     return ["name"]
 
 
+  def handle_onlined(self, state=EntityState.CONNECTED):
+    if any(is_online(child) for child in self.content):
+      state = EntityState.ACTIVE
+    super().handle_onlined(state=state)
+
+  def handle_child_online(self, _child, _prev_state):
+    if self.get_state() == EntityState.CONNECTED:
+      self.set_state(EntityState.ACTIVE, "activated")
+
+  def handle_children_offline(self):
+    if self.get_state() == EntityState.ACTIVE:
+      self.set_state(EntityState.CONNECTED, "deactivated")
+    return super().handle_children_offline()
+
+
 
   def dev_path(self):
     return f"/dev/disk/by-partlabel/{self.name}"
