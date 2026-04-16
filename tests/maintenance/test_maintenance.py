@@ -339,6 +339,48 @@ class Tests():
     assert partition_cache.state.what == EntityState.ACTIVE
 
 
+  def test_partition_load_initial_state_becomes_active_with_online_child(self):
+    partition = config.config_dict["part|name:zmirror-sysfs-s"]
+    dmcrypt = config.config_dict["crypt|name:zmirror-sysfs-s"]
+    dmcrypt_cache = cached(dmcrypt)
+    old_dev_exists = config.dev_exists
+
+    dmcrypt_cache.state.what = EntityState.ACTIVE
+    config.dev_exists = lambda path: path == partition.dev_path()
+    try:
+      assert partition.load_initial_state() == EntityState.ACTIVE
+    finally:
+      config.dev_exists = old_dev_exists
+
+
+  def test_disk_load_initial_state_becomes_active_with_online_child(self):
+    disk = config.config_dict["disk|uuid:00000000-0000-0000-0000-000000000004"]
+    partition = config.config_dict["part|name:zmirror-sysfs-s"]
+    partition_cache = cached(partition)
+    old_dev_exists = config.dev_exists
+
+    partition_cache.state.what = EntityState.ACTIVE
+    config.dev_exists = lambda path: path == disk.dev_path()
+    try:
+      assert disk.load_initial_state() == EntityState.ACTIVE
+    finally:
+      config.dev_exists = old_dev_exists
+
+
+  def test_dmcrypt_load_initial_state_becomes_active_with_online_child(self):
+    dmcrypt = config.config_dict["crypt|name:zmirror-sysfs-s"]
+    zdev = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    zdev_cache = cached(zdev)
+    old_dev_exists = config.dev_exists
+
+    zdev_cache.state.what = EntityState.ACTIVE
+    config.dev_exists = lambda path: path == dmcrypt.dev_path()
+    try:
+      assert dmcrypt.load_initial_state() == EntityState.ACTIVE
+    finally:
+      config.dev_exists = old_dev_exists
+
+
   def test_zfs_volume_activates_on_child_online(self):
     volume = config.config_dict["zvol|pool:zmirror-bak-a|name:sysfs"]
     zdev = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
@@ -374,6 +416,19 @@ class Tests():
     handle_onlined(volume_cache)
 
     assert volume_cache.state.what == EntityState.ACTIVE
+
+
+  def test_zfs_volume_update_initial_state_becomes_active_with_online_child(self):
+    volume = config.config_dict["zvol|pool:zmirror-bak-a|name:sysfs"]
+    pool = config.config_dict["zpool|name:zmirror-bak-a"]
+    zdev = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    pool_cache = cached(pool)
+    zdev_cache = cached(zdev)
+
+    pool_cache.state.what = EntityState.CONNECTED
+    zdev_cache.state.what = EntityState.ACTIVE
+
+    assert volume.update_initial_state() == EntityState.ACTIVE
 
 
   def test_dmcrypt_activates_on_child_online(self):

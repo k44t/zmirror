@@ -189,7 +189,7 @@ request_for_zfs_operation = {
 zfs_operation_for_request = {value: key for key, value in request_for_zfs_operation.items()}
 
 
-@yaml_data
+@yaml_data("zmirror", also_use_class_name=False)
 class ZMirror:
   log_events: bool = False
   enable_commands: bool = True
@@ -797,7 +797,7 @@ class ManualChildren(Children):
 
 
 
-@yaml_data
+@yaml_data("disk", also_use_class_name=False)
 class Disk(ManualChildren):
 
 
@@ -858,7 +858,7 @@ class Disk(ManualChildren):
 
 
 
-@yaml_data
+@yaml_data("part", also_use_class_name=False)
 class Partition(ManualChildren):
   name: str = None
 
@@ -904,17 +904,11 @@ class Partition(ManualChildren):
 
 
 def load_disk_or_partition_initial_state(self):
-  # state = EntityState.DISCONNECTED
   if config.dev_exists(self.dev_path()):
+    if any(is_online(child) for child in self.content):
+      return EntityState.ACTIVE
     return EntityState.CONNECTED
   return EntityState.DISCONNECTED
-    #state = EntityState.INACTIVE
-    # only the children being active can turn it into ONLINE
-    #for c in self.content:
-      # if cached(c).state.what == EntityState.CONNECTED:
-      #  state = EntityState.CONNECTED
-      #  break
-  #return state
 
 
 
@@ -1023,7 +1017,7 @@ class DevicesAgregate(Entity):
     if one_inactive:
       return EntityState.INACTIVE
 
-@yaml_data
+@yaml_data("mirror", also_use_class_name=False)
 class Mirror(DevicesAgregate):
 
   def prepare_request(self, request_type, enactment_level):
@@ -1092,7 +1086,7 @@ def init_backing(self: DevicesAgregate, pool, blockdevs):
       )
 
 
-@yaml_data
+@yaml_data("zpool", also_use_class_name=False)
 class ZPool(Onlineable, Children):
   name: str = None
 
@@ -1372,7 +1366,7 @@ class ZFSDataset(Entity):
 
 
 
-@yaml_data
+@yaml_data("zvol", also_use_class_name=False)
 class ZFSVolume(ManualChildren):
   pool: str = None
   name: str = None
@@ -1446,6 +1440,8 @@ class ZFSVolume(ManualChildren):
       return EntityState.DISCONNECTED
     parent_state = cached(self.parent).state.what
     if is_online_state(parent_state):
+      if any(is_online(child) for child in self.content):
+        return EntityState.ACTIVE
       return EntityState.CONNECTED
     return EntityState.DISCONNECTED
 
@@ -1484,7 +1480,7 @@ class Embedded:
       handle_disconnected(self)
 
 
-@yaml_data
+@yaml_data("crypt", also_use_class_name=False)
 class DMCrypt(Onlineable, Embedded, Children):
   name: str = None
   key_file: str = None
@@ -1522,6 +1518,8 @@ class DMCrypt(Onlineable, Embedded, Children):
 
   def load_initial_state(self):
     if config.dev_exists(self.dev_path()):
+      if any(is_online(child) for child in self.content):
+        return EntityState.ACTIVE
       return EntityState.CONNECTED
     return EntityState.UNKNOWN
 
@@ -1769,7 +1767,7 @@ def handle_onlined(cache):
 
 
 
-@yaml_data
+@yaml_data("unavailable-dependency", also_use_class_name=False)
 class UnavailableDependency(Entity):
 
   name: str = None
@@ -1831,7 +1829,7 @@ def is_anything_overdue(self):
   return False
 
 
-@yaml_data
+@yaml_data("zdev", also_use_class_name=False)
 class ZDev(Onlineable, Embedded, Entity):
   pool: str = field(default=None)
   name: str = field(default=None)

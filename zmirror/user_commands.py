@@ -486,8 +486,8 @@ def make_send_daemon_wrapper(fn, stream=sys.stdout):
 
 
 
-LIST_DEFAULT_KEYS = ["hrid", "last_online", "last_update", "update_overdue", "last_trim", "trim_overdue", "last_scrub", "scrub_overdue", "errors", "operations"]
-LIST_KEYS = ["id", "hrid", "parent", "depth", "last_online", "last_update", "update_overdue", "last_trim", "trim_overdue", "last_scrub", "scrub_overdue", "errors", "operations"]
+LIST_DEFAULT_KEYS = ["hrid", "state", "last_online", "last_update", "update_overdue", "last_trim", "trim_overdue", "last_scrub", "scrub_overdue", "errors", "operations"]
+LIST_KEYS = ["id", "hrid", "state", "parent", "depth", "last_online", "last_update", "update_overdue", "last_trim", "trim_overdue", "last_scrub", "scrub_overdue", "errors", "operations"]
 
 
 def make_list_command(op: Operation, overdue=False):
@@ -672,6 +672,7 @@ def entity_to_table_entry(entity: Entity, tree=False, indent_depth=None, repeate
     return {
       "id": id_value,
       "hrid": hrid_value,
+      "state": cache.state.what.name.lower() if cache.state is not None and cache.state.what is not None else "-",
       "parent": parent_id,
       "depth": row_indent_depth
     }
@@ -680,6 +681,7 @@ def entity_to_table_entry(entity: Entity, tree=False, indent_depth=None, repeate
     return {
         "id" : id_value,
         "hrid": hrid_value,
+        "state": cache.state.what.name.lower() if cache.state is not None and cache.state.what is not None else "-",
         "parent": parent_id,
         "depth": row_indent_depth,
         "last_online": special_ki_to_json(to_kd_date(entity.get_last_online())),
@@ -697,6 +699,7 @@ def entity_to_table_entry(entity: Entity, tree=False, indent_depth=None, repeate
     return {
         "id" : id_value,
         "hrid": hrid_value,
+        "state": cache.state.what.name.lower() if cache.state is not None and cache.state.what is not None else "-",
         "parent": parent_id,
         "depth": row_indent_depth,
         "last_online": special_ki_to_json(to_kd_date(entity.get_last_online())),

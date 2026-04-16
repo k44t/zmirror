@@ -1,4 +1,4 @@
---- !ZMirror
+--- !zmirror
 
 
 # enable logging of the environment variables for all udev and ZED events for debugging purposes. 
@@ -97,7 +97,7 @@ content:
   # This zpool contains my root filesystem. It also contains my most important data (my projects)
   #
   # the configuration below displays my mirroring and backup strategy.
-  - !ZPool 
+  - !zpool 
     name: zmirror-sysfs
 
     # the sysfs pool must be imported during boot so zmirror should not import it
@@ -110,7 +110,7 @@ content:
       # This is due to a simplification in the programming logic, which assumes 
       # that when a device is onlined it always needs to resilver first 
       # (which only mirrored devices do).
-      - !Mirror
+      - !mirror
         devices: 
           - zmirror-sysfs-a
           - zmirror-sysfs-b
@@ -131,7 +131,7 @@ content:
   # except that the disk itself would appear in its status output. It has absolutely
   # no bearing on any functionality of zmirror itself, since the kernel automatically
   # creates udev events whenever partitions appear due to a disk being inserted.
-  - !Partition
+  - !part
 
     # IMPORTANT: partition names that will be used by zmirror MUST be unique
     name: zmirror-sysfs-a
@@ -146,7 +146,7 @@ content:
       # -b) zfs send/receive currently corrupts data from encrypted datasets
       #   (see https://github.com/openzfs/zfs/issues/12014)
       #
-      - !DMCrypt
+      - !crypt
 
         # IMPORT: the names of DM crypts in your system MUST be unique
         name: zmirror-sysfs-a
@@ -189,7 +189,7 @@ content:
           # This means, when you connect unknown devices, you should disable zmirror-daemon
           # while playing around with them for it might mess with zmirror's 
           # status cache or even trigger zmirror executing unwanted commands.
-          - !ZDev
+          - !zdev
             # name for the zfs pool
             pool: zmirror-sysfs
 
@@ -220,7 +220,7 @@ content:
   # it serves as a failover in case zmirror-sysfs-a has a hardware error
   # 
   # the only reason it appears in this configuration, is that we need to force-enable TRIM
-  - !Disk
+  - !disk
 
     # the uuid of the gpt partition table
     uuid: 00000000-0000-0000-0000-000000000002 #uuid of b
@@ -298,7 +298,7 @@ content:
 
     content:
 
-    - !Partition
+    - !part
 
       # the partition name must be unique even if you configure a partition as the content
       # of a disk in zmirror. This is because we still rely on udev events and those do
@@ -309,7 +309,7 @@ content:
 
       
       content:
-        - !DMCrypt
+        - !crypt
 
           name: zmirror-sysfs-b
           
@@ -323,7 +323,7 @@ content:
             - online
 
           content:
-            - !ZDev
+            - !zdev
             
               pool: zmirror-sysfs
 
@@ -352,7 +352,7 @@ content:
   #
   # Both zmirror-sysfs-b and zmirror-sysfs-c operate in full PCIe
   # speed, so they are just as fast as the internal NVMe drive.
-  - !Disk
+  - !disk
 
     # the uuid of the gpt partition table. zmirror currently only supports force enabling trim on
     # GPT formatted disks.
@@ -368,7 +368,7 @@ content:
 
     content:
 
-    - !Partition
+    - !part
 
       # the partition name must be unique even if you configure a partition as the content
       # of a disk in zmirror. This is because we still rely on udev events and those do
@@ -379,7 +379,7 @@ content:
 
       
       content:
-        - !DMCrypt
+        - !crypt
 
           name: zmirror-sysfs-c
           
@@ -392,7 +392,7 @@ content:
             - online
 
           content:
-            - !ZDev
+            - !zdev
             
               pool: zmirror-sysfs
 
@@ -421,7 +421,7 @@ content:
   #
   # This is the partition that contains one of the zpool's (zmirror-sysfs)
   # mirrors.
-  - !Disk
+  - !disk
 
     # the uuid of the gpt partition table
     uuid: 00000000-0000-0000-0000-000000000004 #uuid of s
@@ -434,13 +434,13 @@ content:
     force_enable_trim: yes
 
     content:
-      - !Partition
+      - !part
 
         name: zmirror-sysfs-s
 
         
         content:
-          - !DMCrypt
+          - !crypt
 
             name: zmirror-sysfs-s
             
@@ -453,7 +453,7 @@ content:
               - online
 
             content:
-              - !ZDev
+              - !zdev
               
                 pool: zmirror-sysfs
 
@@ -482,7 +482,7 @@ content:
 
 
 
-  - !ZPool
+  - !zpool
     name: zmirror-big
 
 
@@ -516,7 +516,7 @@ content:
     
     # for above event handling to work, we also need to configure the backing:
     backed_by:
-      - !Mirror
+      - !mirror
         devices: 
           # without zmirror-big-a present zmirror should not import the pool
           - name: zmirror-big-a
@@ -538,12 +538,12 @@ content:
   #
   # Consequently it is enough for me to configure the Partition at the top-level.
   # The Disk has no relevance for me.
-  - !Partition
+  - !part
 
     name: zmirror-big-a
 
     content:
-      - !DMCrypt
+      - !crypt
 
         name: zmirror-big-a
         
@@ -556,7 +556,7 @@ content:
           - online
 
         content:
-          - !ZDev
+          - !zdev
           
 
             pool: zmirror-big
@@ -570,13 +570,13 @@ content:
 
 
   # big-b is a non-NVMe external USB-Connected SSD drive, exactly like big-a.
-  - !Partition
+  - !part
 
     name: zmirror-big-b
 
     
     content:
-      - !DMCrypt
+      - !crypt
 
         name: zmirror-big-b
         
@@ -590,7 +590,7 @@ content:
 
         content:
 
-          - !ZDev
+          - !zdev
           
 
             pool: zmirror-big
@@ -653,7 +653,7 @@ content:
   # is enough for my own needs.
   #
   #
-  - !ZPool
+  - !zpool
     name: zmirror-bak-a
 
     # when all volumes configured below are offline (WARNING: see explanation 
@@ -709,7 +709,7 @@ content:
       # 
       # Then zmirror catches the respective udev event and changes its
       # internal state of the volume to online.
-      - !ZFSVolume
+      - !zvol
         name: sysfs
 
         on_children_offline:
@@ -762,7 +762,7 @@ content:
           # If you want to CREATE a new zpool that is backed by ONLY ZFSVolumes
           # you would create a loop device for each one of them before creating the pool.
           #
-          - !ZDev
+          - !zdev
             pool: zmirror-sysfs
 
             on_resilvered:
@@ -813,7 +813,7 @@ content:
 
       
       # the note from zmirror-bak-a/sysfs applies
-      - !ZFSVolume
+      - !zvol
         name: big
         
         on_children_offline: 
@@ -821,7 +821,7 @@ content:
 
         content:
           
-          - !ZDev
+          - !zdev
             
             pool: zmirror-big
 
@@ -868,11 +868,11 @@ content:
   # and zmirror-big pools.
   #
   # this is the partition that contains the zpool's data
-  - !Partition
+  - !part
     name: zmirror-bak-a
 
     content:
-      - !DMCrypt
+      - !crypt
         name: zmirror-bak-a
         
         key_file: ./test/zmirror-key
@@ -881,7 +881,7 @@ content:
           - offline
 
         content: 
-          - !ZDev
+          - !zdev
             
             pool: zmirror-bak-a
 
@@ -902,7 +902,7 @@ content:
   # then) you connect both backing disks at the same time and ensure that
   # they will be scrubbed (as this zmirror config does every 4 weeks as long 
   # as you keep the disks connected over night)
-  - !ZPool
+  - !zpool
     name: zmirror-bak-b
 
     on_children_offline: 
@@ -910,7 +910,7 @@ content:
     
     # for above event handling to work, we also need to configure the backing:
     backed_by:
-      - !Mirror
+      - !mirror
         devices:
           - name: zmirror-bak-b-alpha
             required: yes
@@ -920,14 +920,14 @@ content:
 
     content:
       
-      - !ZFSVolume
+      - !zvol
         name: sysfs
         on_children_offline: 
           - offline
         content:
 
           # the note from zmirror-bak-a/sysfs applies
-          - !ZDev
+          - !zdev
             pool: zmirror-sysfs
           
             on_scrub_succeeded:
@@ -941,14 +941,14 @@ content:
             scrub_interval: 4 weeks
       
 
-      - !ZFSVolume
+      - !zvol
         name: big
         on_children_offline:
           - offline
         content:
 
           # the note from zmirror-bak-a/sysfs applies
-          - !ZDev
+          - !zdev
             pool: zmirror-big
 
           
@@ -974,11 +974,11 @@ content:
   # understand configuration if you can use names instead of serial numbers.
   # and whatever penalty there might be is negligeable.
   #
-  - !Partition
+  - !part
     name: zmirror-bak-b-alpha
 
     content:
-      - !DMCrypt
+      - !crypt
         name: zmirror-bak-b-alpha
         
         key_file: ./test/zmirror-key
@@ -989,7 +989,7 @@ content:
 
         content: 
 
-          - !ZDev
+          - !zdev
             pool: zmirror-bak-b
 
             # its a HDD it does not support trim
@@ -999,11 +999,11 @@ content:
 
 
   # this is the main partition of the second disk that is backing zmirror-bak-b
-  - !Partition
+  - !part
     name: zmirror-bak-b-beta
 
     content:
-      - !DMCrypt
+      - !crypt
         name: zmirror-bak-b-beta
         
         key_file: ./test/zmirror-key
@@ -1014,7 +1014,7 @@ content:
 
         content: 
 
-          - !ZDev
+          - !zdev
             pool: zmirror-bak-b
 
             # its a HDD it does not support trim
@@ -1043,11 +1043,11 @@ content:
   # blubak appears in this example config because it shows how 
   # to combine 2 smaller disks into a single striped disk
   # which can be used to mirror a bigger disk using a zpool mirror
-  - !ZPool
+  - !zpool
     name: zmirror-blubak
 
     backed_by:
-      - !Mirror
+      - !mirror
         devices: 
 
           # to ensure that the zpool knows the devices by these paths, you simply need
@@ -1069,11 +1069,11 @@ content:
 
 
 
-  - !Partition
+  - !part
     name: zmirror-blubak-alpha
 
     content:
-      - !DMCrypt
+      - !crypt
         name: zmirror-blubak-alpha
 
         key_file: ./test/zmirror-key
@@ -1083,7 +1083,7 @@ content:
 
         content: 
 
-          - !ZDev
+          - !zdev
             pool: zmirror-blubak
 
             # its a HDD it does not support trim
@@ -1107,12 +1107,12 @@ content:
   # This kind of configuration allows you to use a set of old disks that are 
   # not big enough, to together provide a single mirror of a newer disk that
   # is big enough.
-  - !ZPool
+  - !zpool
     name: zmirror-blubak-beta
 
     content:
       
-      - !ZFSVolume
+      - !zvol
         name: blubak
 
         on_children_offline: 
@@ -1120,7 +1120,7 @@ content:
 
         content:
 
-          - !ZDev
+          - !zdev
             pool: zmirror-blubak
           
 
@@ -1148,11 +1148,11 @@ content:
   # 
   # the speciality of the second and third disk is, that they are (about) half as 
   # big as the first disk, and so we combined them into a striped raid0.
-  - !Partition
+  - !part
     name: zmirror-blubak-beta-a
 
     content:
-      - !DMCrypt
+      - !crypt
         name: zmirror-blubak-beta-a
 
         key_file: ./test/zmirror-key
@@ -1162,7 +1162,7 @@ content:
 
         content: 
 
-          - !ZDev
+          - !zdev
             pool: zmirror-blubak-beta
 
             # its a HDD it does not support trim
@@ -1171,11 +1171,11 @@ content:
 
 
 
-  - !Partition
+  - !part
     name: zmirror-blubak-beta-b
 
     content:
-      - !DMCrypt
+      - !crypt
         name: zmirror-blubak-beta-b
         
         key_file: ./test/zmirror-key
@@ -1185,7 +1185,7 @@ content:
 
         content: 
 
-          - !ZDev
+          - !zdev
             pool: zmirror-blubak-beta
 
 

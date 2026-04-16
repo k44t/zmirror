@@ -641,6 +641,7 @@ def daemon(args):# pylint: disable=unused-argument
 
   # Listen for incoming connections
   server.listen()
+  server.settimeout(1.0)
 
   log.info(f"listening on {socket_path}")
 
@@ -706,13 +707,19 @@ def daemon(args):# pylint: disable=unused-argument
 
   try:
     while config.running:
-      # Wait for a connection
-      connection, client_address = server.accept()
+      try:
+        # Wait for a connection
+        connection, client_address = server.accept()
+      except socket.timeout:
+        continue
+      except OSError as exception:
+        if config.running:
+          log.error(str(exception))
+        break
+
       # Start a new thread for the connection
       client_thread = threading.Thread(target=handle_client, args=(connection, client_address, event_queue))
       client_thread.start()
-  except Exception as exception:
-    log.error(str(exception))
   finally:
     if config.running:
       shutdown()
