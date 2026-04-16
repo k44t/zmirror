@@ -339,6 +339,43 @@ class Tests():
     assert partition_cache.state.what == EntityState.ACTIVE
 
 
+  def test_zfs_volume_activates_on_child_online(self):
+    volume = config.config_dict["zfs-volume|pool:zmirror-bak-a|name:sysfs"]
+    zdev = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    volume_cache = cached(volume)
+
+    volume_cache.state.what = EntityState.CONNECTED
+    volume.handle_child_online(zdev, EntityState.INACTIVE)
+
+    assert volume_cache.state.what == EntityState.ACTIVE
+
+
+  def test_zfs_volume_deactivates_to_connected_on_children_offline(self):
+    volume = config.config_dict["zfs-volume|pool:zmirror-bak-a|name:sysfs"]
+    zdev = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    volume_cache = cached(volume)
+    zdev_cache = cached(zdev)
+
+    volume_cache.state.what = EntityState.ACTIVE
+    zdev_cache.state.what = EntityState.DISCONNECTED
+    volume.handle_child_offline(zdev, EntityState.CONNECTED)
+
+    assert volume_cache.state.what == EntityState.CONNECTED
+
+
+  def test_zfs_volume_onlined_with_online_child_becomes_active(self):
+    volume = config.config_dict["zfs-volume|pool:zmirror-bak-a|name:sysfs"]
+    zdev = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    volume_cache = cached(volume)
+    zdev_cache = cached(zdev)
+
+    volume_cache.state.what = EntityState.DISCONNECTED
+    zdev_cache.state.what = EntityState.CONNECTED
+    handle_onlined(volume_cache)
+
+    assert volume_cache.state.what == EntityState.ACTIVE
+
+
   def test_dmcrypt_activates_on_child_online(self):
     dmcrypt = config.config_dict["dm-crypt|name:zmirror-sysfs-s"]
     zdev = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]

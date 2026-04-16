@@ -1409,12 +1409,24 @@ class ZFSVolume(ManualChildren):
     self.enact_requests()
     run_event_handlers(self, "appeared")
 
+  def handle_onlined(self, state=EntityState.CONNECTED):
+    if any(is_online(child) for child in self.content):
+      state = EntityState.ACTIVE
+    super().handle_onlined(state=state)
+
   def handle_child_offline(self, child, prev_state):
     super().handle_child_offline(child, prev_state)
     tell_parent_child_offline(self.parent, self, prev_state)
 
   def handle_child_online(self, child, prev_state):
+    if self.get_state() == EntityState.CONNECTED:
+      self.set_state(EntityState.ACTIVE, "activated")
     tell_parent_child_online(self.parent, self, prev_state)
+
+  def handle_children_offline(self):
+    if self.get_state() == EntityState.ACTIVE:
+      self.set_state(EntityState.CONNECTED, "deactivated")
+    return super().handle_children_offline()
 
   def handle_parent_online(self, _new_state=EntityState.CONNECTED):
     handle_onlined(cached(self))
