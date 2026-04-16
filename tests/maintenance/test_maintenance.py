@@ -76,7 +76,7 @@ class Tests():
       # would in a non-simulated state mean that all DMCrypts 
       # are INACTIVE, so we simulate that too.
       if type(entity) in {Disk, Partition}:
-        entity.state.what = EntityState.ONLINE
+        entity.state.what = EntityState.CONNECTED
       elif type(entity) in {DMCrypt}:
         entity.state.what = EntityState.INACTIVE
       
@@ -96,8 +96,8 @@ class Tests():
     bak_b = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
 
     # the pool is initially online, and so is the main zdev
-    cached(zpool).state.what = EntityState.ONLINE
-    cached(a).state.what = EntityState.ONLINE
+    cached(zpool).state.what = EntityState.CONNECTED
+    cached(a).state.what = EntityState.CONNECTED
 
     config.set_log_level("debug")
 
@@ -223,7 +223,7 @@ class Tests():
 
     s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
     cache = cached(s)
-    assert cache.state.what == EntityState.ONLINE 
+    assert cache.state.what == EntityState.CONNECTED 
     assert since_in(Operation.RESILVER, cache.operations)
 
 

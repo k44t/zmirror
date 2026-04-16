@@ -184,7 +184,7 @@ class Tests():
     partition = config.cache_dict["partition|name:zmirror-sysfs-b"]
     dmcrypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-b"]
 
-    assert partition.state.what == EntityState.ONLINE
+    assert partition.state.what == EntityState.CONNECTED
     assert dmcrypt.state.what == EntityState.INACTIVE
 
     dmcrypt_entity = config.config_dict["dm-crypt|name:zmirror-bak-a"]
@@ -316,7 +316,7 @@ class Tests():
 
     trigger_event()
 
-    assert crypt.state.what == EntityState.ONLINE
+    assert crypt.state.what == EntityState.CONNECTED
 
 
     assert_commands([
@@ -336,7 +336,7 @@ class Tests():
 
     trigger_event()
 
-    assert pool.state.what == EntityState.ONLINE
+    assert pool.state.what == EntityState.CONNECTED
 
 
 
@@ -401,11 +401,11 @@ class Tests():
   def test_zdev_sysfs_s_offline(self):
 
     crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
-    assert crypt.state.what == EntityState.ONLINE
+    assert crypt.state.what == EntityState.CONNECTED
 
     trigger_event()
 
-    assert crypt.state.what == EntityState.ONLINE
+    assert crypt.state.what == EntityState.CONNECTED
 
     assert_commands([
       "cryptsetup close zmirror-sysfs-s"
@@ -415,7 +415,7 @@ class Tests():
   def test_dmcrypt_sysfs_s_offline(self):
 
     crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
-    assert crypt.state.what == EntityState.ONLINE
+    assert crypt.state.what == EntityState.CONNECTED
 
     trigger_event()
 
@@ -527,7 +527,7 @@ class Tests():
 
     trigger_event()
 
-    assert crypt.state.what == EntityState.ONLINE
+    assert crypt.state.what == EntityState.CONNECTED
 
 
     assert_commands([
@@ -610,7 +610,7 @@ class Tests():
 
     blockdev = config.cache_dict["zdev|pool:zmirror-bak-a|name:zmirror-bak-a"]
 
-    assert blockdev.state.what == EntityState.ONLINE
+    assert blockdev.state.what == EntityState.CONNECTED
 
     assert_commands([
       "zpool online zmirror-sysfs zvol/zmirror-bak-a/sysfs"
@@ -630,7 +630,7 @@ class Tests():
 
     assert not since_in(Operation.SCRUB, cached(zdev_bak_a).operations)
 
-    assert zpool.state.what == EntityState.ONLINE
+    assert zpool.state.what == EntityState.CONNECTED
 
     assert cached(zdev_bak_a).state.what == EntityState.INACTIVE
 
@@ -712,7 +712,7 @@ class Tests():
     bak_a = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     bak_b = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
 
-    assert s.state.what == EntityState.ONLINE
+    assert s.state.what == EntityState.CONNECTED
 
     assert since_in(Operation.SCRUB, a.operations)
     assert since_in(Operation.SCRUB, b.operations)
@@ -746,7 +746,7 @@ class Tests():
     assert not since_in(Operation.SCRUB, bak_a.operations)
     assert not since_in(Operation.SCRUB, bak_b.operations)
 
-    assert s.state.what == EntityState.ONLINE
+    assert s.state.what == EntityState.CONNECTED
     assert not a.errors
     assert not b.errors
     assert not s.errors
@@ -778,12 +778,12 @@ class Tests():
     
     s = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
-    assert s.state.what == EntityState.ONLINE
+    assert s.state.what == EntityState.CONNECTED
 
 
     trigger_event()
 
-    assert s.state.what == EntityState.ONLINE
+    assert s.state.what == EntityState.CONNECTED
 
     assert since_in(Operation.TRIM, s.operations)
 
@@ -799,7 +799,7 @@ class Tests():
     s = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
 
-    assert s.state.what == EntityState.ONLINE
+    assert s.state.what == EntityState.CONNECTED
 
 
     assert not since_in(Operation.TRIM, s.operations)
@@ -818,7 +818,7 @@ class Tests():
 
     s = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
-    assert s.state.what == EntityState.ONLINE
+    assert s.state.what == EntityState.CONNECTED
     assert not since_in(Operation.TRIM, s.operations)
 
     assert_commands([
@@ -855,12 +855,12 @@ class Tests():
   def test_zdev_sysfs_s_offline2(self):
 
     crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
-    assert crypt.state.what == EntityState.ONLINE
+    assert crypt.state.what == EntityState.CONNECTED
 
     trigger_event()
 
 
-    assert crypt.state.what == EntityState.ONLINE
+    assert crypt.state.what == EntityState.CONNECTED
 
 
     assert_commands([

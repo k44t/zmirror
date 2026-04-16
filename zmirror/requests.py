@@ -384,4 +384,3 @@ class RaidRequest(Request):
     else:
       self.fail(Reason.TOO_MANY_RAID_DEPENDENCIES_FAILED)
       return False
-

@@ -85,7 +85,7 @@ def init_config(cache_path, config_path):
 def finalize_init(entity, _parent, _ignored):
   if isinstance(entity, Entity):
     cache = cached(entity)
-    if cache.state.what in {EntityState.INACTIVE, EntityState.ONLINE}:
+    if is_present_or_online_state(cache.state.what):
       statstr = f"{human_readable_id(entity)}: {cache.state.what.name}"
       if hasattr(cache, "operations"):
         for i, op in enumerate(cache.operations):
@@ -220,6 +220,8 @@ def cache_from_identifier(identifier):
 def copy_cache_fields(source, target):
   state_what = source.get("state_what")
   if state_what is not None and hasattr(target, "state"):
+    if state_what == "ONLINE":
+      state_what = "CONNECTED"
     target.state = Since(EntityState[state_what], parse_datetime(source.get("state_since")))
 
   if hasattr(target, "added"):
@@ -433,7 +435,7 @@ def get_zpool_backing_device_state(zpool, dev):
     if match.group("dev") == dev:
       state = match.group("state")
       if state == "ONLINE":
-        state = EntityState.ONLINE
+        state = EntityState.CONNECTED
         if scrubbing:
           opers.add(Operation.SCRUB)
       else:

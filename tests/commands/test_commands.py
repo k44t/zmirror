@@ -155,8 +155,8 @@ class Tests():
 
     trigger_event()
 
-    assert a.state.what == EntityState.ONLINE
-    assert pool.state.what == EntityState.ONLINE
+    assert a.state.what == EntityState.CONNECTED
+    assert pool.state.what == EntityState.CONNECTED
 
     assert zdev_s.requested == {}
     assert zdev_s_cache.state.what == EntityState.DISCONNECTED
@@ -181,7 +181,7 @@ class Tests():
     
     trigger_event()
 
-    assert disk.state.what == EntityState.ONLINE
+    assert disk.state.what == EntityState.CONNECTED
 
     assert_commands([
       # we set force_enable_trim for this device
@@ -306,10 +306,10 @@ class Tests():
     crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
     zdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
-    assert disk.state.what == EntityState.ONLINE
-    assert partition.state.what == EntityState.ONLINE
-    assert crypt.state.what == EntityState.ONLINE
-    assert zdev.state.what == EntityState.ONLINE
+    assert disk.state.what == EntityState.CONNECTED
+    assert partition.state.what == EntityState.CONNECTED
+    assert crypt.state.what == EntityState.CONNECTED
+    assert zdev.state.what == EntityState.CONNECTED
 
 
     trigger_event()
@@ -319,9 +319,9 @@ class Tests():
     assert disk.state.what == EntityState.DISCONNECTED
 
     # we rely on udev to to tell us that the partition disappears, so no internal state change has happened yet
-    assert partition.state.what == EntityState.ONLINE
-    assert crypt.state.what == EntityState.ONLINE
-    assert zdev.state.what == EntityState.ONLINE
+    assert partition.state.what == EntityState.CONNECTED
+    assert crypt.state.what == EntityState.CONNECTED
+    assert zdev.state.what == EntityState.CONNECTED
 
     assert_commands([
 
@@ -341,8 +341,8 @@ class Tests():
 
     assert disk.state.what == EntityState.DISCONNECTED
     assert partition.state.what == EntityState.DISCONNECTED
-    assert crypt.state.what == EntityState.ONLINE
-    assert zdev.state.what == EntityState.ONLINE
+    assert crypt.state.what == EntityState.CONNECTED
+    assert zdev.state.what == EntityState.CONNECTED
 
     assert_commands([
       # zmirror needs to take the zdev offline
@@ -371,7 +371,7 @@ class Tests():
 
     assert disk.state.what == EntityState.DISCONNECTED
     assert partition.state.what == EntityState.DISCONNECTED
-    assert crypt.state.what == EntityState.ONLINE
+    assert crypt.state.what == EntityState.CONNECTED
     assert zdev.state.what == EntityState.INACTIVE
 
     assert_commands([
@@ -458,10 +458,10 @@ class Tests():
     trigger_event()
 
 
-    assert a.state.what == EntityState.ONLINE
+    assert a.state.what == EntityState.CONNECTED
     assert b.state.what == EntityState.DISCONNECTED
 
-    assert pool.state.what == EntityState.ONLINE
+    assert pool.state.what == EntityState.CONNECTED
 
     assert_commands([
       # nothing happens
@@ -484,7 +484,7 @@ class Tests():
 
     trigger_event()
 
-    assert pool.state.what == EntityState.ONLINE
+    assert pool.state.what == EntityState.CONNECTED
 
     # zmirror needs to do nothing (issue no commands)
     assert_commands([])
@@ -496,7 +496,7 @@ class Tests():
 
     trigger_event()
 
-    assert pool.state.what == EntityState.ONLINE
+    assert pool.state.what == EntityState.CONNECTED
 
     assert_commands([
 
@@ -513,13 +513,13 @@ class Tests():
 
 
     assert pool_config.cache is pool_cache
-    assert pool_cache.state.what == EntityState.ONLINE
+    assert pool_cache.state.what == EntityState.CONNECTED
 
     trigger_event()
 
 
     assert pool_config.cache is pool_cache
-    assert pool_cache.state.what == EntityState.ONLINE
+    assert pool_cache.state.what == EntityState.CONNECTED
 
     assert_commands([
       # big-b alone is not configured to trigger an import
@@ -541,7 +541,7 @@ class Tests():
     trigger_event()
 
 
-    assert b.state.what == EntityState.ONLINE
+    assert b.state.what == EntityState.CONNECTED
 
 
     assert_commands([
@@ -594,7 +594,7 @@ class Tests():
 
     blockdev = config.cache_dict["zdev|pool:zmirror-bak-a|name:zmirror-bak-a"]
 
-    assert blockdev.state.what == EntityState.ONLINE
+    assert blockdev.state.what == EntityState.CONNECTED
 
     zdev_sysfs = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
 
@@ -610,18 +610,18 @@ class Tests():
 
     zpool = config.cache_dict["zpool|name:zmirror-bak-a"]
 
-    assert zpool.state.what == EntityState.ONLINE
+    assert zpool.state.what == EntityState.CONNECTED
 
     blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     volume = config.cache_dict["zfs-volume|pool:zmirror-bak-a|name:sysfs"]
 
-    assert volume.state.what == EntityState.ONLINE
+    assert volume.state.what == EntityState.CONNECTED
     assert blockdev.state.what == EntityState.INACTIVE
 
     trigger_event()
 
 
-    assert volume.state.what == EntityState.ONLINE
+    assert volume.state.what == EntityState.CONNECTED
     assert blockdev.state.what == EntityState.INACTIVE
 
     assert_commands([
@@ -635,7 +635,7 @@ class Tests():
 
     blockdev = config.cache_dict["zdev|pool:zmirror-big|name:zvol/zmirror-bak-a/big"]
 
-    assert blockdev.state.what == EntityState.ONLINE
+    assert blockdev.state.what == EntityState.CONNECTED
 
 
     assert_commands([
@@ -661,7 +661,7 @@ class Tests():
 
     blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
 
-    assert blockdev.state.what == EntityState.ONLINE
+    assert blockdev.state.what == EntityState.CONNECTED
 
 
     assert_commands([
@@ -716,7 +716,7 @@ class Tests():
 
     trigger_event()
 
-    assert volume.state.what == EntityState.ONLINE
+    assert volume.state.what == EntityState.CONNECTED
 
     assert_commands([])
 
@@ -754,7 +754,7 @@ class Tests():
     trigger_event()
 
 
-    assert big_volume.state.what == EntityState.ONLINE
+    assert big_volume.state.what == EntityState.CONNECTED
     assert big_blockdev.state.what == EntityState.INACTIVE
     # assert zz.state.what == EntityState.DISCONNECTED
 
@@ -824,7 +824,7 @@ class Tests():
     dm_alpha = config.cache_dict["dm-crypt|name:zmirror-bak-b-alpha"]
     blockdev_alpha = config.cache_dict["zdev|pool:zmirror-bak-b|name:zmirror-bak-b-alpha"]
 
-    assert dm_alpha.state.what == EntityState.ONLINE
+    assert dm_alpha.state.what == EntityState.CONNECTED
     assert blockdev_alpha.state.what == EntityState.INACTIVE
 
     assert_commands([
@@ -887,15 +887,15 @@ class Tests():
 
     assert blockdev_alpha.state.what == EntityState.INACTIVE
     assert blockdev_beta.state.what == EntityState.INACTIVE
-    assert dm_alpha.state.what == EntityState.ONLINE
-    assert dm_beta.state.what == EntityState.ONLINE
+    assert dm_alpha.state.what == EntityState.CONNECTED
+    assert dm_beta.state.what == EntityState.CONNECTED
     assert zpool.state.what == EntityState.DISCONNECTED
 
     trigger_event()
 
-    assert zpool.state.what == EntityState.ONLINE
-    assert blockdev_alpha.state.what == EntityState.ONLINE
-    assert blockdev_beta.state.what == EntityState.ONLINE
+    assert zpool.state.what == EntityState.CONNECTED
+    assert blockdev_alpha.state.what == EntityState.CONNECTED
+    assert blockdev_beta.state.what == EntityState.CONNECTED
 
     assert_commands([
       # zvols now transition virtually with pool online
@@ -960,12 +960,12 @@ class Tests():
   def test_zdev_bak_b_sysfs_resilver_finish(self):
 
     blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
-    assert blockdev.state.what == EntityState.ONLINE
+    assert blockdev.state.what == EntityState.CONNECTED
     assert since_in(Operation.RESILVER, blockdev.operations)
 
     trigger_event()
 
-    assert blockdev.state.what == EntityState.ONLINE
+    assert blockdev.state.what == EntityState.CONNECTED
     assert not since_in(Operation.RESILVER, blockdev.operations)
 
     assert_commands([
@@ -981,7 +981,7 @@ class Tests():
   # when it the event from taking it offline in the pool appears
   def test_zdev_bak_b_sysfs_disconnected(self):
     blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
-    assert blockdev.state.what == EntityState.ONLINE
+    assert blockdev.state.what == EntityState.CONNECTED
     
     trigger_event()
 
@@ -1033,19 +1033,19 @@ class Tests():
     dm_beta = config.cache_dict["dm-crypt|name:zmirror-bak-b-beta"]
     zpool = config.cache_dict["zpool|name:zmirror-bak-b"]
 
-    assert dm_alpha.state.what == EntityState.ONLINE
-    assert dm_beta.state.what == EntityState.ONLINE
+    assert dm_alpha.state.what == EntityState.CONNECTED
+    assert dm_beta.state.what == EntityState.CONNECTED
 
-    assert blockdev_alpha.state.what == EntityState.ONLINE
-    assert blockdev_beta.state.what == EntityState.ONLINE
+    assert blockdev_alpha.state.what == EntityState.CONNECTED
+    assert blockdev_beta.state.what == EntityState.CONNECTED
 
-    assert zpool.state.what == EntityState.ONLINE
+    assert zpool.state.what == EntityState.CONNECTED
 
     # zmirror realizes that the backing blockdevs are now offline
     trigger_event()
 
-    assert dm_alpha.state.what == EntityState.ONLINE
-    assert dm_beta.state.what == EntityState.ONLINE
+    assert dm_alpha.state.what == EntityState.CONNECTED
+    assert dm_beta.state.what == EntityState.CONNECTED
 
     assert blockdev_alpha.state.what == EntityState.INACTIVE
     assert blockdev_beta.state.what == EntityState.INACTIVE

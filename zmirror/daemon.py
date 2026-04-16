@@ -84,7 +84,7 @@ def _parents_all_online(cache):
 
   parent = getattr(entity, "parent", None)
   while isinstance(parent, Entity):
-    if cached(parent).state.what != EntityState.ONLINE:
+    if not is_online(parent):
       return False
     parent = getattr(parent, "parent", None)
   return True
@@ -128,7 +128,7 @@ def _collect_pool_status_snapshot(zpool, zpool_status=None):
 
 
 def _is_device_eligible(cache, status):
-  return status["state"] == "ONLINE" and cache.state.what == EntityState.ONLINE and _parents_all_online(cache)
+  return status["state"] == "ONLINE" and is_online_state(cache.state.what) and _parents_all_online(cache)
 
 
 def _scrub_successful(snapshot, cache, status):
