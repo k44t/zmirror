@@ -612,17 +612,8 @@ class Tests():
 
     assert blockdev.state.what == EntityState.ONLINE
 
-    # zpool is configured to take the volumes "online"
-    # and we have implemented this by setting the volmode
-    # so that the respective udev events will be triggered
-    # which then we process (in the next tests).
     assert_commands([
-
-      # the volmode for sysfs is set to none (this assuming that zmirror "offlined" the volume safely)
-      "zfs set volmode=full zmirror-bak-a/sysfs",
-
-      # big is left alone as it is not requested
-      ## "zpool online zmirror-big zvol/zmirror-bak-a/big"
+      "zpool online zmirror-sysfs zvol/zmirror-bak-a/sysfs"
     ])
 
 
@@ -641,7 +632,7 @@ class Tests():
 
     assert zpool.state.what == EntityState.ONLINE
 
-    assert cached(zdev_bak_a).state.what == EntityState.DISCONNECTED
+    assert cached(zdev_bak_a).state.what == EntityState.INACTIVE
 
     trigger_event()
 
@@ -655,9 +646,7 @@ class Tests():
     blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     volume = config.cache_dict["zfs-volume|pool:zmirror-bak-a|name:sysfs"]
 
-    assert_commands([
-      "zpool online zmirror-sysfs zvol/zmirror-bak-a/sysfs"
-    ])
+    assert_commands([])
 
 
 

@@ -358,16 +358,8 @@ def handle(env):
             for devlink in devlinks:
               match = re.match(r'/dev/zvol/(?P<pool>[^/]+)/(?P<volume>.+)$', devlink)
               if match and not re.match(r'-part[0-9]+$', match.group("volume")):
-                pool_name = match.group("pool")
-                volume_name = match.group("volume")
-
-
-                cache = find_or_create_cache(ZFSVolume, pool=pool_name, name=volume_name)
-                      
-                if action == "add":
-                  handle_onlined(cache)
-                else:
-                  handle_deactivated(cache)
+                # zfs-volume state transitions are virtual and follow parent pool state.
+                # We keep zvol udev events as handled but do not map them to state changes.
                 event_handled = True
                 break
           # elif "ID_FS_UUID" in env:

@@ -1108,8 +1108,23 @@ class ZPool(Onlineable, Children):
   def handle_children_offline(self):
     return super().handle_children_offline()
 
+  def _is_content_effectively_online(self, entity):
+    if isinstance(entity, ZFSVolume):
+      for child in entity.content:
+        if is_online(child):
+          return True
+      return False
+    if is_online(entity):
+      return True
+    return False
+
   def handle_child_offline(self, child, prev_state):
-    return super().handle_child_offline(child, prev_state)
+    if prev_state == EntityState.INACTIVE:
+      return
+    for content in self.content:
+      if self._is_content_effectively_online(content):
+        return
+    self.handle_children_offline()
 
   def handle_disconnected(self, prev_state):
     return super().handle_disconnected(prev_state)
@@ -1271,7 +1286,7 @@ class ZFSDataset(Entity):
 
 
 @yaml_data
-class ZFSVolume(Children):
+class ZFSVolume(ManualChildren):
   pool: str = None
   name: str = None
 
@@ -1284,8 +1299,9 @@ class ZFSVolume(Children):
 
 
   def unsupported_request(self, request_type):
-    if request_type not in {RequestType.ONLINE, RequestType.OFFLINE, RequestType.SNAPSHOT}:
-      return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
+    if request_type in {RequestType.ONLINE, RequestType.OFFLINE, RequestType.SNAPSHOT}:
+      return None
+    return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
 
   def request_dependencies(self, request_type, enactment_level = sys.maxsize):
     if request_type == RequestType.SNAPSHOT:
@@ -1309,14 +1325,18 @@ class ZFSVolume(Children):
   def handle_children_offline(self):
     return super().handle_children_offline()
 
-  def handle_parent_online(self, new_state=EntityState.INACTIVE):
-    state = self.load_initial_state()
-    if state == EntityState.INACTIVE:
-      handle_appeared(cached(self))
-    elif state == EntityState.ONLINE:
-      handle_onlined(cached(self))
-    else:
-      log.error(f"{human_readable_id(self)}: inconsistent initial state ({state}). This is likely due to a misconfiguration.")
+  def handle_child_offline(self, child, prev_state):
+    super().handle_child_offline(child, prev_state)
+    tell_parent_child_offline(self.parent, self, prev_state)
+
+  def handle_child_online(self, child, prev_state):
+    tell_parent_child_online(self.parent, self, prev_state)
+
+  def handle_parent_online(self, _new_state=EntityState.ONLINE):
+    handle_onlined(cached(self))
+
+  def handle_parent_offline(self, _new_state=EntityState.DISCONNECTED):
+    handle_disconnected(cached(self))
 
 
   def get_pool(self):
@@ -1325,20 +1345,13 @@ class ZFSVolume(Children):
     else:
       return self.pool
 
-  def load_initial_state(self):
-    state = EntityState.DISCONNECTED
-    mode = config.get_zfs_volume_mode(f"{self.get_pool()}/{self.name}")
-    if mode in {"full", "default"}:
-      state = EntityState.ONLINE
-    if mode == "none":
-      state = EntityState.INACTIVE
-    return state
-
-  def enact_online(self):
-    return commands.add_script(f"zfs set volmode=full {self.parent.name}/{self.name}")
-
-  def enact_offline(self):
-    return commands.add_script(f"zfs set volmode=none {self.parent.name}/{self.name}")
+  def update_initial_state(self):
+    if self.parent is None:
+      return EntityState.DISCONNECTED
+    parent_state = cached(self.parent).state.what
+    if parent_state == EntityState.ONLINE:
+      return EntityState.ONLINE
+    return EntityState.DISCONNECTED
 
   def enact_snapshot(self):
     return commands.add_script(f"zfs snapshot {self.parent.name}/{self.name}@zmirror-{inaccurate_now().strftime("%Y-%m-%d_%H-%M-%S")}")

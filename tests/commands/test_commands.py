@@ -598,24 +598,14 @@ class Tests():
 
     zdev_sysfs = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
 
-    # is this correct?
-    assert zdev_sysfs.state.what == EntityState.DISCONNECTED
+    assert zdev_sysfs.state.what == EntityState.INACTIVE
 
-    # zpool is configured to take the volumes "online"
-    # and we have implemented this by setting the volmode
-    # so that the respective udev events will be triggered
-    # which then we process (in the next tests).
     assert_commands([
-      # we would online the device, if the configuration contained the event handler
-      ## 
-      ## the volmode for sysfs is set to none (this assuming that zmirror "offlined" the volume safely)
-      ### "zfs set volmode=full zmirror-bak-a/sysfs",
-      ## the volmode is set to full (which means zmirror was not able to do its job the last time)
-      ### "zpool online zmirror-big zvol/zmirror-bak-a/big"
+      # volumes are now transitioned virtually with their parent pool
     ])
 
 
-  # when bak-a-sysfs zfs_volume appears (udev: add)
+  # zvol udev events are ignored for state transitions
   def test_zfs_volume_bak_a_sysfs_online(self):
 
     zpool = config.cache_dict["zpool|name:zmirror-bak-a"]
@@ -625,8 +615,8 @@ class Tests():
     blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     volume = config.cache_dict["zfs-volume|pool:zmirror-bak-a|name:sysfs"]
 
-    assert volume.state.what == EntityState.INACTIVE
-    assert blockdev.state.what == EntityState.DISCONNECTED
+    assert volume.state.what == EntityState.ONLINE
+    assert blockdev.state.what == EntityState.INACTIVE
 
     trigger_event()
 
@@ -635,8 +625,7 @@ class Tests():
     assert blockdev.state.what == EntityState.INACTIVE
 
     assert_commands([
-      # we would online the device, if the configuration contained the event handler
-      ## "zpool online zmirror-sysfs zvol/zmirror-bak-a/sysfs"
+      # no-op, zvol udev events do not change state
     ])
 
   
@@ -714,9 +703,8 @@ class Tests():
 
     trigger_event()
 
-    # we virtually take our volume offline as well (setting volmode=none)
     assert_commands([
-      "zfs set volmode=none zmirror-bak-a/sysfs"
+      # zvol transitions are virtual; no command is issued
     ])
 
 
@@ -728,12 +716,9 @@ class Tests():
 
     trigger_event()
 
-    assert volume.state.what == EntityState.INACTIVE
+    assert volume.state.what == EntityState.ONLINE
 
-    assert_commands([
-      # we don't need to take the zvol offline as it is already offline
-      ## 'zpool offline zmirror-sysfs zvol/zmirror-bak-a/sysfs'
-    ])
+    assert_commands([])
 
 
   # when the resilver of zvol/zmirror-bak-a/big finishes
@@ -758,11 +743,7 @@ class Tests():
   def test_zdev_bak_a_big_disconnected(self):
     trigger_event()
 
-
-    assert_commands([
-      # we virtually take our volume offline as well (setting volmode=none)
-      "zfs set volmode=none zmirror-bak-a/big"
-    ])
+    assert_commands([])
 
   # when then the event arrives we just triggered by taking setting volmode=none
   def test_zfs_volume_bak_a_big_offline(self):
@@ -773,18 +754,11 @@ class Tests():
     trigger_event()
 
 
-    assert big_volume.state.what == EntityState.INACTIVE
-    assert big_blockdev.state.what == EntityState.DISCONNECTED
+    assert big_volume.state.what == EntityState.ONLINE
+    assert big_blockdev.state.what == EntityState.INACTIVE
     # assert zz.state.what == EntityState.DISCONNECTED
 
-    assert_commands([
-      # we don't need to take the zvol offline as it is already offline
-      ## 'zpool offline zmirror-big zvol/zmirror-bak-a/big'
-
-
-      # now both sysfs and big are offline, therefore we can offline the whole bak pool
-      "zpool export zmirror-bak-a"
-    ])
+    assert_commands([])
 
   # when the offline event comes
   def test_zpool_bak_a_offline(self):
@@ -924,21 +898,17 @@ class Tests():
     assert blockdev_beta.state.what == EntityState.ONLINE
 
     assert_commands([
-      # we would online the device, if the configuration contained the event handler
-      # zmirror would virtually take the volumes "online"
-      ## "zfs set volmode=full zmirror-bak-b/sysfs",
-      ## "zfs set volmode=full zmirror-bak-b/big"
+      # zvols now transition virtually with pool online
     ])
     # TODO: move this to requests, so it is at least tested
 
-  # when bak-b-sysfs zfs_volume appears (udev: add) (caused by set volmode=full)
+  # zvol udev events are ignored for state transitions
   def test_zfs_volume_bak_b_sysfs_online(self):
     
     trigger_event()
     
     assert_commands([
-      # we would online the device, if the configuration contained the event handler
-      ## "zpool online zmirror-sysfs zvol/zmirror-bak-b/sysfs"
+      # no-op, zvol udev events do not change state
     ])
 
   # when bak-b-big zfs_volume appears (udev: add)
@@ -947,9 +917,7 @@ class Tests():
     trigger_event()
     
     assert_commands([
-
-      # we would online the device, if the configuration contained the event handler
-      ## "zpool online zmirror-big zvol/zmirror-bak-b/big"
+      # no-op, zvol udev events do not change state
     ])
 
 
@@ -1019,11 +987,7 @@ class Tests():
 
     assert blockdev.state.what == EntityState.INACTIVE
 
-    assert_commands([
-      
-      # we also virtually take the volume "offline" in which it resides
-      "zfs set volmode=none zmirror-bak-b/sysfs"
-    ])
+    assert_commands([])
 
 
 
@@ -1051,20 +1015,13 @@ class Tests():
   # when the blockdev disappears from the pool it backs
   def test_zdev_bak_b_big_disconnected(self):
     trigger_event()
-    assert_commands([
-      # we also virtually take the volume "offline" in which it resides
-      "zfs set volmode=none zmirror-bak-b/big"
-    ])
+    assert_commands([])
 
   # when the volume disappears
   def test_zfs_volume_bak_b_big_offline(self):
     trigger_event()
-    
-    assert_commands([
 
-      # now both sysfs and big are offline, therefore we take the whole pool offline
-      "zpool export zmirror-bak-b"
-    ])
+    assert_commands([])
 
   # when the pool goes offline
   def test_zpool_bak_b_offline(self):
