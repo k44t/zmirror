@@ -192,6 +192,7 @@ zfs_operation_for_request = {value: key for key, value in request_for_zfs_operat
 @yaml_data("zmirror", also_use_class_name=False)
 class ZMirror:
   log_events: bool = False
+  log_full_events: bool = False
   enable_commands: bool = True
   enable_event_handlers: bool = True
   timeout: int = 300

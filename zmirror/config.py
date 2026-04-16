@@ -17,6 +17,8 @@ cache_path = None
 config_path = None
 commands_enabled = False
 event_handlers_enabled = True
+log_events = False
+log_full_events = False
 last_request_at = datetime.now()
 log_level = logging.INFO
 event_queue = None
@@ -150,6 +152,4 @@ def start_event_queue_timer(duration, action):
   timers.append(timer)
   timer.start()
   return timer
-
-
 

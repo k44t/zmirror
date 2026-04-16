@@ -313,7 +313,22 @@ def handle_set_command(command):
   elif prop == "timeout":
     config.timeout = int(value)
   elif prop == "log-events":
-    config.log_events = is_yes_or_true(value)
+    enabled = is_yes_or_true(value)
+    if enabled:
+      config.log_events = True
+      config.log_full_events = False
+    else:
+      config.log_events = False
+      config.log_full_events = False
+    value = to_yes(value)
+  elif prop == "log-full-events":
+    enabled = is_yes_or_true(value)
+    if enabled:
+      config.log_events = False
+      config.log_full_events = True
+    else:
+      config.log_events = False
+      config.log_full_events = False
     value = to_yes(value)
   else:
     raise ValueError(f"unknown property: {prop}")
@@ -328,13 +343,14 @@ def handle_get_command(command, stream):
 
   if prop == "commands":
     stream.write(to_yes(config.commands_enabled))
-    value = to_yes(value)
   elif prop == "log-level":
     stream.write(config.log_level)
   elif prop == "timeout":
     stream.write(str(config.timeout))
   elif prop == "log-events":
     stream.write(to_yes(config.log_events))
+  elif prop == "log-full-events":
+    stream.write(to_yes(config.log_full_events))
   else:
     raise ValueError(f"unknown property: {prop}")
 

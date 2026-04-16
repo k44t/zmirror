@@ -213,7 +213,7 @@ def update_vdev_error_state(snapshot):
       cache.errors = True
       continue
 
-    cache.errors = status["state"] != "ONLINE" or status["errors"]
+    cache.errors = bool(status["errors"])
 
 
 
@@ -223,7 +223,13 @@ def handle(env):
 
   cache = None
 
-  if config.log_events:
+  if config.log_full_events:
+    full_env = OrderedDict((key, env[key]) for key in sorted(env.keys()))
+    if full_env:
+      log.info(object_to_kdstring(full_env))
+    else:
+      log.info("event with empty env")
+  elif config.log_events:
     relevant_env = OrderedDict((key, env[key]) for key in LOGGABLE_ENV_KEYS if key in env)
     if relevant_env:
       log.info(object_to_kdstring(relevant_env))
@@ -302,6 +308,17 @@ def handle(env):
       update_vdev_error_state(pool_snapshot)
 
     # zpool-vdev event
+    elif zevent == "vdev_clear":
+      vdev_path = env.get(EnvKey.ZEVENT_VDEV_PATH.value)
+      if vdev_path:
+        cache = find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path)
+        prev_errors = cache.errors
+        cache.errors = False
+        log.debug(f"vdev_clear: cleared errors for zdev {cache.pool}:{cache.name} (previous errors={prev_errors})")
+        event_handled = True
+      else:
+        log.debug("vdev_clear event missing ZEVENT_VDEV_PATH")
+
     elif zevent in ["vdev_online", "statechange", "trim_start", "trim_finish", "trim_suspend", "trim_resume"]:
       # possible cases:
         # ZEVENT_POOL:: mypoolname

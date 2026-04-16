@@ -45,6 +45,7 @@ def init_config(cache_path, config_path):
   config.timeout = int(config.config_root.timeout)
 
   config.log_events = config.config_root.log_events
+  config.log_full_events = getattr(config.config_root, "log_full_events", False)
 
 
 
@@ -72,6 +73,7 @@ def init_config(cache_path, config_path):
   iterate_content_tree3_depth_first(config.config_root, update_initial_state, None, None)
 
   iterate_content_tree3(config.config_root, finalize_init, None, None)
+  refresh_all_vdev_error_state_from_status()
 
   config.commands_enabled = config.config_root.enable_commands
   log.info(f"command execution enabled: {to_yes(config.commands_enabled)}")
@@ -82,6 +84,14 @@ def init_config(cache_path, config_path):
   commands.execute_commands()
 
   log.info("configuration initialized")
+
+
+def refresh_all_vdev_error_state_from_status():
+  from . import daemon as daemon_module
+
+  for zpool in config.zfs_blockdevs.keys():
+    snapshot = daemon_module._collect_pool_status_snapshot(zpool)
+    daemon_module.update_vdev_error_state(snapshot)
 
 def finalize_init(entity, _parent, _ignored):
   if isinstance(entity, Entity):

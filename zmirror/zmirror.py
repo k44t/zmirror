@@ -229,6 +229,7 @@ def make_arg_parser():
 
   add_enable_disable_parsers("commands", help="command execution (in most cases it is recommended to disable event-handlers instead)")
   add_enable_disable_parsers("log-events", help="logging of all `udev` and `zed` events received by zmirror (including those not handled by zmirror)")
+  add_enable_disable_parsers("log-full-events", help="full logging of all event environment variables received by zmirror")
   add_enable_disable_parsers("event-handlers", help="running user-configured event-handlers")
 
 
