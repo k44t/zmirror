@@ -33,13 +33,13 @@ zmirror
 **zmirror** *scrub-all*
 
 :   requests all configured zdevs to be scrubbed. This will bring all
-    necessary and available parent devices (i.e. dm-crypts) online.
+    necessary and available parent devices (i.e. crypts) online.
 
 **zmirror** *scrub-overdue*
 
 :   requests zdevs to be scrubbed if they are behind their configured
     \`scrub_interval\`. This will bring all necessary and available
-    parent devices (i.e. \`dm-crypt\`s) online.
+    parent devices (i.e. \`crypt\`s) online.
 
 **zmirror** *resilver-overdue*
 
@@ -51,13 +51,13 @@ zmirror
 **zmirror** *trim-all*
 
 :   requests all configured zdevs to be trimmed. This will bring all
-    necessary and available parent devices (i.e. \`dm-crypt\`s) online.
+    necessary and available parent devices (i.e. \`crypt\`s) online.
 
 **zmirror** *trim-overdue*
 
 :   requests zdevs to be trimmed if they are behind their configured
     trim_interval. This will bring all necessary and available parent
-    devices (i.e. \`dm-crypt\`s) online.
+    devices (i.e. \`crypt\`s) online.
 
 **zmirror** *online-all*
 
@@ -326,7 +326,7 @@ usage: zmirror maintenance \[-h\] \[\--socket-path SOCKET_PATH\]
 # COMMAND *\'zmirror* online\'
 
 usage: zmirror online \[-h\] \[\--socket-path SOCKET_PATH\]
-\[\--cancel\] {disk,partition,zpool,zfs-volume,dm-crypt,zdev} \...
+\[\--cancel\] {disk,partition,zpool,zvol,crypt,zdev} \...
 
 # POSITIONAL ARGUMENTS *\'zmirror online\'*
 
@@ -366,9 +366,9 @@ usage: zmirror online zpool \[-h\] \[\--cancel\] name
 
 **\--cancel**
 
-:   # COMMAND *\'zmirror* online zfs-volume\'
+:   # COMMAND *\'zmirror* online zvol\'
 
-usage: zmirror online zfs-volume \[-h\] \[\--cancel\] pool name
+usage: zmirror online zvol \[-h\] \[\--cancel\] pool name
 
 **pool**
 
@@ -380,19 +380,19 @@ usage: zmirror online zfs-volume \[-h\] \[\--cancel\] pool name
 
 :   id field
 
-# OPTIONS *\'zmirror* online zfs-volume\'
+# OPTIONS *\'zmirror* online zvol\'
 
 **\--cancel**
 
-:   # COMMAND *\'zmirror* online dm-crypt\'
+:   # COMMAND *\'zmirror* online crypt\'
 
-usage: zmirror online dm-crypt \[-h\] \[\--cancel\] name
+usage: zmirror online crypt \[-h\] \[\--cancel\] name
 
 **name**
 
 :   id field
 
-# OPTIONS *\'zmirror* online dm-crypt\'
+# OPTIONS *\'zmirror* online crypt\'
 
 **\--cancel**
 
@@ -431,7 +431,7 @@ usage: zmirror online zdev \[-h\] \[\--cancel\] pool name
 :   # COMMAND *\'zmirror* offline\'
 
 usage: zmirror offline \[-h\] \[\--socket-path SOCKET_PATH\]
-{disk,partition,zpool,zfs-volume,dm-crypt,zdev} \...
+{disk,partition,zpool,zvol,crypt,zdev} \...
 
 # POSITIONAL ARGUMENTS *\'zmirror offline\'*
 
@@ -471,9 +471,9 @@ usage: zmirror offline zpool \[-h\] \[\--cancel\] name
 
 **\--cancel**
 
-:   # COMMAND *\'zmirror* offline zfs-volume\'
+:   # COMMAND *\'zmirror* offline zvol\'
 
-usage: zmirror offline zfs-volume \[-h\] \[\--cancel\] pool name
+usage: zmirror offline zvol \[-h\] \[\--cancel\] pool name
 
 **pool**
 
@@ -485,19 +485,19 @@ usage: zmirror offline zfs-volume \[-h\] \[\--cancel\] pool name
 
 :   id field
 
-# OPTIONS *\'zmirror* offline zfs-volume\'
+# OPTIONS *\'zmirror* offline zvol\'
 
 **\--cancel**
 
-:   # COMMAND *\'zmirror* offline dm-crypt\'
+:   # COMMAND *\'zmirror* offline crypt\'
 
-usage: zmirror offline dm-crypt \[-h\] \[\--cancel\] name
+usage: zmirror offline crypt \[-h\] \[\--cancel\] name
 
 **name**
 
 :   id field
 
-# OPTIONS *\'zmirror* offline dm-crypt\'
+# OPTIONS *\'zmirror* offline crypt\'
 
 **\--cancel**
 
@@ -532,7 +532,7 @@ usage: zmirror offline zdev \[-h\] \[\--cancel\] pool name
 # COMMAND *\'zmirror* status\'
 
 usage: zmirror status \[-h\] \[\--socket-path SOCKET_PATH\]
-{disk,partition,zpool,zfs-volume,dm-crypt,zdev} \...
+{disk,partition,zpool,zvol,crypt,zdev} \...
 
 # POSITIONAL ARGUMENTS *\'zmirror status\'*
 
@@ -560,9 +560,9 @@ usage: zmirror status zpool \[-h\] name
 
 :   id field
 
-# COMMAND *\'zmirror* status zfs-volume\'
+# COMMAND *\'zmirror* status zvol\'
 
-usage: zmirror status zfs-volume \[-h\] pool name
+usage: zmirror status zvol \[-h\] pool name
 
 **pool**
 
@@ -574,9 +574,9 @@ usage: zmirror status zfs-volume \[-h\] pool name
 
 :   id field
 
-# COMMAND *\'zmirror* status dm-crypt\'
+# COMMAND *\'zmirror* status crypt\'
 
-usage: zmirror status dm-crypt \[-h\] name
+usage: zmirror status crypt \[-h\] name
 
 **name**
 

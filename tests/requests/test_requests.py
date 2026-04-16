@@ -144,7 +144,7 @@ class Tests():
 
     user_commands.request(RequestType.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s", enactment_level=0)
 
-    dmcrypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
+    dmcrypt = config.cache_dict["crypt|name:zmirror-sysfs-s"]
 
     # the requests should not be in there, because they must have failed since the partition
     # could not have been onlined.
@@ -182,12 +182,12 @@ class Tests():
   def test_request_zpool_sysfs_b_online(self):
 
     partition = config.cache_dict["partition|name:zmirror-sysfs-b"]
-    dmcrypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-b"]
+    dmcrypt = config.cache_dict["crypt|name:zmirror-sysfs-b"]
 
     assert partition.state.what == EntityState.CONNECTED
     assert dmcrypt.state.what == EntityState.INACTIVE
 
-    dmcrypt_entity = config.config_dict["dm-crypt|name:zmirror-bak-a"]
+    dmcrypt_entity = config.config_dict["crypt|name:zmirror-bak-a"]
 
     assert not dmcrypt_entity.requested
 
@@ -215,7 +215,7 @@ class Tests():
 
     pool = config.config_dict["zpool|name:zmirror-sysfs"]
 
-    dmcrypt_a = config.config_dict["dm-crypt|name:zmirror-sysfs-a"]
+    dmcrypt_a = config.config_dict["crypt|name:zmirror-sysfs-a"]
 
 
     zdev_a = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
@@ -283,7 +283,7 @@ class Tests():
     pool = config.config_dict["zpool|name:zmirror-sysfs"]
     
 
-    crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["crypt|name:zmirror-sysfs-s"]
     assert crypt.state.what == EntityState.INACTIVE
 
     zdev_a = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
@@ -372,7 +372,7 @@ class Tests():
   # disk of bak-a appears (udev: add)
   def test_disk_bak_a_online(self):
 
-    dmcrypt_entity = config.config_dict["dm-crypt|name:zmirror-bak-a"]
+    dmcrypt_entity = config.config_dict["crypt|name:zmirror-bak-a"]
 
     assert not dmcrypt_entity.requested
 
@@ -386,7 +386,7 @@ class Tests():
   # partition of bak-a appears (udev: add)
   def test_partition_bak_a_online(self):
 
-    dmcrypt_entity = config.config_dict["dm-crypt|name:zmirror-bak-a"]
+    dmcrypt_entity = config.config_dict["crypt|name:zmirror-bak-a"]
 
     assert not dmcrypt_entity.requested
 
@@ -400,7 +400,7 @@ class Tests():
   # we simulate sysfs_s being taken offline
   def test_zdev_sysfs_s_offline(self):
 
-    crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["crypt|name:zmirror-sysfs-s"]
     assert crypt.state.what == EntityState.ACTIVE
 
     trigger_event()
@@ -414,7 +414,7 @@ class Tests():
   # ditto
   def test_dmcrypt_sysfs_s_offline(self):
 
-    crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["crypt|name:zmirror-sysfs-s"]
     assert crypt.state.what == EntityState.CONNECTED
 
     trigger_event()
@@ -514,7 +514,7 @@ class Tests():
 
     pool = config.config_dict["zpool|name:zmirror-sysfs"]
 
-    crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["crypt|name:zmirror-sysfs-s"]
     assert crypt.state.what == EntityState.INACTIVE
 
     zdev_s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
@@ -644,7 +644,7 @@ class Tests():
     assert RequestType.SCRUB in zdev_bak_a.requested
 
     blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
-    volume = config.cache_dict["zfs-volume|pool:zmirror-bak-a|name:sysfs"]
+    volume = config.cache_dict["zvol|pool:zmirror-bak-a|name:sysfs"]
 
     assert_commands([])
 
@@ -854,7 +854,7 @@ class Tests():
   
   def test_zdev_sysfs_s_offline2(self):
 
-    crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["crypt|name:zmirror-sysfs-s"]
     assert crypt.state.what == EntityState.CONNECTED
 
     trigger_event()

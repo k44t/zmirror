@@ -2123,11 +2123,14 @@ NAME_FOR_TYPE = {
   Partition: "partition",
   ZPool: "zpool",
   ZDev: "zdev",
-  ZFSVolume: "zfs-volume",
-  DMCrypt: "dm-crypt",
+  ZFSVolume: "zvol",
+  DMCrypt: "crypt",
   ZMirror: "zmirror",
   UnavailableDependency: "unavailable-dependency",
   Mirror: "mirror"
 }
 
 TYPE_FOR_NAME = {value: key for key, value in NAME_FOR_TYPE.items()}
+# legacy aliases for cache/config compatibility
+TYPE_FOR_NAME["zfs-volume"] = ZFSVolume
+TYPE_FOR_NAME["dm-crypt"] = DMCrypt

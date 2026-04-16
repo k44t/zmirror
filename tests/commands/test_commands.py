@@ -303,7 +303,7 @@ class Tests():
 
     disk = config.cache_dict["disk|uuid:00000000-0000-0000-0000-000000000004"]
     partition = config.cache_dict["partition|name:zmirror-sysfs-s"]
-    crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["crypt|name:zmirror-sysfs-s"]
     zdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     assert disk.state.what == EntityState.ACTIVE
@@ -333,7 +333,7 @@ class Tests():
 
     disk = config.cache_dict["disk|uuid:00000000-0000-0000-0000-000000000004"]
     partition = config.cache_dict["partition|name:zmirror-sysfs-s"]
-    crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["crypt|name:zmirror-sysfs-s"]
     zdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     trigger_event()
@@ -357,7 +357,7 @@ class Tests():
 
     disk = config.cache_dict["disk|uuid:00000000-0000-0000-0000-000000000004"]
     partition = config.cache_dict["partition|name:zmirror-sysfs-s"]
-    crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["crypt|name:zmirror-sysfs-s"]
     zdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     assert_commands([])
@@ -384,7 +384,7 @@ class Tests():
 
     disk = config.cache_dict["disk|uuid:00000000-0000-0000-0000-000000000004"]
     partition = config.cache_dict["partition|name:zmirror-sysfs-s"]
-    crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["crypt|name:zmirror-sysfs-s"]
     zdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     trigger_event()
@@ -613,7 +613,7 @@ class Tests():
     assert zpool.state.what == EntityState.CONNECTED
 
     blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
-    volume = config.cache_dict["zfs-volume|pool:zmirror-bak-a|name:sysfs"]
+    volume = config.cache_dict["zvol|pool:zmirror-bak-a|name:sysfs"]
 
     assert volume.state.what == EntityState.CONNECTED
     assert blockdev.state.what == EntityState.INACTIVE
@@ -699,7 +699,7 @@ class Tests():
   def test_zdev_bak_a_sysfs_disconnected(self):
 
     blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
-    volume = config.cache_dict["zfs-volume|pool:zmirror-bak-a|name:sysfs"]
+    volume = config.cache_dict["zvol|pool:zmirror-bak-a|name:sysfs"]
 
     trigger_event()
 
@@ -712,7 +712,7 @@ class Tests():
   def test_zfs_volume_bak_a_sysfs_offline(self):
     
     blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
-    volume = config.cache_dict["zfs-volume|pool:zmirror-bak-a|name:sysfs"]
+    volume = config.cache_dict["zvol|pool:zmirror-bak-a|name:sysfs"]
 
     trigger_event()
 
@@ -749,7 +749,7 @@ class Tests():
   def test_zfs_volume_bak_a_big_offline(self):
 
     big_blockdev = config.cache_dict["zdev|pool:zmirror-big|name:zvol/zmirror-bak-a/big"]
-    big_volume = config.cache_dict["zfs-volume|pool:zmirror-bak-a|name:big"]
+    big_volume = config.cache_dict["zvol|pool:zmirror-bak-a|name:big"]
 
     trigger_event()
 
@@ -821,7 +821,7 @@ class Tests():
 
     trigger_event()
 
-    dm_alpha = config.cache_dict["dm-crypt|name:zmirror-bak-b-alpha"]
+    dm_alpha = config.cache_dict["crypt|name:zmirror-bak-b-alpha"]
     blockdev_alpha = config.cache_dict["zdev|pool:zmirror-bak-b|name:zmirror-bak-b-alpha"]
 
     assert dm_alpha.state.what == EntityState.CONNECTED
@@ -880,8 +880,8 @@ class Tests():
 
     blockdev_alpha = config.cache_dict["zdev|pool:zmirror-bak-b|name:zmirror-bak-b-alpha"]
     blockdev_beta = config.cache_dict["zdev|pool:zmirror-bak-b|name:zmirror-bak-b-beta"]
-    dm_alpha = config.cache_dict["dm-crypt|name:zmirror-bak-b-alpha"]
-    dm_beta = config.cache_dict["dm-crypt|name:zmirror-bak-b-beta"]
+    dm_alpha = config.cache_dict["crypt|name:zmirror-bak-b-alpha"]
+    dm_beta = config.cache_dict["crypt|name:zmirror-bak-b-beta"]
     zpool = config.cache_dict["zpool|name:zmirror-bak-b"]
     zpool_config = uncached(zpool)
 
@@ -1021,8 +1021,8 @@ class Tests():
 
     blockdev_alpha = config.cache_dict["zdev|pool:zmirror-bak-b|name:zmirror-bak-b-alpha"]
     blockdev_beta = config.cache_dict["zdev|pool:zmirror-bak-b|name:zmirror-bak-b-beta"]
-    dm_alpha = config.cache_dict["dm-crypt|name:zmirror-bak-b-alpha"]
-    dm_beta = config.cache_dict["dm-crypt|name:zmirror-bak-b-beta"]
+    dm_alpha = config.cache_dict["crypt|name:zmirror-bak-b-alpha"]
+    dm_beta = config.cache_dict["crypt|name:zmirror-bak-b-beta"]
     zpool = config.cache_dict["zpool|name:zmirror-bak-b"]
 
     assert dm_alpha.state.what == EntityState.ACTIVE

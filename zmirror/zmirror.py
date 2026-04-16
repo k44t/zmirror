@@ -147,13 +147,13 @@ def make_arg_parser():
   subcmd("clear-cache", help="clears the cache and removes the cache file (which stores the dates of when the maintenance tasks were last run). Triggers a configuration reload.")
   subcmd("reload-config", help="reloads the configuration.")
 
-  subcmd("scrub-all", cancel=True, help="requests all configured zdevs to be scrubbed. This will bring all necessary and available parent devices (i.e. dm-crypts) online.")
-  subcmd("scrub-overdue", help="requests zdevs to be scrubbed if they are behind their configured `scrub_interval`. This will bring all necessary and available parent devices (i.e. `dm-crypt`s) online.")
+  subcmd("scrub-all", cancel=True, help="requests all configured zdevs to be scrubbed. This will bring all necessary and available parent devices (i.e. crypts) online.")
+  subcmd("scrub-overdue", help="requests zdevs to be scrubbed if they are behind their configured `scrub_interval`. This will bring all necessary and available parent devices (i.e. `crypt`s) online.")
 
   subcmd("resilver-overdue", help="requests zdevs to be resilvered if they are behind their configured `resilver_interval`. Since a resilver happens whenever a mirrored device is brought online, this really does nothing but (try to) online the respective devices.")
 
-  subcmd("trim-all", cancel=True, help="requests all configured zdevs to be trimmed. This will bring all necessary and available parent devices (i.e. `dm-crypt`s) online.")
-  subcmd("trim-overdue", help="requests zdevs to be trimmed if they are behind their configured trim_interval. This will bring all necessary and available parent devices (i.e. `dm-crypt`s) online.")
+  subcmd("trim-all", cancel=True, help="requests all configured zdevs to be trimmed. This will bring all necessary and available parent devices (i.e. `crypt`s) online.")
+  subcmd("trim-overdue", help="requests zdevs to be trimmed if they are behind their configured trim_interval. This will bring all necessary and available parent devices (i.e. `crypt`s) online.")
 
 
   subcmd("online-all", cancel=True, help="requests all configured devices to be onlined.")

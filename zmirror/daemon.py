@@ -412,7 +412,7 @@ def handle(env):
             for devlink in devlinks:
               match = re.match(r'/dev/zvol/(?P<pool>[^/]+)/(?P<volume>.+)$', devlink)
               if match and not re.match(r'-part[0-9]+$', match.group("volume")):
-                # zfs-volume state transitions are virtual and follow parent pool state.
+                # zvol state transitions are virtual and follow parent pool state.
                 # We keep zvol udev events as handled but do not map them to state changes.
                 event_handled = True
                 break
