@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 import re
 import logging
+import json
 from typing import Optional
 
 from .util import init_cache_db, load_yaml_config, remove_cache_db, require_path
@@ -162,7 +163,7 @@ def find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path):
   return find_or_create_cache(ZDev, pool=zpool, name=vdev_name)
 
 def get_zpool_status(zpool_name):
-  return simple_string_command(f"zpool status {zpool_name}", f"failed to get status of zpool {zpool_name}", log.debug)
+  return simple_json_command(f"zpool status {zpool_name} --json", f"failed to get status of zpool {zpool_name}", log.debug)
 
 
 def simple_string_command(command, error, logfn=log.error):
@@ -170,6 +171,17 @@ def simple_string_command(command, error, logfn=log.error):
   if rcode == 0:
     return "\n".join(zpool_status)
   else:
+    logfn(error)
+    return None
+
+
+def simple_json_command(command, error, logfn=log.error):
+  text = simple_string_command(command, error, logfn)
+  if text is None:
+    return None
+  try:
+    return json.loads(text)
+  except Exception:
     logfn(error)
     return None
   
@@ -428,26 +440,54 @@ def get_zpool_backing_device_state(zpool, dev):
   status = config.get_zpool_status(zpool)
   if status is None:
     return None
+
+  pools = status.get("pools", {}) if isinstance(status, dict) else {}
+  pool_data = pools.get(zpool)
+  if not isinstance(pool_data, dict):
+    return None
+
+  pool_vdevs = pool_data.get("vdevs", {})
+  root_vdev = pool_vdevs.get(zpool, {}) if isinstance(pool_vdevs, dict) else {}
+  root_children = root_vdev.get("vdevs", {}) if isinstance(root_vdev, dict) else {}
+
+  vdev = None
+  stack = [root_children]
+  while stack:
+    node = stack.pop()
+    if not isinstance(node, dict):
+      continue
+    for child in node.values():
+      if not isinstance(child, dict):
+        continue
+      if child.get("name") == dev:
+        vdev = child
+        stack = []
+        break
+      nested = child.get("vdevs")
+      if isinstance(nested, dict):
+        stack.append(nested)
+
+  if vdev is None:
+    return None
+
   opers = set()
-  scrubbing = "scrub in progress" in status
+  scan = pool_data.get("scan_stats", {}) if isinstance(pool_data, dict) else {}
+  scan_function = str(scan.get("function", "")).upper()
+  scan_state = str(scan.get("state", "")).upper()
+  scrubbing = scan_function == "SCRUB" and scan_state not in {"FINISHED", "NONE", "-", ""}
+  resilvering = scan_function == "RESILVER" and scan_state not in {"FINISHED", "NONE", "-", ""}
+
   state = EntityState.DISCONNECTED
-  for match in POOL_DEVICES_REGEX.finditer(status):
-    if match.group("dev") == dev:
-      state = match.group("state")
-      if state == "ONLINE":
-        state = EntityState.ACTIVE
-        if scrubbing:
-          opers.add(Operation.SCRUB)
-      else:
-        state = EntityState.INACTIVE
-      opernames = match.group("operations")
-      if opernames is not None:
-        if "resilver" in opernames:
-          opers.add(Operation.RESILVER)
-        if "trim" in opers:
-          opers.add(Operation.TRIM)
-      return (state, opers)
-  return None
+  vdev_state = str(vdev.get("state", ""))
+  if vdev_state == "ONLINE":
+    state = EntityState.ACTIVE
+    if scrubbing:
+      opers.add(Operation.SCRUB)
+    if resilvering:
+      opers.add(Operation.RESILVER)
+  else:
+    state = EntityState.INACTIVE
+  return (state, opers)
 
 POOL_SCRUBBING_REGEX = re.compile(r'scrub in progress', re.MULTILINE)
 

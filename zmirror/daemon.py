@@ -74,7 +74,41 @@ def _counter_nonzero(value):
     return value not in {"0", "-", ""}
 
 
-POOL_SCRUB_ERRORS_REGEX = re.compile(r'^\s*scan:.*\bwith\s+(?P<errors>[0-9]+)\s+errors\b', re.MULTILINE)
+def _leaf_vdevs(vdevs):
+  if not isinstance(vdevs, dict):
+    return
+  for vdev in vdevs.values():
+    if not isinstance(vdev, dict):
+      continue
+    nested = vdev.get("vdevs")
+    if isinstance(nested, dict) and nested:
+      yield from _leaf_vdevs(nested)
+    else:
+      yield vdev
+
+
+def _pool_status_data(zpool, zpool_status):
+  if not isinstance(zpool_status, dict):
+    return None
+  pools = zpool_status.get("pools", {})
+  if not isinstance(pools, dict):
+    return None
+  pool_data = pools.get(zpool)
+  if not isinstance(pool_data, dict):
+    return None
+  return pool_data
+
+
+def _pool_resilvering(snapshot):
+  pool_data = snapshot.get("pool") if isinstance(snapshot, dict) else None
+  if not isinstance(pool_data, dict):
+    return False
+  scan_stats = pool_data.get("scan_stats", {})
+  if not isinstance(scan_stats, dict):
+    return False
+  fn = str(scan_stats.get("function", "")).upper()
+  st = str(scan_stats.get("state", "")).upper()
+  return fn == "RESILVER" and st not in {"FINISHED", "NONE", "-", ""}
 
 
 def _parents_all_online(cache):
@@ -101,28 +135,46 @@ def _collect_pool_status_snapshot(zpool, zpool_status=None):
   if zpool_status is None:
     return None
 
+  pool_data = _pool_status_data(zpool, zpool_status)
+  if pool_data is None:
+    return None
+
   devices = {}
   scrub_errors = None
-  scrub_errors_match = POOL_SCRUB_ERRORS_REGEX.search(zpool_status)
-  if scrub_errors_match is not None:
-    scrub_errors = int(scrub_errors_match.group("errors"))
+  scan_stats = pool_data.get("scan_stats", {})
+  if isinstance(scan_stats, dict):
+    scan_errors = scan_stats.get("errors")
+    if scan_errors is not None:
+      try:
+        scrub_errors = int(scan_errors)
+      except Exception:
+        scrub_errors = None
 
-  for match in POOL_DEVICES_REGEX.finditer(zpool_status):
-    dev = match.group("dev")
+  pool_vdevs = pool_data.get("vdevs", {})
+  root_vdev = pool_vdevs.get(zpool, {}) if isinstance(pool_vdevs, dict) else {}
+  root_children = root_vdev.get("vdevs", {}) if isinstance(root_vdev, dict) else {}
+
+  for vdev in _leaf_vdevs(root_children):
+    dev = vdev.get("name")
+    if not isinstance(dev, str):
+      continue
     if MIRROR_OR_RAIDZ_REGEX.match(dev):
       continue
+    read_errors = vdev.get("read_errors", "0")
+    write_errors = vdev.get("write_errors", "0")
+    cksum_errors = vdev.get("checksum_errors", "0")
     devices[dev] = {
-      "state": match.group("state"),
-      "read": match.group("read"),
-      "write": match.group("write"),
-      "cksum": match.group("cksum"),
-      "operations": match.group("operations") or "",
-      "errors": _counter_nonzero(match.group("read")) or _counter_nonzero(match.group("write")) or _counter_nonzero(match.group("cksum")),
+      "state": str(vdev.get("state", "")),
+      "read": read_errors,
+      "write": write_errors,
+      "cksum": cksum_errors,
+      "errors": _counter_nonzero(read_errors) or _counter_nonzero(write_errors) or _counter_nonzero(cksum_errors),
     }
 
   return {
     "zpool": zpool,
     "scrub_errors": scrub_errors,
+    "pool": pool_data,
     "devices": devices,
   }
 
@@ -149,13 +201,19 @@ def update_vdev_error_state(snapshot):
     log.debug(f"failed to update vdev error state from snapshot: {ex}")
     return
 
-  for dev, status in devices.items():
+  configured_devs = config.zfs_blockdevs.get(zpool, {})
+  for dev in configured_devs.keys():
     cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
-    eligible = _is_device_eligible(cache, status)
-    if not eligible:
+    if not is_online_state(cache.state.what):
       cache.errors = False
       continue
-    cache.errors = status["errors"]
+
+    status = devices.get(dev)
+    if status is None:
+      cache.errors = True
+      continue
+
+    cache.errors = status["state"] != "ONLINE" or status["errors"]
 
 
 
@@ -198,30 +256,21 @@ def handle(env):
       log.debug(f"zpool {zpool}: {zevent}")
       zpool_status = config.get_zpool_status(zpool)
       pool_snapshot = _collect_pool_status_snapshot(zpool, zpool_status)
-      update_vdev_error_state(pool_snapshot)
-
-
-
-
       found_online = False
-      if zpool_status is None:
+      if pool_snapshot is None:
         log.error(f"zpool status failed for pool {zpool}")
       else:
-        for match in POOL_DEVICES_REGEX.finditer(zpool_status):
-          dev = match.group("dev")
-          if MIRROR_OR_RAIDZ_REGEX.match(dev):
-            continue
-
+        resilvering = _pool_resilvering(pool_snapshot)
+        for dev, status in pool_snapshot["devices"].items():
           cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
-          if match.group("state") == "ONLINE":
+          if status["state"] == "ONLINE":
 
             found_online = True
             if zevent == "scrub_finish":
               if since_in(Operation.SCRUB, cache.operations):
                 log.info(f"zdev {cache.pool}:{cache.name}: scrubbing finished")
                 scrub_ok = False
-                if pool_snapshot is not None and cache.name in pool_snapshot["devices"]:
-                  scrub_ok = _scrub_successful(pool_snapshot, cache, pool_snapshot["devices"][cache.name])
+                scrub_ok = _scrub_successful(pool_snapshot, cache, status)
                 handle_scrub_finished(cache, successful_scrub=scrub_ok)
                 event_handled = True
             elif zevent == "scrub_start":
@@ -234,7 +283,7 @@ def handle(env):
               event_handled = True
             elif zevent == "pool_import":
               log.debug(f"zdev {cache.pool}:{cache.name}: pool imported, device online")
-              if "resilvering" in (match.group("operations") or ""):
+              if resilvering:
                 handle_resilver_started(cache)
                 event_handled = True
               else:
@@ -250,6 +299,8 @@ def handle(env):
       if found_online is False:
         log.error("likely bug: zpool event but no devices online")
 
+      update_vdev_error_state(pool_snapshot)
+
     # zpool-vdev event
     elif zevent in ["vdev_online", "statechange", "trim_start", "trim_finish", "trim_suspend", "trim_resume"]:
       # possible cases:
@@ -259,8 +310,6 @@ def handle(env):
         # ZEVENT:: /dev/{sda3}
         # ZEVENT:: /dev/disk/by-partlabel/mypartlabel
       vdev_path = env[EnvKey.ZEVENT_VDEV_PATH.value]
-      pool_snapshot = _collect_pool_status_snapshot(zpool)
-      update_vdev_error_state(pool_snapshot)
       cache = find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path)
       if zevent == "vdev_online":
         # we have no event by witch we can reliably capture that a resilver started for a zdev
@@ -287,6 +336,9 @@ def handle(env):
         handle_trim_canceled(cache)
         event_handled = True
 
+      pool_snapshot = _collect_pool_status_snapshot(zpool)
+      update_vdev_error_state(pool_snapshot)
+
     # zool-vdev event
     elif zevent in ["resilver_start", "resilver_finish"]:
 
@@ -296,16 +348,16 @@ def handle(env):
 
       zpool_status = config.get_zpool_status(zpool)
       pool_snapshot = _collect_pool_status_snapshot(zpool, zpool_status)
-      update_vdev_error_state(pool_snapshot)
-      
-      for match in POOL_DEVICES_REGEX.finditer(zpool_status):
-        if match.group("state") == "ONLINE":
-          dev = match.group("dev")
+      if pool_snapshot is not None:
+        resilvering = _pool_resilvering(pool_snapshot)
+        for dev, status in pool_snapshot["devices"].items():
+          if status["state"] != "ONLINE":
+            continue
           cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
 
 
           if zevent == "resilver_start":
-            if "resilvering" in (match.group("operations") or ""):
+            if resilvering:
               # this method will only have an effect if the operation is not currently resilvering
               # hence this should never have an effect, because we assume that mirrored devices will
               # start resilvering the moment they come online.
@@ -313,10 +365,12 @@ def handle(env):
               event_handled = True
           else:
             log.verbose(f"{human_readable_id(cache)}: handling resilver_finish")
-            if "resilvering" not in (match.group("operations") or ""):
+            if not resilvering:
               if since_in(Operation.RESILVER, cache.operations):
                 handle_resilver_finished(cache)
                 event_handled = True
+
+      update_vdev_error_state(pool_snapshot)
 
           
 

@@ -223,7 +223,7 @@ class Tests():
 
     s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
     cache = cached(s)
-    assert cache.state.what == EntityState.CONNECTED 
+    assert cache.state.what == EntityState.ACTIVE
     assert since_in(Operation.RESILVER, cache.operations)
 
 
@@ -272,4 +272,3 @@ class Tests():
     for timer in config.timers:
       timer.cancel()
     config.timers = []
-

@@ -546,7 +546,6 @@ def make_list_command(op: Operation, overdue=False):
     user_selected_format = hasattr(args, "format")
     table_format = args.format if user_selected_format else "simple"
     terminal_size = shutil.get_terminal_size(fallback=(120, 24))
-    sys.stdout.write(f"{terminal_size.columns}x{terminal_size.lines}\n")
 
     if table_format == "json":
       for item in items:

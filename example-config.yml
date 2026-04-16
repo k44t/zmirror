@@ -81,6 +81,13 @@ scrub_interval: nil # 4 weeks
 # defaults to: `nil` (no interval)
 update_interval: nil # 2 weeks
 
+# extra arguments passed to `zpool import`.
+# useful for search paths like: "-d /dev/disk/by-id -d /dev/mapper"
+# may be overridden per zpool.
+# `nil` or an empty string mean no extra arguments.
+# on a zpool, "no extra arguments" overrides inherited root arguments.
+zpool_import_args: nil
+
 
 # under here all top-level entities (such as disks, partitions, LUKS containers 
 # or zpools
@@ -1184,4 +1191,3 @@ content:
 
             # its a HDD it does not support trim
             trim_interval: nil
-

@@ -224,6 +224,7 @@ class ZMirror:
   update_interval: str = None
   scrub_interval: str = None
   trim_interval: str = None
+  zpool_import_args: str = None
 
   def id(self):
     return make_id(self)
@@ -1045,6 +1046,7 @@ class ZPool(Onlineable, Children):
   name: str = None
 
   root: str = None
+  zpool_import_args: str = None
 
   mount: bool = True
 
@@ -1168,6 +1170,16 @@ class ZPool(Onlineable, Children):
     return state
 
   def finalize_init(self):
+    if self.zpool_import_args is None:
+      self.zpool_import_args = config.config_root.zpool_import_args
+    # empty string explicitly means "no args" and should override root inheritance.
+    if isinstance(self.zpool_import_args, str):
+      normalized = self.zpool_import_args.strip()
+      if normalized == "" or normalized.lower() in {"nil", "none", "void"}:
+        self.zpool_import_args = None
+      else:
+        self.zpool_import_args = normalized
+
     backed = self.backed_by if self.backed_by is not None else []
     self._backed_by = backed
     if self.name in config.zfs_blockdevs:
@@ -1222,9 +1234,10 @@ class ZPool(Onlineable, Children):
     sufficient = self.run_on_backing(is_present_or_online)
     if sufficient:
       log.info(f"{human_readable_id(self)}: sufficient backing devices available, importing zpool.")
+      import_args = f" {self.zpool_import_args}" if self.zpool_import_args else ""
       root = f" -R {self.root}" if self.root else ""
       nomount = f"" if self.mount else " -N"
-      return commands.add_script(f"set -e\nudevadm settle\nzpool import {self.name}{root}{nomount}", unless_redundant = True)
+      return commands.add_script(f"set -e\nudevadm settle\nzpool import{import_args} {self.name}{root}{nomount}", unless_redundant = True)
     else:
       log.info(f"{human_readable_id(self)}: insufficient backing devices available, or per-configuration required backing devices unavailable.")
 

@@ -1,6 +1,8 @@
 
 import inspect
 import os
+import json
+import re
 
 def get_frame_data(levels=0):
   frame = inspect.currentframe()
@@ -45,7 +47,9 @@ def insert_zpool_status_stub(relative_path=None):
         r = file.read()
         if r == "":
           return None
-        return r
+        if path.endswith(".json"):
+          return json.loads(r)
+        return legacy_zpool_status_to_json(zpool, r)
 
       
     if relative_path is not None:
@@ -64,7 +68,7 @@ def insert_zpool_status_stub(relative_path=None):
           if not os.path.isfile(path):
             path = f"{package_path}/res/zpool-status.txt"
             if not os.path.isfile(path):
-              raise ValueError(f"found no candidate for zpool-status.txt")
+                raise ValueError(f"found no candidate for zpool-status.txt")
     return rd(path)
 
 
@@ -72,6 +76,65 @@ def insert_zpool_status_stub(relative_path=None):
 
   import zmirror.config as config #pylint: disable=import-outside-toplevel
   config.get_zpool_status = get_zpool_status_stub
+
+
+def legacy_zpool_status_to_json(zpool_name, text):
+  scrub_errors = None
+  match = re.search(r"with\s+([0-9]+)\s+errors", text)
+  if match:
+    scrub_errors = match.group(1)
+
+  devices = {}
+  in_config = False
+  for line in text.splitlines():
+    leading = len(line) - len(line.lstrip())
+    stripped = line.strip()
+    if stripped == "config:":
+      in_config = True
+      continue
+    if not in_config:
+      continue
+    if stripped == "" or stripped.startswith("NAME "):
+      continue
+    if stripped.startswith("errors:"):
+      break
+    if leading < 4:
+      continue
+
+    parts = stripped.split()
+    if len(parts) < 5:
+      continue
+
+    name = parts[0]
+    state = parts[1]
+    read_errors = parts[2]
+    write_errors = parts[3]
+    checksum_errors = parts[4]
+    devices[name] = {
+      "name": name,
+      "state": state,
+      "read_errors": read_errors,
+      "write_errors": write_errors,
+      "checksum_errors": checksum_errors,
+    }
+
+  return {
+    "output_version": {"command": "zpool status", "vers_major": 0, "vers_minor": 1},
+    "pools": {
+      zpool_name: {
+        "name": zpool_name,
+        "scan_stats": {"errors": scrub_errors if scrub_errors is not None else "0"},
+        "vdevs": {
+          zpool_name: {
+            "name": zpool_name,
+            "vdev_type": "root",
+            "state": "ONLINE",
+            "vdevs": devices,
+          }
+        },
+      }
+    },
+  }
 
 
 
@@ -158,5 +221,3 @@ def insert_get_zfs_volume_mode_stub():
   
   import zmirror.config as config #pylint: disable=import-outside-toplevel
   config.get_zfs_volume_mode = zfs_volume_mode_stub
-
-
