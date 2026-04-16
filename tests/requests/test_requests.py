@@ -181,7 +181,7 @@ class Tests():
 
   def test_request_zpool_sysfs_b_online(self):
 
-    partition = config.cache_dict["partition|name:zmirror-sysfs-b"]
+    partition = config.cache_dict["part|name:zmirror-sysfs-b"]
     dmcrypt = config.cache_dict["crypt|name:zmirror-sysfs-b"]
 
     assert partition.state.what == EntityState.CONNECTED

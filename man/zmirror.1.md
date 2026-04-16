@@ -326,7 +326,7 @@ usage: zmirror maintenance \[-h\] \[\--socket-path SOCKET_PATH\]
 # COMMAND *\'zmirror* online\'
 
 usage: zmirror online \[-h\] \[\--socket-path SOCKET_PATH\]
-\[\--cancel\] {disk,partition,zpool,zvol,crypt,zdev} \...
+\[\--cancel\] {disk,part,zpool,zvol,crypt,zdev} \...
 
 # POSITIONAL ARGUMENTS *\'zmirror online\'*
 
@@ -342,15 +342,15 @@ usage: zmirror online disk \[-h\] \[\--cancel\] uuid
 
 **\--cancel**
 
-:   # COMMAND *\'zmirror* online partition\'
+:   # COMMAND *\'zmirror* online part\'
 
-usage: zmirror online partition \[-h\] \[\--cancel\] name
+usage: zmirror online part \[-h\] \[\--cancel\] name
 
 **name**
 
 :   id field
 
-# OPTIONS *\'zmirror* online partition\'
+# OPTIONS *\'zmirror* online part\'
 
 **\--cancel**
 
@@ -431,7 +431,7 @@ usage: zmirror online zdev \[-h\] \[\--cancel\] pool name
 :   # COMMAND *\'zmirror* offline\'
 
 usage: zmirror offline \[-h\] \[\--socket-path SOCKET_PATH\]
-{disk,partition,zpool,zvol,crypt,zdev} \...
+{disk,part,zpool,zvol,crypt,zdev} \...
 
 # POSITIONAL ARGUMENTS *\'zmirror offline\'*
 
@@ -447,15 +447,15 @@ usage: zmirror offline disk \[-h\] \[\--cancel\] uuid
 
 **\--cancel**
 
-:   # COMMAND *\'zmirror* offline partition\'
+:   # COMMAND *\'zmirror* offline part\'
 
-usage: zmirror offline partition \[-h\] \[\--cancel\] name
+usage: zmirror offline part \[-h\] \[\--cancel\] name
 
 **name**
 
 :   id field
 
-# OPTIONS *\'zmirror* offline partition\'
+# OPTIONS *\'zmirror* offline part\'
 
 **\--cancel**
 
@@ -532,7 +532,7 @@ usage: zmirror offline zdev \[-h\] \[\--cancel\] pool name
 # COMMAND *\'zmirror* status\'
 
 usage: zmirror status \[-h\] \[\--socket-path SOCKET_PATH\]
-{disk,partition,zpool,zvol,crypt,zdev} \...
+{disk,part,zpool,zvol,crypt,zdev} \...
 
 # POSITIONAL ARGUMENTS *\'zmirror status\'*
 
@@ -544,9 +544,9 @@ usage: zmirror status disk \[-h\] uuid
 
 :   id field
 
-# COMMAND *\'zmirror* status partition\'
+# COMMAND *\'zmirror* status part\'
 
-usage: zmirror status partition \[-h\] name
+usage: zmirror status part \[-h\] name
 
 **name**
 

@@ -117,7 +117,7 @@ class Tests():
     trigger_event()
 
 
-    disk = config.cache_dict["partition|name:zmirror-sysfs-a"]
+    disk = config.cache_dict["part|name:zmirror-sysfs-a"]
     
     assert_commands([
       "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-a zmirror-sysfs-a --key-file ./test/zmirror-key"
@@ -302,7 +302,7 @@ class Tests():
   def test_disk_sysfs_s_offline(self):
 
     disk = config.cache_dict["disk|uuid:00000000-0000-0000-0000-000000000004"]
-    partition = config.cache_dict["partition|name:zmirror-sysfs-s"]
+    partition = config.cache_dict["part|name:zmirror-sysfs-s"]
     crypt = config.cache_dict["crypt|name:zmirror-sysfs-s"]
     zdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
@@ -332,7 +332,7 @@ class Tests():
   def test_partition_sysfs_s_offline(self):
 
     disk = config.cache_dict["disk|uuid:00000000-0000-0000-0000-000000000004"]
-    partition = config.cache_dict["partition|name:zmirror-sysfs-s"]
+    partition = config.cache_dict["part|name:zmirror-sysfs-s"]
     crypt = config.cache_dict["crypt|name:zmirror-sysfs-s"]
     zdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
@@ -356,7 +356,7 @@ class Tests():
   def test_zdev_sysfs_s_offline(self):
 
     disk = config.cache_dict["disk|uuid:00000000-0000-0000-0000-000000000004"]
-    partition = config.cache_dict["partition|name:zmirror-sysfs-s"]
+    partition = config.cache_dict["part|name:zmirror-sysfs-s"]
     crypt = config.cache_dict["crypt|name:zmirror-sysfs-s"]
     zdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
@@ -383,7 +383,7 @@ class Tests():
   def test_dmcrypt_sysfs_s_offline(self):
 
     disk = config.cache_dict["disk|uuid:00000000-0000-0000-0000-000000000004"]
-    partition = config.cache_dict["partition|name:zmirror-sysfs-s"]
+    partition = config.cache_dict["part|name:zmirror-sysfs-s"]
     crypt = config.cache_dict["crypt|name:zmirror-sysfs-s"]
     zdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 

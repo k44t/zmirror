@@ -267,7 +267,7 @@ class Tests():
 
   def test_disk_activates_on_child_online(self):
     disk = config.config_dict["disk|uuid:00000000-0000-0000-0000-000000000004"]
-    partition = config.config_dict["partition|name:zmirror-sysfs-s"]
+    partition = config.config_dict["part|name:zmirror-sysfs-s"]
     disk_cache = cached(disk)
 
     disk_cache.state.what = EntityState.CONNECTED
@@ -278,7 +278,7 @@ class Tests():
 
   def test_disk_deactivates_to_connected_on_children_offline(self):
     disk = config.config_dict["disk|uuid:00000000-0000-0000-0000-000000000004"]
-    partition = config.config_dict["partition|name:zmirror-sysfs-s"]
+    partition = config.config_dict["part|name:zmirror-sysfs-s"]
     disk_cache = cached(disk)
     partition_cache = cached(partition)
 
@@ -291,7 +291,7 @@ class Tests():
 
   def test_disk_onlined_with_online_child_becomes_active(self):
     disk = config.config_dict["disk|uuid:00000000-0000-0000-0000-000000000004"]
-    partition = config.config_dict["partition|name:zmirror-sysfs-s"]
+    partition = config.config_dict["part|name:zmirror-sysfs-s"]
     disk_cache = cached(disk)
     partition_cache = cached(partition)
 
@@ -303,7 +303,7 @@ class Tests():
 
 
   def test_partition_activates_on_child_online(self):
-    partition = config.config_dict["partition|name:zmirror-sysfs-s"]
+    partition = config.config_dict["part|name:zmirror-sysfs-s"]
     dmcrypt = config.config_dict["crypt|name:zmirror-sysfs-s"]
     partition_cache = cached(partition)
 
@@ -314,7 +314,7 @@ class Tests():
 
 
   def test_partition_deactivates_to_connected_on_children_offline(self):
-    partition = config.config_dict["partition|name:zmirror-sysfs-s"]
+    partition = config.config_dict["part|name:zmirror-sysfs-s"]
     dmcrypt = config.config_dict["crypt|name:zmirror-sysfs-s"]
     partition_cache = cached(partition)
     dmcrypt_cache = cached(dmcrypt)
@@ -327,7 +327,7 @@ class Tests():
 
 
   def test_partition_onlined_with_online_child_becomes_active(self):
-    partition = config.config_dict["partition|name:zmirror-sysfs-s"]
+    partition = config.config_dict["part|name:zmirror-sysfs-s"]
     dmcrypt = config.config_dict["crypt|name:zmirror-sysfs-s"]
     partition_cache = cached(partition)
     dmcrypt_cache = cached(dmcrypt)

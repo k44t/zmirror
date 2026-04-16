@@ -2120,7 +2120,7 @@ class ZDev(Onlineable, Embedded, Entity):
 NAME_FOR_TYPE = {
   None: None,
   Disk: "disk",
-  Partition: "partition",
+  Partition: "part",
   ZPool: "zpool",
   ZDev: "zdev",
   ZFSVolume: "zvol",
@@ -2134,3 +2134,4 @@ TYPE_FOR_NAME = {value: key for key, value in NAME_FOR_TYPE.items()}
 # legacy aliases for cache/config compatibility
 TYPE_FOR_NAME["zfs-volume"] = ZFSVolume
 TYPE_FOR_NAME["dm-crypt"] = DMCrypt
+TYPE_FOR_NAME["partition"] = Partition
