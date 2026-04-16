@@ -108,13 +108,13 @@ def load_initial_state(entity, _parent, _ignored):
   if hasattr(entity, "load_initial_state"):
     s = entity.load_initial_state()
     if s is not None:
-      set_cache_state(cached(entity), s, True)
+      cached(entity).set_state(s, since_unknown=True)
 
 def update_initial_state(entity, _parent, _ignored):
   if hasattr(entity, "update_initial_state"):
     s = entity.update_initial_state()
     if s is not None:
-      set_cache_state(cached(entity), s, True)
+      cached(entity).set_state(s, since_unknown=True)
   
 
 

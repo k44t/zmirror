@@ -168,24 +168,6 @@ def is_present_or_online(entity):
 
 
 
-# returns the old state if the state changed if the state changed
-def set_cache_state(entity, st, since_unknown=False):
-  cache = cached(entity)
-  ost = cache.state.what
-  now = None
-  if not since_unknown:
-    now = inaccurate_now()
-  if st == EntityState.INACTIVE or st == EntityState.DISCONNECTED:
-    if cache.state is not None and is_online_state(cache.state.what):
-      cache.last_online = now
-      if hasattr(cache, "last_update") and not since_in(Operation.RESILVER, cache.operations):
-        cache.last_update = now
-  if ost != st:
-    cache.state = Since(st, now)
-    return ost
-
-
-
 name_for_operation = {
   Operation.RESILVER: "update",
   Operation.SCRUB: enum_command_name(Operation.SCRUB),
@@ -236,6 +218,8 @@ class ZMirror:
 
 
 def cached(entity):
+  if entity.is_cache:
+    return entity
   tp, kwargs = entity.id()
   cache = config.find_or_create_cache(tp, **kwargs)
   return cache
@@ -309,6 +293,7 @@ class Entity:
 
   parent = None
   cache = None
+  is_cache: bool = False
   requested: dict = field(default_factory=dict)
   state: Since = field(default_factory=state_since_factory, metadata={"db": True})
   added: int = field(default_factory=unix_timestamp_now, metadata={"db": True})
@@ -450,8 +435,11 @@ class Entity:
       kdstream.newline()
       kdstream.print_property(cache, "last_online", nil=KiSymbol("never"))
 
-  def handle_onlined(self, prev_state):
+  def handle_onlined(self, state=EntityState.CONNECTED):
+    prev_state = self.set_state(state, "onlined")
     succeed_request(self, RequestType.ONLINE)
+    if prev_state is None:
+      return
     tell_parent_child_online(self.parent, self, prev_state)
 
 
@@ -511,23 +499,54 @@ class Entity:
     raise NotImplementedError()
 
   def get_state(self):
+    if self.is_cache:
+      return self.state.what
     return cached(self).state.what
 
-  def is_automatically_active(self):
-    return False
+  def set_state(self, state, log_message=None, since_unknown=False):
+    cache = self
+    if not self.is_cache:
+      cache = self.cache if self.cache is not None else cached(self)
 
-  def handle_disconnected(self, prev_state):
+    prev_state = cache.state.what
+    now = None if since_unknown else inaccurate_now()
+    if state in {EntityState.INACTIVE, EntityState.DISCONNECTED}:
+      if cache.state is not None and is_online_state(cache.state.what):
+        cache.last_online = now
+        # TODO: move last_update transition behavior into ZDev-specific state handling.
+        if hasattr(cache, "last_update") and not since_in(Operation.RESILVER, cache.operations):
+          cache.last_update = now
+    if prev_state == state:
+      return None
+
+    cache.state = Since(state, now)
+    if prev_state is not None and log_message is not None:
+      cache_log_info(cache, log_message)
+    return prev_state
+
+  def handle_disconnected(self):
+    prev_state = self.set_state(EntityState.DISCONNECTED, "disconnected")
+    if prev_state is None:
+      return
     succeed_request(self, RequestType.OFFLINE)
     tell_parent_child_offline(self.parent, self, prev_state)
 
 
 
-  def handle_deactivated(self, prev_state):
+  def handle_deactivated(self):
+    prev_state = self.set_state(EntityState.INACTIVE, "deactivated")
+    if prev_state is None:
+      return
     succeed_request(self, RequestType.OFFLINE)
     tell_parent_child_offline(self.parent, self, prev_state)
     if isinstance(self.parent, Entity):
       if cached(self.parent).state.what == EntityState.DISCONNECTED:
-        handle_disconnected(cached(self))
+        self.handle_disconnected()
+
+  def handle_appeared(self):
+    prev_state = self.set_state(EntityState.INACTIVE, "appeared")
+    if prev_state is not None:
+      succeed_request(self, RequestType.APPEAR)
 
 
 
@@ -540,10 +559,10 @@ class Entity:
       new_state = cache.state.what
     if err_state:
       log.error(f"{human_readable_id(self)} was already {err_state.name}, when parent became ONLINE. This is either some inconsistency in the cache (due to events being missed when zmirror wasn't running), or a bug in zmirror. Setting new state to: {new_state.name}. Please note, that this might not fix all inconsistencies, as now we will not run the event handlers for entity.on_appeared as it would be unsafe without knowledge of the previous state.")
-    prev_state = set_cache_state(cache, new_state)
+    prev_state = self.set_state(new_state)
     if not err_state:
       if hasattr(self, "handle_appeared"):
-        self.handle_appeared(prev_state)
+        self.handle_appeared()
 
 
 
@@ -668,25 +687,29 @@ class Children(Entity):
       raise ValueError(f"bug: request type {request_type.name} cannot be fulfilled by class `Children`")
   
 
-  def handle_onlined(self, prev_state):
-    super().handle_onlined(prev_state)
+  def handle_onlined(self, state=EntityState.CONNECTED):
+    super().handle_onlined(state=state)
     for c in self.content:
       handle_parent_online(c)
   
 
 
 
-  def handle_deactivated(self, prev_state):
-    super().handle_deactivated(prev_state)
-    for c in self.content:
-      handle_parent_offline(c)
+  def handle_deactivated(self):
+    prev_state = self.get_state()
+    super().handle_deactivated()
+    if self.get_state() != prev_state:
+      for c in self.content:
+        handle_parent_offline(c)
 
 
 
-  def handle_disconnected(self, prev_state):
-    super().handle_disconnected(prev_state)
-    for c in self.content:
-      handle_parent_offline(c)
+  def handle_disconnected(self):
+    prev_state = self.get_state()
+    super().handle_disconnected()
+    if self.get_state() != prev_state:
+      for c in self.content:
+        handle_parent_offline(c)
 
 
 
@@ -790,27 +813,26 @@ class Disk(ManualChildren):
 
 
 
-  def handle_appeared(self, prev_state):
+  def handle_appeared(self):
     raise NotImplementedError(f"`{type(self).__name__}`s do not appear, they can only be ONLINE or DISCONNECTED")
   
-  def handle_onlined(self, prev_state):
-    possibly_force_enable_trim(self)
-    super().handle_onlined(prev_state)
-    cache = cached(self)
-    if cache.state.what == EntityState.CONNECTED and any(is_online(child) for child in self.content):
-      set_cache_state(cache, EntityState.ACTIVE)
+  def handle_onlined(self, state=EntityState.CONNECTED):
+    prev_state = self.get_state()
+    if any(is_online(child) for child in self.content):
+      state = EntityState.ACTIVE
+    super().handle_onlined(state=state)
+    if self.get_state() != prev_state:
+      possibly_force_enable_trim(self)
 
   def handle_child_online(self, _child, _prev_state):
     cache = cached(self)
     if cache.state.what == EntityState.CONNECTED:
-      set_cache_state(cache, EntityState.ACTIVE)
-      cache_log_info(cache, "activated")
+      self.set_state(EntityState.ACTIVE, "activated")
 
   def handle_children_offline(self):
     cache = cached(self)
     if cache.state.what == EntityState.ACTIVE:
-      set_cache_state(cache, EntityState.CONNECTED)
-      cache_log_info(cache, "deactivated")
+      self.set_state(EntityState.CONNECTED, "deactivated")
     return super().handle_children_offline()
 
 
@@ -1153,9 +1175,6 @@ class ZPool(Onlineable, Children):
       self.enact_requests()
       run_event_handlers(self, "backing_appeared")
 
-  def handle_children_offline(self):
-    return super().handle_children_offline()
-
   def _is_content_effectively_online(self, entity):
     if isinstance(entity, ZFSVolume):
       for child in entity.content:
@@ -1173,10 +1192,6 @@ class ZPool(Onlineable, Children):
       if self._is_content_effectively_online(content):
         return
     self.handle_children_offline()
-
-  def handle_disconnected(self, prev_state):
-    return super().handle_disconnected(prev_state)
-
 
   def load_initial_state(self):
     state = EntityState.DISCONNECTED
@@ -1302,8 +1317,8 @@ class ZFSDataset(Entity):
       return True
     return super().state_allows(request_type)
 
-  def handle_appeared(self, prev_state):
-    succeed_request(self, RequestType.APPEAR)
+  def handle_appeared(self):
+    super().handle_appeared()
     self.enact_requests()
     run_event_handlers(self, "appeared")
 
@@ -1376,13 +1391,10 @@ class ZFSVolume(ManualChildren):
       return True
     return super().state_allows(request_type)
 
-  def handle_appeared(self, prev_state):
-    succeed_request(self, RequestType.APPEAR)
+  def handle_appeared(self):
+    super().handle_appeared()
     self.enact_requests()
     run_event_handlers(self, "appeared")
-
-  def handle_children_offline(self):
-    return super().handle_children_offline()
 
   def handle_child_offline(self, child, prev_state):
     super().handle_child_offline(child, prev_state)
@@ -1468,8 +1480,8 @@ class DMCrypt(Onlineable, Embedded, Children):
     return f"/dev/mapper/{self.name}"
 
 
-  def handle_appeared(self, prev_state):
-    succeed_request(self, RequestType.APPEAR)
+  def handle_appeared(self):
+    super().handle_appeared()
     self.enact_requests()
     run_event_handlers(self, "appeared")
 
@@ -1491,12 +1503,6 @@ class DMCrypt(Onlineable, Embedded, Children):
           state = EntityState.INACTIVE
       return state
 
-
-  def handle_children_offline(self):
-    return super().handle_children_offline()
-
-  def handle_child_offline(self, child, prev_state):
-    return super().handle_child_offline(child, prev_state)
 
   def enact_offline(self):
     return commands.add_script(f"cryptsetup close {self.name}")
@@ -1549,6 +1555,8 @@ def run_get_password_command(entity, handler):
 
 
 def uncached(cache, fn=None):
+  if not cache.is_cache:
+    cache = cached(cache)
   entity = config.load_config_for_cache(cache)
   if entity is None:
     log.debug(f"entity not configured: {entity_id_string(cache)}")
@@ -1559,13 +1567,6 @@ def uncached(cache, fn=None):
     return fn(entity)
   else:
     return entity
-
-
-def uncached_handle_by_name(cache, name, prev_state):
-  def do(entity):
-    method = getattr(entity, "handle_" + name)
-    method(prev_state)
-  uncached(cache, do)
 
 
 def uncached_operation_handle_by_name(cache, name):
@@ -1599,11 +1600,12 @@ def inaccurate_now():
 #
 # So the simplification is warrented.
 def handle_resilver_started(cache):
+  cache = cached(cache)
   if not since_in(Operation.RESILVER, cache.operations):
     cache.operations.append(Since(Operation.RESILVER, inaccurate_now()))
     cache_log_info(cache, "resilver started")
   if cache.state.what != EntityState.ACTIVE:
-    set_state_online(cache)
+    cache.set_state(EntityState.ACTIVE)
   cache.last_online = inaccurate_now()
 
 
@@ -1623,8 +1625,9 @@ def handle_zdev_onlined(cache):
 
 
 def handle_resilver_finished(cache):
+  cache = cached(cache)
   if cache.state.what != EntityState.ACTIVE:
-    set_state_online(cache)
+    cache.set_state(EntityState.ACTIVE)
   cache_log_info(cache, "resilvered (updated)")
   cache.last_online = cache.last_update = inaccurate_now()
   since_remove(Operation.RESILVER, cache.operations)
@@ -1696,47 +1699,40 @@ def cache_log_info(cache, message):
 
 # the device or zpool has been taken offline and is not even passively available (it must be reactivated somehow)
 def handle_disconnected(cache):
-  prev_state = set_cache_state(cache, EntityState.DISCONNECTED)
-  if prev_state is not None:
-    cache_log_info(cache, "disconnected")
-    uncached_handle_by_name(cache, "disconnected", prev_state)
+  cache = cached(cache)
+  entity = uncached(cache)
+  if entity is None:
+    cache.set_state(EntityState.DISCONNECTED, "disconnected")
+    return
+  entity.handle_disconnected()
 
 # the device is still passively available
 def handle_deactivated(cache):
-  prev_state = set_cache_state(cache, EntityState.INACTIVE)
-  if prev_state is not None:
-    cache_log_info(cache, "deactivated")
-    uncached_handle_by_name(cache, "deactivated", prev_state)
+  cache = cached(cache)
+  entity = uncached(cache)
+  if entity is None:
+    cache.set_state(EntityState.INACTIVE, "deactivated")
+    return
+  entity.handle_deactivated()
 
 # the device became passively available
 def handle_appeared(cache):
-  prev_state = set_cache_state(cache, EntityState.INACTIVE)
-  if prev_state is not None:
-    cache_log_info(cache, "appeared")
-    uncached_handle_by_name(cache, "appeared", prev_state)
-
-
-def set_state_online(entity):
-  cache = entity
-  configured = entity
-  if not isinstance(entity, Entity):
-    configured = uncached(entity)
-  else:
-    cache = cached(entity)
-
-  state = EntityState.CONNECTED
-  if isinstance(configured, Entity) and configured.is_automatically_active():
-    state = EntityState.ACTIVE
-  if cache.state.what == EntityState.ACTIVE and state == EntityState.CONNECTED:
-    state = EntityState.ACTIVE
-  return set_cache_state(cache, state)
+  cache = cached(cache)
+  entity = uncached(cache)
+  if entity is None:
+    cache.set_state(EntityState.INACTIVE, "appeared")
+    return
+  entity.handle_appeared()
 
 # the device has activated
 def handle_onlined(cache):
-  prev_state = set_state_online(cache)
-  if prev_state is not None:
-    cache_log_info(cache, "onlined")
-    uncached_handle_by_name(cache, "onlined", prev_state)
+  cache = cached(cache)
+  entity = uncached(cache)
+  if entity is None:
+    state = EntityState.ACTIVE if cache.state.what == EntityState.ACTIVE else EntityState.CONNECTED
+    cache.set_state(state, "onlined")
+    return
+  entity.handle_onlined()
 
 
 
@@ -1854,8 +1850,8 @@ class ZDev(Onlineable, Embedded, Entity):
       return None
     return Embedded.unsupported_request(self, request_type)
 
-  def is_automatically_active(self):
-    return True
+  def handle_onlined(self, state=EntityState.ACTIVE):
+    super().handle_onlined(state=state)
 
 
   def state_allows(self, request_type: RequestType):
@@ -2024,8 +2020,8 @@ class ZDev(Onlineable, Embedded, Entity):
         cache.operations.append(Since(oper, None))
     return state
 
-  def handle_appeared(self, prev_state):
-    succeed_request(self, RequestType.APPEAR)
+  def handle_appeared(self):
+    super().handle_appeared()
     pool_id = make_id_string(ZPool, name=self.pool)
     if pool_id in config.config_dict:
       config.config_dict[pool_id].handle_backing_device_appeared()

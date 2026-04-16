@@ -264,6 +264,8 @@ def find_or_create_cache(cache_dict, typ, create_args=None, identifier_prefix=No
     cache_dict[identifier] = cache
   elif not isinstance(cache, typ):
     raise ValueError(f"cache entry not of apropriate type: {typ}")
+  if hasattr(cache, "is_cache"):
+    cache.is_cache = True
   return cache
 
 
