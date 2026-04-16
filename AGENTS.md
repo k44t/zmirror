@@ -25,6 +25,8 @@ This file is for coding agents working in this repository.
 - Run tests: `poetry run pytest`
 - Run one test module: `poetry run pytest tests/commands/test_commands.py`
 - Run CLI entrypoint: `poetry run python -m zmirror --help`
+- Run Python commands via Poetry (for example `poetry run python ...`), not plain `python`.
+- When running tests from an agent, use a hard timeout of 10 seconds (for example `timeout 10s poetry run pytest tests/commands/test_commands.py`).
 
 ## Coding conventions used here
 

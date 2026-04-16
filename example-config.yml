@@ -195,7 +195,7 @@ content:
             on_appeared:
               - online
 
-            on_scrubbed:
+            on_scrub_succeeded:
               - trim
               
             
@@ -324,7 +324,7 @@ content:
                 - online
 
               # after the disk has been scrubbed we want to trim it to preserve performance
-              on_scrubbed:
+              on_scrub_succeeded:
                 - trim
               
               scrub_interval: 2 weeks
@@ -392,7 +392,7 @@ content:
               on_appeared: 
                 - online
 
-              on_scrubbed:
+              on_scrub_succeeded:
                 - trim
 
               scrub_interval: 2 weeks
@@ -459,7 +459,7 @@ content:
                 on_resilvered:
                   - offline
 
-                on_scrubbed:
+                on_scrub_succeeded:
                   - trim
                 
                 # because of the slower speed (same reason as above) I take it offline when the operation
@@ -798,7 +798,7 @@ content:
             # rotating disk (which is backing zmirror-bak-a) we take the
             # blockdev offline right away.
             # 
-            on_scrubbed:
+            on_scrub_succeeded:
               - offline
 
 
@@ -818,7 +818,7 @@ content:
             
             pool: zmirror-big
 
-            on_scrubbed: 
+            on_scrub_succeeded: 
               - offline
 
             on_resilvered: 
@@ -923,7 +923,7 @@ content:
           - !ZDev
             pool: zmirror-sysfs
           
-            on_scrubbed:
+            on_scrub_succeeded:
               - offline
 
             on_resilvered:
@@ -945,7 +945,7 @@ content:
             pool: zmirror-big
 
           
-            on_scrubbed:
+            on_scrub_succeeded:
               - offline
 
             on_resilvered:
@@ -1184,5 +1184,4 @@ content:
 
             # its a HDD it does not support trim
             trim_interval: nil
-
 

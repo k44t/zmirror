@@ -100,12 +100,17 @@ def make_arg_parser():
   ]
 
 
-  list_args_parser.add_argument("--keys", type=lambda s: s.split(','), default=LIST_KEYS, help="only output this list of keys (columns)")
+  list_args_parser.add_argument("--keys", type=lambda s: s.split(','), default=LIST_DEFAULT_KEYS, help="only output this list of keys (columns)")
+  list_args_parser.add_argument("--extra-columns", nargs='+', default=None, help="append additional columns to the default output")
   list_args_parser.add_argument("--no_headers", action="store_true", default=False, help="do not print headers when outputting a table")
-  list_args_parser.add_argument("--format", choices=TABLE_FORMATS, default="plain", help="either `json` or one of the formats defined by the tabulate library (see https://https://pypi.org/project/tabulate/#description)")
+  list_args_parser.add_argument("--format", choices=TABLE_FORMATS, default=argparse.SUPPRESS, help="either `json` or one of the formats defined by the tabulate library (see https://https://pypi.org/project/tabulate/#description)")
   list_args_parser.add_argument("--sort", choices=LIST_KEYS, help="the key (column) to sort for")
   list_args_parser.add_argument("--groups", type=lambda s: s.split(','), default=None, help="limit the entities to the groups given")
   list_args_parser.add_argument("--types", type=lambda s: s.split(','), default=None, help="limit the entitiies to the types given")
+  list_args_parser.add_argument("--ids", nargs='+', default=None, help="limit the entities to these full ids")
+  list_args_parser.add_argument("--id-regex", type=str, default=None, help="limit the entities to ids matching this regex")
+  list_args_parser.add_argument("--hierarchy", action="store_true", default=False, help="expand matched entities to related hierarchy (parents/children plus zpool<->zdev) and indent output")
+  list_args_parser.add_argument("--graph", action="store_true", default=False, help="display matched entities as graph roots, scoped by traversal direction")
 
 
   daemon_parser = subs.add_parser('daemon', parents=[shared_parser, socket_parser], help="starts zmirror in daemon mode")

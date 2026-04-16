@@ -162,6 +162,23 @@ def init_cache_db(cache_file_path):
   conn = sqlite3.connect(cache_file_path)
   conn.execute("PRAGMA foreign_keys = ON")
 
+  def has_column(table_name, column_name):
+    rows = conn.execute(f"PRAGMA table_info({table_name})")
+    return any(row[1] == column_name for row in rows)
+
+  def rename_or_copy_column(old_name, new_name, colspec, copy_expr=None):
+    if has_column("cache_entries", new_name):
+      return
+    if has_column("cache_entries", old_name):
+      try:
+        conn.execute(f"ALTER TABLE cache_entries RENAME COLUMN {old_name} TO {new_name}")
+      except Exception:
+        conn.execute(f"ALTER TABLE cache_entries ADD COLUMN {new_name} {colspec}")
+        expr = old_name if copy_expr is None else copy_expr
+        conn.execute(f"UPDATE cache_entries SET {new_name} = {expr} WHERE {new_name} IS NULL")
+      return
+    conn.execute(f"ALTER TABLE cache_entries ADD COLUMN {new_name} {colspec}")
+
   version = conn.execute("PRAGMA user_version").fetchone()[0]
   if version == 0:
     conn.execute("""
@@ -169,10 +186,12 @@ def init_cache_db(cache_file_path):
         id TEXT PRIMARY KEY,
         state_what TEXT,
         state_since TEXT,
+        added INTEGER,
         last_online TEXT,
         last_update TEXT,
         last_trim TEXT,
-        last_scrub TEXT
+        last_scrub TEXT,
+        errors INTEGER DEFAULT 0
       )
     """)
     conn.execute("""
@@ -185,7 +204,28 @@ def init_cache_db(cache_file_path):
         FOREIGN KEY (entity_id) REFERENCES cache_entries(id) ON DELETE CASCADE
       )
     """)
-    conn.execute("PRAGMA user_version = 1")
+    conn.execute("PRAGMA user_version = 4")
+    conn.commit()
+
+  if version == 1:
+    rename_or_copy_column("added_at", "added", "INTEGER")
+    conn.execute("UPDATE cache_entries SET added = CAST(strftime('%s','now') AS INTEGER) WHERE added IS NULL")
+    rename_or_copy_column("has_errors", "errors", "INTEGER DEFAULT 0")
+    conn.execute("PRAGMA user_version = 4")
+    conn.commit()
+
+  if version == 2:
+    rename_or_copy_column("added_at", "added", "INTEGER")
+    conn.execute("UPDATE cache_entries SET added = CAST(strftime('%s','now') AS INTEGER) WHERE added IS NULL")
+    rename_or_copy_column("has_errors", "errors", "INTEGER DEFAULT 0")
+    conn.execute("PRAGMA user_version = 4")
+    conn.commit()
+
+  if version == 3:
+    rename_or_copy_column("added_at", "added", "INTEGER")
+    conn.execute("UPDATE cache_entries SET added = CAST(strftime('%s','now') AS INTEGER) WHERE added IS NULL")
+    rename_or_copy_column("has_errors", "errors", "INTEGER DEFAULT 0")
+    conn.execute("PRAGMA user_version = 4")
     conn.commit()
 
   return conn

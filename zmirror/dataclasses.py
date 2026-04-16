@@ -15,6 +15,7 @@
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from typing import Any
+import time
 from .util import read_file
 from enum import Enum
 import shutil
@@ -270,6 +271,10 @@ class DependentNotFound(Exception):
 def state_since_factory():
   return Since(EntityState.UNKNOWN, None)
 
+
+def unix_timestamp_now():
+  return int(time.time())
+
 @yaml_data
 class Entity:
 
@@ -277,6 +282,7 @@ class Entity:
   cache = None
   requested: dict = field(default_factory=dict)
   state: Since = field(default_factory=state_since_factory, metadata={"db": True})
+  added: int = field(default_factory=unix_timestamp_now, metadata={"db": True})
   last_online: datetime = field(metadata={"db": True}, default=None)
   notes: str = None
   groups: list = field(default_factory=list)
@@ -297,6 +303,29 @@ class Entity:
   @classmethod
   def id_fields(cls):
     raise NotImplementedError()
+
+  def hrid(self):
+    type_name = get_name_for_type(type(self))
+    id_fields = type(self).id_fields()
+    if len(id_fields) == 0:
+      return f"{type_name}:"
+
+    main_field = id_fields[-1]
+    main_value = getattr(self, main_field, None)
+    if main_value is None:
+      main_value = "-"
+
+    if len(id_fields) == 1:
+      return f"{type_name}: {main_value}"
+
+    rest_values = []
+    for field_name in id_fields[:-1]:
+      field_value = getattr(self, field_name, None)
+      if field_value is None:
+        field_value = "-"
+      rest_values.append(f"{field_value}")
+
+    return f"{type_name}: {main_value} ({', '.join(rest_values)})"
 
 
   def get_last_online(self):
@@ -697,7 +726,7 @@ def possibly_force_enable_trim(self):
       else:
         if state.strip() != "unmap":
           log.warning(f"{human_readable_id(self)}: force enabling trim")
-          return commands.add_command(f"echo unmap > {path}")
+          return commands.add_script(f"echo unmap > {path}")
         else:
           log.info(f"{human_readable_id(self)}: trim already enabled")
 
@@ -755,6 +784,10 @@ class Disk(ManualChildren):
       return make_id(self, uuid=self.uuid)
     else:
       raise ValueError("uuid not set")
+
+  def hrid(self):
+    type_name = get_name_for_type(type(self))
+    return f"{type_name}: {self.info or '-'}"
 
 
 
@@ -1111,18 +1144,18 @@ class ZPool(Onlineable, Children):
 
   def enact_scrub(self):
     self.stop_scrub()
-    return commands.add_command(f"zpool scrub {self.name}", unless_redundant = True)
+    return commands.add_script(f"zpool scrub {self.name}", unless_redundant = True)
 
   def stop_scrub(self):
-    return commands.add_command(f"zpool scrub -s {self.name}", unless_redundant = True)
+    return commands.add_script(f"zpool scrub -s {self.name}", unless_redundant = True)
 
 
   def enact_trim(self):
     self.stop_scrub()
-    return commands.add_command(f"zpool trim {self.name}", unless_redundant = True)
+    return commands.add_script(f"zpool trim {self.name}", unless_redundant = True)
 
   def stop_trim(self):
-    return commands.add_command(f"zpool trim -s {self.name}", unless_redundant = True)
+    return commands.add_script(f"zpool trim -s {self.name}", unless_redundant = True)
 
 
 
@@ -1134,7 +1167,7 @@ class ZPool(Onlineable, Children):
     return self.stop_trim()
 
   def enact_offline(self):
-    return commands.add_command(f"zpool export {self.name}", unless_redundant = True)
+    return commands.add_script(f"zpool export {self.name}", unless_redundant = True)
 
   def enact_online(self):
     if is_online(self):
@@ -1144,10 +1177,9 @@ class ZPool(Onlineable, Children):
     sufficient = self.run_on_backing(is_present_or_online)
     if sufficient:
       log.info(f"{human_readable_id(self)}: sufficient backing devices available, importing zpool.")
-      commands.add_command("udevadm settle")
-      root = f"-R {self.root}" if self.root else ""
-      nomount = f"" if self.mount else "-N"
-      return commands.add_command(f"zpool import {self.name} {root} {nomount}", unless_redundant = True)
+      root = f" -R {self.root}" if self.root else ""
+      nomount = f"" if self.mount else " -N"
+      return commands.add_script(f"set -e\nudevadm settle\nzpool import {self.name}{root}{nomount}", unless_redundant = True)
     else:
       log.info(f"{human_readable_id(self)}: insufficient backing devices available, or per-configuration required backing devices unavailable.")
 
@@ -1228,13 +1260,13 @@ class ZFSDataset(Entity):
       return EntityState.DISCONNECTED
 
   def enact_online(self):
-    return commands.add_command(f"zfs mount {self.parent.name}/{self.name}")
+    return commands.add_script(f"zfs mount {self.parent.name}/{self.name}")
 
   def enact_offline(self):
-    return commands.add_command(f"zfs umount {self.parent.name}/{self.name}")
+    return commands.add_script(f"zfs umount {self.parent.name}/{self.name}")
 
   def enact_snapshot(self):
-    return commands.add_command(f"zfs snapshot {self.parent.name}/{self.name}@zmirror-{inaccurate_now().strftime("%Y-%m-%d_%H-%M-%S")}")
+    return commands.add_script(f"zfs snapshot {self.parent.name}/{self.name}@zmirror-{inaccurate_now().strftime("%Y-%m-%d_%H-%M-%S")}")
 
 
 
@@ -1303,13 +1335,13 @@ class ZFSVolume(Children):
     return state
 
   def enact_online(self):
-    return commands.add_command(f"zfs set volmode=full {self.parent.name}/{self.name}")
+    return commands.add_script(f"zfs set volmode=full {self.parent.name}/{self.name}")
 
   def enact_offline(self):
-    return commands.add_command(f"zfs set volmode=none {self.parent.name}/{self.name}")
+    return commands.add_script(f"zfs set volmode=none {self.parent.name}/{self.name}")
 
   def enact_snapshot(self):
-    return commands.add_command(f"zfs snapshot {self.parent.name}/{self.name}@zmirror-{inaccurate_now().strftime("%Y-%m-%d_%H-%M-%S")}")
+    return commands.add_script(f"zfs snapshot {self.parent.name}/{self.name}@zmirror-{inaccurate_now().strftime("%Y-%m-%d_%H-%M-%S")}")
 
 
   def dev_path(self):
@@ -1395,11 +1427,11 @@ class DMCrypt(Onlineable, Embedded, Children):
     return super().handle_child_offline(child, prev_state)
 
   def enact_offline(self):
-    return commands.add_command(f"cryptsetup close {self.name}")
+    return commands.add_script(f"cryptsetup close {self.name}")
 
   def enact_online(self):
     if self.key_file:
-      return commands.add_command(f"cryptsetup open {self.parent.dev_path()} {self.name} --key-file {self.key_file}")
+      return commands.add_script(f"cryptsetup open {self.parent.dev_path()} {self.name} --key-file {self.key_file}")
     else:
       trials = 3
       def on_error(exception: Exception):
@@ -1416,7 +1448,7 @@ class DMCrypt(Onlineable, Embedded, Children):
         _cmd, _code, outs, _outr = rslt
         pw = "\n".join(outs)
         log.info(f"password received successfully")
-        rslt = commands.add_command(f"cryptsetup open {self.parent.dev_path()} {self.name}", input=pw + "\n").then(None, on_error)
+        rslt = commands.add_script(f"cryptsetup open {self.parent.dev_path()} {self.name}", input=pw + "\n").then(None, on_error)
         return rslt
       def request_password():
         nonlocal trials
@@ -1424,8 +1456,8 @@ class DMCrypt(Onlineable, Embedded, Children):
           log.error("password request cancelled (or ssh-askpass not available)")
           raise exc
         if config.running:
-          return commands.add_command(f"DISPLAY=:0 ssh-askpass 'zmirror: encryption key for: {backslash_escape("'", human_readable_id(self))} (remaining trys: {trials})'").then(on_password_given, on_reject)
-          # return commands.add_command(f"systemd-ask-password --id='zmirror:{backslash_escape("'",entity_id_string(self))}' --timeout=60 --user --echo=masked 'zmirror: encryption key for: {backslash_escape("'", human_readable_id(self))} (remaining trys: {trials})'").then(on_password_given, on_error)
+          return commands.add_script(f"DISPLAY=:0 ssh-askpass 'zmirror: encryption key for: {backslash_escape("'", human_readable_id(self))} (remaining trys: {trials})'").then(on_password_given, on_reject)
+          # return commands.add_script(f"systemd-ask-password --id='zmirror:{backslash_escape("'",entity_id_string(self))}' --timeout=60 --user --echo=masked 'zmirror: encryption key for: {backslash_escape("'", human_readable_id(self))} (remaining trys: {trials})'").then(on_password_given, on_error)
         else:
           raise ValueError("zmirror is shutting down")
       return request_password()
@@ -1441,7 +1473,7 @@ def run_get_password_command(entity, handler):
     raise ValueError("no password requesting binary found")
 
   # TODO implement properly
-  commands.add_command(cmd)
+  commands.add_script(cmd)
 
 
 def uncached(cache, fn=None):
@@ -1478,10 +1510,6 @@ def uncached_userevent_by_name(cache, name):
 
 def inaccurate_now():
   return datetime.now().replace(microsecond=0)
-
-
-def inaccurate_datetime(td):
-  return td - timedelta(microseconds = td.microseconds)
 
 # zmirror assumes a mirrored device that was just onlined (via zpool online)
 # is in "resilvering" state right away. This assumption is a simplification
@@ -1538,13 +1566,18 @@ def handle_scrub_started(cache):
   uncached(cache, do)
 
 
-def handle_scrub_finished(cache):
-  cache_log_info(cache, "scrubbed")
-  now = inaccurate_now()
+def handle_scrub_finished(cache, successful_scrub=False):
+  was_scrubbing = since_in(Operation.SCRUB, cache.operations)
+  successful_scrub = successful_scrub and was_scrubbing
+  if successful_scrub:
+    cache_log_info(cache, "successfully scrubbed")
+  else:
+    cache_log_info(cache, "scrub finished with errors")
   since_remove(Operation.SCRUB, cache.operations)
-  cache.last_scrub = now
+  if successful_scrub:
+    cache.last_scrub = inaccurate_now()
   def do(entity):
-    entity.handle_scrub_finished()
+    entity.handle_scrub_finished(successful_scrub)
   uncached(cache, do)
 
 
@@ -1696,10 +1729,13 @@ class ZDev(Onlineable, Embedded, Entity):
   last_update: datetime = field(metadata={"db": True}, default=None)
   last_scrub: datetime = field(metadata={"db": True}, default=None)
   last_trim: datetime = field(metadata={"db": True}, default=None)
+  errors: bool = field(metadata={"db": True}, default=False)
 
 
   on_trimmed: list = field(default_factory=list)
-  on_scrubbed: list = field(default_factory=list)
+  on_scrub_succeeded: list = field(default_factory=list)
+  on_scrub_failed: list = field(default_factory=list)
+  on_scrub_finished: list = field(default_factory=list)
   on_scrub_canceled: list = field(default_factory=list)
   on_trim_canceled: list = field(default_factory=list)
   on_resilvered: list = field(default_factory=list)
@@ -1768,20 +1804,30 @@ class ZDev(Onlineable, Embedded, Entity):
     interval = self.effective_interval(op)
     if interval is not None:
       cache = cached(self)
-      # parsing the schedule delta will result in a timestamp calculated from now
-      allowed_delta = dateparser.parse(interval).replace(microsecond=0, second=0)
-      if (datetime.now() - allowed_delta) > timedelta(hours=24):
-        allowed_delta = allowed_delta.replace(hour=0, minute=0)
-      # this means that allowed_delta is a timestamp in the past
+      now = inaccurate_now()
+      allowed_delta_since = dateparser.parse(interval)
+      if allowed_delta_since is None:
+        return False
+      allowed_delta = now - allowed_delta_since
+
       last = self.last(op)
-      if last is None or allowed_delta > last:
+      if last is None:
+        if cache.added is None:
+          base = now
+        else:
+          base = datetime.fromtimestamp(cache.added)
+      else:
+        base = last
+
+      overdue_for = now - (base + allowed_delta)
+      if overdue_for > timedelta(0):
         if op == Operation.RESILVER:
           if cache.state.what == EntityState.ONLINE and not since_in(Operation.RESILVER, cache.operations):
             return False
-        if last is None:
-          return inaccurate_datetime(allowed_delta - datetime.min)
-        else:
-          return inaccurate_datetime(allowed_delta - last)
+        overdue_since = now - overdue_for
+        if overdue_since.microsecond > 0:
+          overdue_since = overdue_since + timedelta(seconds=1)
+        return overdue_since.replace(microsecond=0)
     return False
 
   def handle_resilver_finished(self):
@@ -1898,9 +1944,13 @@ class ZDev(Onlineable, Embedded, Entity):
     succeed_request(self, RequestType.CANCEL_SCRUB)
     run_event_handlers(self, "scrub_canceled")
 
-  def handle_scrub_finished(self):
+  def handle_scrub_finished(self, successful_scrub=False):
     succeed_request(self, RequestType.SCRUB)
-    run_event_handlers(self, "scrubbed")
+    if successful_scrub:
+      run_event_handlers(self, "scrub_succeeded")
+    else:
+      run_event_handlers(self, "scrub_failed")
+    run_event_handlers(self, "scrub_finished")
 
 
   def handle_trim_started(self):
@@ -1915,20 +1965,20 @@ class ZDev(Onlineable, Embedded, Entity):
     run_event_handlers(self, "trimmed")
 
   def enact_offline(self):
-    return commands.add_command(f"zpool offline {self.pool} {self.dev_name()}", unless_redundant = True)
+    return commands.add_script(f"zpool offline {self.pool} {self.dev_name()}", unless_redundant = True)
 
   def enact_online(self):
-    return commands.add_command(f"zpool online {self.pool} {self.dev_name()}", unless_redundant = True)
+    return commands.add_script(f"zpool online {self.pool} {self.dev_name()}", unless_redundant = True)
 
   def enact_trim(self):
-    return commands.add_command(f"zpool trim {self.pool} {self.dev_name()}", unless_redundant = True)
+    return commands.add_script(f"zpool trim {self.pool} {self.dev_name()}", unless_redundant = True)
 
   def enact_scrub(self):
     self.stop_scrub()
-    return commands.add_command(f"zpool scrub {self.pool}", unless_redundant = True)
+    return commands.add_script(f"zpool scrub {self.pool}", unless_redundant = True)
 
   def stop_scrub(self):
-    return commands.add_command(f"zpool scrub -s {self.pool}", unless_redundant = True)
+    return commands.add_script(f"zpool scrub -s {self.pool}", unless_redundant = True)
 
   def enact_cancel_scrub(self):
     return self.stop_scrub()
@@ -1937,10 +1987,10 @@ class ZDev(Onlineable, Embedded, Entity):
     return self.stop_trim()
 
   def stop_trim(self):
-    return commands.add_command(f"zpool trim -s {self.pool} {self.dev_name()}", unless_redundant = True)
+    return commands.add_script(f"zpool trim -s {self.pool} {self.dev_name()}", unless_redundant = True)
 
   def __kiify__(self, kd_stream: KdStream):
-    kd_stream.print_partial_obj(self, ["pool", "dev", "state", "operations", "last_online", "last_update", "last_scrub", "last_trim"])
+    kd_stream.print_partial_obj(self, ["pool", "dev", "state", "operations", "last_online", "last_update", "last_scrub", "last_trim", "errors"])
 
 
 

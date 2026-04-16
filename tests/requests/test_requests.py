@@ -79,6 +79,10 @@ class Tests():
     for entity in config.cache_dict.values():
       assert entity.state.what == EntityState.DISCONNECTED
 
+  @classmethod
+  def teardown_class(cls):
+    zmirror.commands.stop_workers()
+
 
   def setup_method(self, method): #pylint: disable=unused-argument
     pass
@@ -140,7 +144,7 @@ class Tests():
 
     user_commands.request(RequestType.ONLINE, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s", enactment_level=0)
 
-    dmcrypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-s"]
+    dmcrypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
 
     # the requests should not be in there, because they must have failed since the partition
     # could not have been onlined.
@@ -158,7 +162,7 @@ class Tests():
 
 
     assert_commands([
-      'echo unmap > /#/projects/zmirror/tests/requests/res/provisioning_mode.txt'
+      re.compile(r'echo unmap > .+/tests/requests/res/provisioning_mode\.txt')
     ])
 
 
@@ -177,13 +181,13 @@ class Tests():
 
   def test_request_zpool_sysfs_b_online(self):
 
-    partition = config.cache_dict["Partition|name:zmirror-sysfs-b"]
-    dmcrypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-b"]
+    partition = config.cache_dict["partition|name:zmirror-sysfs-b"]
+    dmcrypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-b"]
 
     assert partition.state.what == EntityState.ONLINE
     assert dmcrypt.state.what == EntityState.INACTIVE
 
-    dmcrypt_entity = config.config_dict["DMCrypt|name:zmirror-bak-a"]
+    dmcrypt_entity = config.config_dict["dm-crypt|name:zmirror-bak-a"]
 
     assert not dmcrypt_entity.requested
 
@@ -209,12 +213,12 @@ class Tests():
   # dmcrypt of sysfs-a appears
   def test_dmcrypt_sysfs_a_online(self):
 
-    pool = config.config_dict["ZPool|name:zmirror-sysfs"]
+    pool = config.config_dict["zpool|name:zmirror-sysfs"]
 
-    dmcrypt_a = config.config_dict["DMCrypt|name:zmirror-sysfs-a"]
+    dmcrypt_a = config.config_dict["dm-crypt|name:zmirror-sysfs-a"]
 
 
-    zdev_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+    zdev_a = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
 
 
     assert RequestType.ONLINE in dmcrypt_a.requested
@@ -276,15 +280,15 @@ class Tests():
   # dmcrypt of sysfs-b appears
   def test_dmcrypt_sysfs_s_online(self):
 
-    pool = config.config_dict["ZPool|name:zmirror-sysfs"]
+    pool = config.config_dict["zpool|name:zmirror-sysfs"]
     
 
-    crypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
     assert crypt.state.what == EntityState.INACTIVE
 
-    zdev_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
-    zdev_b = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
-    zdev_s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    zdev_a = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+    zdev_b = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
+    zdev_s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
 
     assert RequestType.ONLINE in pool.requested
@@ -316,20 +320,19 @@ class Tests():
 
 
     assert_commands([
-      "udevadm settle",
-      "zpool import zmirror-sysfs"
+      "set -e\nudevadm settle\nzpool import zmirror-sysfs"
     ])
 
 
   # `zpool import zmirror-sysfs-a` (do `zpool export zmirror-sysfs-a` before, if the pool is already imported)
   def test_zpool_sysfs_online(self):
 
-    pool = config.cache_dict["ZPool|name:zmirror-sysfs"]
+    pool = config.cache_dict["zpool|name:zmirror-sysfs"]
 
 
-    zdev_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
-    zdev_b = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
-    zdev_s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    zdev_a = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+    zdev_b = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
+    zdev_s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     trigger_event()
 
@@ -369,7 +372,7 @@ class Tests():
   # disk of bak-a appears (udev: add)
   def test_disk_bak_a_online(self):
 
-    dmcrypt_entity = config.config_dict["DMCrypt|name:zmirror-bak-a"]
+    dmcrypt_entity = config.config_dict["dm-crypt|name:zmirror-bak-a"]
 
     assert not dmcrypt_entity.requested
 
@@ -383,7 +386,7 @@ class Tests():
   # partition of bak-a appears (udev: add)
   def test_partition_bak_a_online(self):
 
-    dmcrypt_entity = config.config_dict["DMCrypt|name:zmirror-bak-a"]
+    dmcrypt_entity = config.config_dict["dm-crypt|name:zmirror-bak-a"]
 
     assert not dmcrypt_entity.requested
 
@@ -397,7 +400,7 @@ class Tests():
   # we simulate sysfs_s being taken offline
   def test_zdev_sysfs_s_offline(self):
 
-    crypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
     assert crypt.state.what == EntityState.ONLINE
 
     trigger_event()
@@ -411,7 +414,7 @@ class Tests():
   # ditto
   def test_dmcrypt_sysfs_s_offline(self):
 
-    crypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
     assert crypt.state.what == EntityState.ONLINE
 
     trigger_event()
@@ -425,12 +428,12 @@ class Tests():
 
     log.info("\n\n\nSTARTING\n############################################\n\n\n")
 
-    zdev_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
-    zdev_b = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
-    zdev_s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    zdev_a = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+    zdev_b = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
+    zdev_s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
-    zdev_bak_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
-    zdev_bak_b = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
+    zdev_bak_a = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    zdev_bak_b = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
 
     def possibly_scrub(entity):
       if isinstance(entity, ZDev) and entity.pool == "zmirror-sysfs":
@@ -486,11 +489,11 @@ class Tests():
   def test_zdev_sysfs_a_scrub_start(self):
 
 
-    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+    blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
     
     assert blockdev.operations == []
 
-    zdev_bak_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    zdev_bak_a = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
 
     assert RequestType.SCRUB in zdev_bak_a.requested
 
@@ -509,12 +512,12 @@ class Tests():
   # dmcrypt of sysfs-b appears
   def test_dmcrypt_sysfs_s_online2(self):
 
-    pool = config.config_dict["ZPool|name:zmirror-sysfs"]
+    pool = config.config_dict["zpool|name:zmirror-sysfs"]
 
-    crypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
     assert crypt.state.what == EntityState.INACTIVE
 
-    zdev_s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    zdev_s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
 
     assert RequestType.ONLINE in zdev_s.requested
@@ -538,7 +541,7 @@ class Tests():
     
     trigger_event()
 
-    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     assert since_in(Operation.RESILVER, blockdev.operations)
 
@@ -553,7 +556,7 @@ class Tests():
     
     trigger_event()
 
-    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     assert not since_in(Operation.RESILVER, blockdev.operations)
 
@@ -566,12 +569,12 @@ class Tests():
 
   def test_zdev_sysfs_s_scrub_start(self):
 
-    zdev_bak_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    zdev_bak_a = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
 
     assert RequestType.SCRUB in zdev_bak_a.requested
 
 
-    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
     
     assert blockdev.operations == []
 
@@ -593,9 +596,8 @@ class Tests():
     trigger_event()
     
     assert_commands([
-      "udevadm settle",
       # we import the bak-a pool
-      "zpool import zmirror-bak-a"
+      "set -e\nudevadm settle\nzpool import zmirror-bak-a"
     ])
 
 
@@ -604,9 +606,9 @@ class Tests():
     trigger_event()
 
 
-    zpool = config.cache_dict["ZPool|name:zmirror-bak-a"]
+    zpool = config.cache_dict["zpool|name:zmirror-bak-a"]
 
-    blockdev = config.cache_dict["ZDev|pool:zmirror-bak-a|name:zmirror-bak-a"]
+    blockdev = config.cache_dict["zdev|pool:zmirror-bak-a|name:zmirror-bak-a"]
 
     assert blockdev.state.what == EntityState.ONLINE
 
@@ -628,9 +630,9 @@ class Tests():
   # when bak-a-sysfs zfs_volume appears (udev: add)
   def test_zfs_volume_bak_a_sysfs_online(self):
 
-    zpool = config.cache_dict["ZPool|name:zmirror-bak-a"]
+    zpool = config.cache_dict["zpool|name:zmirror-bak-a"]
 
-    zdev_bak_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    zdev_bak_a = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
 
     assert RequestType.SCRUB in zdev_bak_a.requested
 
@@ -650,8 +652,8 @@ class Tests():
 
     assert RequestType.SCRUB in zdev_bak_a.requested
 
-    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
-    volume = config.cache_dict["ZFSVolume|pool:zmirror-bak-a|name:sysfs"]
+    blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    volume = config.cache_dict["zfs-volume|pool:zmirror-bak-a|name:sysfs"]
 
     assert_commands([
       "zpool online zmirror-sysfs zvol/zmirror-bak-a/sysfs"
@@ -663,7 +665,7 @@ class Tests():
   def test_zdev_bak_a_sysfs_online(self):
 
 
-    zdev_bak_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    zdev_bak_a = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
 
     assert RequestType.SCRUB in zdev_bak_a.requested
 
@@ -685,7 +687,7 @@ class Tests():
   # when the resilver ends
   def test_zdev_bak_a_sysfs_resilver_finish(self):
     
-    zdev_bak_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    zdev_bak_a = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
 
     assert RequestType.SCRUB in zdev_bak_a.requested
 
@@ -715,11 +717,11 @@ class Tests():
     
     trigger_event()
 
-    a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
-    b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
-    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
-    bak_a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
-    bak_b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
+    a = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+    b = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
+    s = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    bak_a = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    bak_b = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
 
     assert s.state.what == EntityState.ONLINE
 
@@ -739,11 +741,11 @@ class Tests():
   # scrub start
   def test_scrub_finished_sysfs(self):
 
-    a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
-    b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
-    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
-    bak_a = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
-    bak_b = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
+    a = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+    b = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
+    s = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    bak_a = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    bak_b = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
 
     trigger_event()
 
@@ -756,6 +758,10 @@ class Tests():
     assert not since_in(Operation.SCRUB, bak_b.operations)
 
     assert s.state.what == EntityState.ONLINE
+    assert not a.errors
+    assert not b.errors
+    assert not s.errors
+    assert not bak_a.errors
 
     assert_commands([
       "zpool trim zmirror-sysfs zmirror-sysfs-a",
@@ -763,10 +769,25 @@ class Tests():
       "zpool trim zmirror-sysfs zmirror-sysfs-s",
       "zpool offline zmirror-sysfs zvol/zmirror-bak-a/sysfs"
     ])
+
+  def test_scrub_finished_sysfs_with_errors(self):
+    a = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+    s = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+
+    old_last_scrub = datetime(2022, 1, 1, 0, 0, 0)
+    cached(a).last_scrub = old_last_scrub
+    cached(s).last_scrub = old_last_scrub
+
+    trigger_event()
+
+    assert not a.errors
+    assert s.errors
+    assert cached(a).last_scrub == old_last_scrub
+    assert cached(s).last_scrub == old_last_scrub
   
   def test_zdev_sysfs_s_trim_start(self):
     
-    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    s = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     assert s.state.what == EntityState.ONLINE
 
@@ -786,7 +807,7 @@ class Tests():
     
     trigger_event()
 
-    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    s = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
 
     assert s.state.what == EntityState.ONLINE
@@ -806,7 +827,7 @@ class Tests():
     user_commands.request(RequestType.TRIM, ZDev, pool="zmirror-sysfs", name="zmirror-sysfs-s")
 
 
-    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    s = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     assert s.state.what == EntityState.ONLINE
     assert not since_in(Operation.TRIM, s.operations)
@@ -821,7 +842,7 @@ class Tests():
     
     trigger_event()
 
-    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    s = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
 
     assert since_in(Operation.TRIM, s.operations)
@@ -834,7 +855,7 @@ class Tests():
     
     trigger_event()
 
-    s = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    s = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     assert not since_in(Operation.TRIM, s.operations)
 
@@ -844,7 +865,7 @@ class Tests():
   
   def test_zdev_sysfs_s_offline2(self):
 
-    crypt = config.cache_dict["DMCrypt|name:zmirror-sysfs-s"]
+    crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
     assert crypt.state.what == EntityState.ONLINE
 
     trigger_event()
@@ -890,7 +911,7 @@ class Tests():
       "zpool online zmirror-sysfs zmirror-sysfs-s"
     ])
 
-    s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     assert cached(s).state.what == EntityState.INACTIVE
 

@@ -199,16 +199,10 @@ def parse_datetime(value):
 
 def parse_cache_identifier(identifier):
   parts = identifier.split("|")
-  typ = None
   type_name = parts[0]
   if type_name in TYPE_FOR_NAME:
     typ = get_type_for_name(type_name)
   else:
-    for tp in NAME_FOR_TYPE:
-      if tp is not None and tp.__name__ == type_name:
-        typ = tp
-        break
-  if typ is None:
     raise ValueError(f"unknown cache type: {type_name}")
   kwargs = dict()
   for part in parts[1:]:
@@ -228,9 +222,23 @@ def copy_cache_fields(source, target):
   if state_what is not None and hasattr(target, "state"):
     target.state = Since(EntityState[state_what], parse_datetime(source.get("state_since")))
 
+  if hasattr(target, "added"):
+    added = source.get("added")
+    if added is None:
+      added = source.get("added_at")
+    if added is None:
+      added = unix_timestamp_now()
+    target.added = int(added)
+
   for attr in ["last_online", "last_update", "last_trim", "last_scrub"]:
     if hasattr(target, attr):
       setattr(target, attr, parse_datetime(source.get(attr)))
+
+  if hasattr(target, "errors"):
+    if "errors" in source:
+      target.errors = bool(source.get("errors", False))
+    else:
+      target.errors = bool(source.get("has_errors", False))
 
   if hasattr(target, "operations"):
     target.operations = []
@@ -265,10 +273,10 @@ def load_cache(cache_path):
       operations_by_entity[entity_id].append((what, since))
 
     rows = conn.execute("""
-      SELECT id, state_what, state_since, last_online, last_update, last_trim, last_scrub
+      SELECT id, state_what, state_since, added, last_online, last_update, last_trim, last_scrub, errors
       FROM cache_entries
     """)
-    for identifier, state_what, state_since, last_online, last_update, last_trim, last_scrub in rows:
+    for identifier, state_what, state_since, added, last_online, last_update, last_trim, last_scrub, errors in rows:
       try:
         cache = cache_from_identifier(identifier)
       except Exception as ex:
@@ -278,10 +286,12 @@ def load_cache(cache_path):
       copy_cache_fields({
         "state_what": state_what,
         "state_since": state_since,
+        "added": added,
         "last_online": last_online,
         "last_update": last_update,
         "last_trim": last_trim,
         "last_scrub": last_scrub,
+        "errors": errors,
         "operations": operations_by_entity.get(identifier, [])
       }, cache)
       cache_list.append(cache)
@@ -302,29 +312,35 @@ def save_cache_entries(conn, cache_id, cache):
     "id": cache_id,
     "state_what": state_what,
     "state_since": state_since,
+    "added": getattr(cache, "added", None),
     "last_online": datetime_to_str(getattr(cache, "last_online", None)),
     "last_update": datetime_to_str(getattr(cache, "last_update", None)),
     "last_trim": datetime_to_str(getattr(cache, "last_trim", None)),
     "last_scrub": datetime_to_str(getattr(cache, "last_scrub", None)),
+    "errors": int(bool(getattr(cache, "errors", False))),
   }
 
   conn.execute("""
-    INSERT INTO cache_entries(id, state_what, state_since, last_online, last_update, last_trim, last_scrub)
-    VALUES(:id, :state_what, :state_since, :last_online, :last_update, :last_trim, :last_scrub)
+    INSERT INTO cache_entries(id, state_what, state_since, added, last_online, last_update, last_trim, last_scrub, errors)
+    VALUES(:id, :state_what, :state_since, :added, :last_online, :last_update, :last_trim, :last_scrub, :errors)
     ON CONFLICT(id) DO UPDATE SET
       state_what = excluded.state_what,
       state_since = excluded.state_since,
+      added = excluded.added,
       last_online = excluded.last_online,
       last_update = excluded.last_update,
       last_trim = excluded.last_trim,
-      last_scrub = excluded.last_scrub
+      last_scrub = excluded.last_scrub,
+      errors = excluded.errors
     WHERE
       cache_entries.state_what IS NOT excluded.state_what OR
       cache_entries.state_since IS NOT excluded.state_since OR
+      cache_entries.added IS NOT excluded.added OR
       cache_entries.last_online IS NOT excluded.last_online OR
       cache_entries.last_update IS NOT excluded.last_update OR
       cache_entries.last_trim IS NOT excluded.last_trim OR
-      cache_entries.last_scrub IS NOT excluded.last_scrub
+      cache_entries.last_scrub IS NOT excluded.last_scrub OR
+      cache_entries.errors IS NOT excluded.errors
   """, values)
 
 

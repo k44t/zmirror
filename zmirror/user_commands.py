@@ -18,6 +18,8 @@ import inspect
 import json
 import codecs
 import traceback
+import re
+import shutil
 from tabulate import tabulate
 
 from ._version import __version__
@@ -41,8 +43,9 @@ def request_overdue(op: Operation, entity):
   rqst: RequestType = request_for_zfs_operation[op]
   if isinstance(entity, ZDev):
     msg = f"{entity_id_string(entity)}: last {rqst.name} was {entity.last(op) or "NEVER"} (interval: {entity.effective_interval(op)})."
-    overdue = entity.is_overdue(op)
-    if overdue:
+    overdue_since = entity.is_overdue(op)
+    if overdue_since:
+      overdue = datetime.now().replace(microsecond=0) - overdue_since
       if overdue.days > 356:
         msg += " OVERDUE since more than a year."
       else:
@@ -348,7 +351,7 @@ def handle_command(command, con):
 
     name = command["command"]
     
-    log.info(f"handling zmirror command: {name}")
+    log.debug(f"handling zmirror command: {name}")
 
     stream = con.makefile('w')
     handler = logging.StreamHandler(stream)
@@ -423,7 +426,7 @@ def handle_command(command, con):
       con.close()
     except: #pylint: disable=bare-except
       pass
-    log.info(f"handled zmirror command: {name}")
+    log.debug(f"handled zmirror command: {name}")
   # print("client handled")
 
 
@@ -482,7 +485,8 @@ def make_send_daemon_wrapper(fn, stream=sys.stdout):
 
 
 
-LIST_KEYS = ["id", "last_online", "last_update", "update_overdue", "last_trim", "trim_overdue", "last_scrub", "scrub_overdue", "operations"]
+LIST_DEFAULT_KEYS = ["hrid", "last_online", "last_update", "update_overdue", "last_trim", "trim_overdue", "last_scrub", "scrub_overdue", "errors", "operations"]
+LIST_KEYS = ["id", "hrid", "parent", "depth", "last_online", "last_update", "update_overdue", "last_trim", "trim_overdue", "last_scrub", "scrub_overdue", "errors", "operations"]
 
 
 def make_list_command(op: Operation, overdue=False):
@@ -501,6 +505,14 @@ def make_list_command(op: Operation, overdue=False):
         r["sort"] = args.sort
       if args.groups:
         r["groups"] = args.groups
+      if args.ids:
+        r["ids"] = args.ids
+      if args.id_regex is not None:
+        r["id_regex"] = args.id_regex
+      if args.hierarchy:
+        r["hierarchy"] = True
+      if args.graph:
+        r["graph"] = True
       
       return r
     
@@ -513,41 +525,110 @@ def make_list_command(op: Operation, overdue=False):
       log.error("an error occurred on the server: %s", b.get_string())
       return
 
-    keys = args.keys
+    keys = list(args.keys)
+    if args.extra_columns:
+      for col in args.extra_columns:
+        if col not in keys:
+          keys.append(col)
 
     items = result
     for item in items:
       # print(item)
       # sys.stdout.flush()
       for k in item.copy():
+        if k == "depth":
+          continue
         if not k in keys:
           del item[k]
 
     
     headers = None
-    if args.format == "json":
+    user_selected_format = hasattr(args, "format")
+    table_format = args.format if user_selected_format else "simple"
+    terminal_size = shutil.get_terminal_size(fallback=(120, 24))
+    sys.stdout.write(f"{terminal_size.columns}x{terminal_size.lines}\n")
+
+    if table_format == "json":
+      for item in items:
+        if "depth" in item and "depth" not in keys:
+          del item["depth"]
       sys.stdout.write(json.dumps(items))
     else:
       for item in items:
-        for key in item:
+        item_indent_depth = int(item.get("depth", 0) or 0)
+        for key in keys:
+          if key not in item:
+            item[key] = ""
+            continue
+
           val = item[key]
-          if key.startswith("last_"):
-            if val is None:
+          if val is None:
+            val = "-"
+          elif isinstance(val, bool):
+            if val:
+              val = f"{to_kd(val)}"
+            else:
               val = "-"
-          if isinstance(val, bool):
-            val = f"{to_kd(val)}"
+          elif isinstance(val, list):
+            if len(val) == 0:
+              val = "-"
+            else:
+              val = ', '.join(val)
           elif isinstance(val, dict):
             val = special_ki_from_json(val)
             if hasattr(val, "__kiify__"):
               val = f"{to_kd(val)}"
+          if item_indent_depth > 0 and len(keys) > 0 and key == keys[0]:
+            val = f"{'\u2800\u2800' * item_indent_depth}{val}"
           item[key] = val
+
+        if "depth" in item and "depth" not in keys:
+          del item["depth"]
           
 
+      tabulate_kwargs = {}
+      if not user_selected_format:
+        terminal_columns = terminal_size.columns
+        if terminal_columns < 220:
+          tabulate_kwargs["maxheadercolwidths"] = 7
+        else:
+          key_labels = [str(key) for key in keys]
+
+          wide_key = "id" if "id" in keys else ("hrid" if "hrid" in keys else None)
+          if len(key_labels) > 1 and wide_key is not None:
+            non_id_count = len(key_labels) - 1
+            non_id_headers = [label for label in key_labels if label != wide_key]
+
+            observed_id_width = max([len(str(item.get(wide_key, ""))) for item in items], default=32)
+            max_id_budget = max(int(terminal_columns * 0.65), 12)
+            id_budget = min(max(observed_id_width, 24), max_id_budget)
+
+            separator_budget = max(len(key_labels) - 1, 0) * 3
+            remaining_for_non_id = max(terminal_columns - id_budget - separator_budget, 1)
+            non_id_header_width = max(8, remaining_for_non_id // non_id_count)
+
+            if sum([len(label) for label in non_id_headers]) > remaining_for_non_id:
+              tabulate_kwargs["maxheadercolwidths"] = [
+                len(label) if label == wide_key or len(label) <= non_id_header_width else non_id_header_width
+                for label in key_labels
+              ]
+          else:
+            separator_budget = max(len(key_labels) - 1, 0) * 3
+            usable_columns = max(terminal_columns - separator_budget, 1)
+            per_column_width = max(8, usable_columns // max(len(key_labels), 1))
+            if max([len(label) for label in key_labels], default=0) > per_column_width:
+              tabulate_kwargs["maxheadercolwidths"] = per_column_width
+
+      table_rows = [[item.get(key, "") for key in keys] for item in items]
+
       if not args.no_headers:
-        headers = {k: k for k in keys}
-        table = tabulate(items, headers=headers, tablefmt=args.format)
+        if user_selected_format or terminal_size.columns >= 220:
+          headers = [str(k) for k in keys]
+        else:
+          headers = [str(k).replace("_", "\n") for k in keys]
+        table = tabulate(table_rows, headers=headers, tablefmt=table_format, **tabulate_kwargs)
       else:
-        table = tabulate(items, tablefmt=args.format)
+        table = tabulate(table_rows, tablefmt=table_format, **tabulate_kwargs)
 
 
       sys.stdout.write(table)
@@ -556,31 +637,70 @@ def make_list_command(op: Operation, overdue=False):
 
 
 
-def entity_to_table_entry(entity: Entity):
+def get_entity_depth(entity: Entity):
+  depth = 0
+  current = getattr(entity, "parent", None)
+  while current is not None:
+    depth += 1
+    current = getattr(current, "parent", None)
+  return max(depth - 1, 0)
+
+
+def entity_to_table_entry(entity: Entity, tree=False, indent_depth=None, repeated=False):
   cache = cached(entity)
+  added = None
+  parent = getattr(entity, "parent", None)
+  parent_id = None
+  if parent is not None and not isinstance(parent, ZMirror):
+    parent_id = entity_id_string(parent)
+  if cache.added is not None:
+    added = datetime.fromtimestamp(cache.added)
+  id_value = entity_id_string(entity)
+  hrid_value = entity.hrid()
+  row_indent_depth = 0
+  if repeated:
+    hrid_value = f"({hrid_value})"
+
+  if indent_depth is not None:
+    row_indent_depth = indent_depth
+  elif tree:
+    row_indent_depth = get_entity_depth(entity)
+
+  id_value = entity_id_string(entity)
+
+  if repeated:
+    return {
+      "id": id_value,
+      "hrid": hrid_value,
+      "parent": parent_id,
+      "depth": row_indent_depth
+    }
+
   if isinstance(entity, ZDev):
     return {
-        "id" : entity_id_string(entity),
+        "id" : id_value,
+        "hrid": hrid_value,
+        "parent": parent_id,
+        "depth": row_indent_depth,
         "last_online": special_ki_to_json(to_kd_date(entity.get_last_online())),
+        "added": special_ki_to_json(to_kd_date(added)),
         "last_update": special_ki_to_json(to_kd_date(entity.get_last_update())),
         "update_overdue": to_kd_date(entity.is_overdue(Operation.RESILVER)),
         "last_trim": to_kd_date(cache.last_trim),
         "trim_overdue": to_kd_date(entity.is_overdue(Operation.TRIM)),
         "last_scrub": to_kd_date(cache.last_scrub),
         "scrub_overdue": to_kd_date(entity.is_overdue(Operation.SCRUB)),
-        "operations": ','.join([get_name_for_operaiton(op.what) for op in cache.operations])
+        "errors": cache.errors,
+        "operations": [get_name_for_operaiton(op.what) for op in cache.operations]
       }
   else:
     return {
-        "id" : entity_id_string(entity),
+        "id" : id_value,
+        "hrid": hrid_value,
+        "parent": parent_id,
+        "depth": row_indent_depth,
         "last_online": special_ki_to_json(to_kd_date(entity.get_last_online())),
-        "last_update": None,
-        "update_overdue": None,
-        "last_trim": None,
-        "trim_overdue": None,
-        "last_scrub": None,
-        "scrub_overdue": None,
-        "operations": None
+        "added": special_ki_to_json(to_kd_date(added))
       }
 
 def handle_list_command(command, stream):
@@ -604,52 +724,292 @@ def handle_list_command(command, stream):
   if "types" in command:
     types =  [get_type_for_name(tp) for tp in command["types"]]
 
-  
-  result = []
+  ids = None
+  if "ids" in command:
+    ids = command["ids"]
+    if not isinstance(ids, list):
+      raise ValueError("`ids` must be a list")
+    ids = set(ids)
 
-  def do(entity):
-    if isinstance(entity, ZMirror):
-      return
+  id_regex = None
+  if "id_regex" in command:
+    id_regex = command["id_regex"]
+    if not isinstance(id_regex, str):
+      raise ValueError("`id_regex` must be a string")
+    try:
+      id_regex = re.compile(id_regex)
+    except re.error as ex:
+      raise ValueError(f"invalid `id_regex`: {ex}") from ex
+
+  hierarchy = False
+  if "hierarchy" in command:
+    hierarchy = command["hierarchy"]
+    if not isinstance(hierarchy, bool):
+      raise ValueError("`hierarchy` must be a bool")
+
+  graph = False
+  if "graph" in command:
+    graph = command["graph"]
+    if not isinstance(graph, bool):
+      raise ValueError("`graph` must be a bool")
+
+  sort_attr = None
+  if "sort" in command:
+    sort_attr = command["sort"]
+
+
+  def matches_group_type_or_id(entity):
     if groups is not None:
       if not hasattr(entity, "groups"):
-        return
+        return False
       group_found = False
       for group in groups:
         if group in entity.groups:
           group_found = True
           break
       if not group_found:
-        return
-      
+        return False
+
     if types is not None:
       type_found = False
-      for type in types:
-        if isinstance(entity, type):
+      for entity_type in types:
+        if isinstance(entity, entity_type):
           type_found = True
           break
       if not type_found:
-        return
-    if overdue:
-      if not hasattr(entity, "is_overdue"):
-        return
-      
-      if op:
-        if not entity.is_overdue(op):
+        return False
+
+    if ids is not None:
+      if not entity_id_string(entity) in ids:
+        return False
+
+    if id_regex is not None:
+      if not id_regex.search(entity_id_string(entity)):
+        return False
+
+    return True
+
+
+  def matches_overdue(entity):
+    if not overdue:
+      return True
+
+    if not hasattr(entity, "is_overdue"):
+      return False
+
+    if op:
+      return bool(entity.is_overdue(op))
+    return is_anything_overdue(entity)
+
+
+  entities_in_config_order = []
+
+  def collect_entities(entity):
+    if isinstance(entity, ZMirror):
+      return
+    entities_in_config_order.append(entity)
+
+  iterate_content_tree(config.config_root, collect_entities)
+
+  seed_entities = []
+  for entity in entities_in_config_order:
+    if matches_group_type_or_id(entity) and matches_overdue(entity):
+      seed_entities.append(entity)
+
+
+  included_entities_by_ref = {}
+
+  def include_entity(entity):
+    included_entities_by_ref[id(entity)] = entity
+
+  for entity in seed_entities:
+    include_entity(entity)
+
+  if hierarchy:
+    mode_down = "down"
+    mode_up_only = "up_only"
+
+    def hierarchy_neighbors(entity, mode, is_root):
+      neighbors = []
+
+      def add(neighbor, next_mode):
+        if neighbor is None or isinstance(neighbor, ZMirror):
           return
+        neighbors.append((neighbor, next_mode))
+
+      if mode == mode_up_only:
+        add(getattr(entity, "parent", None), mode_up_only)
       else:
-        if not is_anything_overdue(entity):
+        if isinstance(entity, ZPool) and not is_root:
+          return []
+
+        content = getattr(entity, "content", None)
+        if isinstance(content, list):
+          for child in content:
+            add(child, mode_down)
+
+        parent = getattr(entity, "parent", None)
+        if parent is not None and not isinstance(parent, ZMirror):
+          add(parent, mode_up_only)
+
+        if isinstance(entity, ZDev):
+          pool = config.find_config(ZPool, name=entity.pool)
+          add(pool, mode_down)
+        elif isinstance(entity, ZPool) and is_root:
+          if entity.name in config.zfs_blockdevs:
+            for zdev in config.zfs_blockdevs[entity.name].values():
+              add(zdev, mode_down)
+
+      dedup = []
+      refs = set()
+      for neighbor, next_mode in neighbors:
+        key = (id(neighbor), next_mode)
+        if not key in refs:
+          refs.add(key)
+          dedup.append((neighbor, next_mode))
+
+      return dedup
+
+    for root in seed_entities:
+      root_ref = id(root)
+      stack = [(root, mode_down)]
+      visited = set()
+      while stack:
+        current, mode = stack.pop()
+        cref = id(current)
+        if cref in visited:
+          continue
+
+        visited.add(cref)
+        include_entity(current)
+
+        for neighbor, next_mode in hierarchy_neighbors(current, mode, cref == root_ref):
+          if id(neighbor) not in visited:
+            stack.append((neighbor, next_mode))
+
+
+  def sorted_siblings(entities):
+    if sort_attr is None:
+      return entities
+    return sorted(entities, key=sort_key_for_entity)
+
+
+  ordered_entities = []
+  ordered_entities_with_depth = []
+
+  def sort_entities(entities):
+    if sort_attr is None:
+      return entities
+    return sorted(entities, key=sort_key_for_entity)
+
+  def sort_key_for_entity(entity):
+    value = entity_to_table_entry(entity).get(sort_attr, "")
+    if value is None:
+      return "-"
+    if isinstance(value, list):
+      if len(value) == 0:
+        return "-"
+      return ', '.join(value)
+    if isinstance(value, dict):
+      value = special_ki_from_json(value)
+      if hasattr(value, "__kiify__"):
+        return f"{to_kd(value)}"
+      return str(value)
+    return value
+
+  if graph:
+    roots = list(seed_entities)
+    roots = sort_entities(roots)
+
+    mode_down = "down"
+    mode_up_only = "up_only"
+
+    def graph_children(entity, mode, is_root):
+      children = []
+
+      def add(child, next_mode):
+        if child is None or isinstance(child, ZMirror):
           return
+        children.append((child, next_mode))
 
-    result.append(entity_to_table_entry(entity))
-        
-  iterate_content_tree(config.config_root, do)
+      if mode == mode_up_only:
+        add(getattr(entity, "parent", None), mode_up_only)
+      else:
+        if isinstance(entity, ZPool) and not is_root:
+          return []
 
-  if "sort" in command:
-    attr = command["sort"]
-    def keyfn(itemx):
-      # print(itemx)
-      return itemx[attr]
-    result = sorted(result, key= keyfn)
+        content = getattr(entity, "content", None)
+        if isinstance(content, list):
+          for child in content:
+            add(child, mode_down)
+
+        parent = getattr(entity, "parent", None)
+        if parent is not None and not isinstance(parent, ZMirror):
+          add(parent, mode_up_only)
+
+        if isinstance(entity, ZDev):
+          pool = config.find_config(ZPool, name=entity.pool)
+          add(pool, mode_down)
+        elif isinstance(entity, ZPool) and is_root:
+          if entity.name in config.zfs_blockdevs:
+            for zdev in config.zfs_blockdevs[entity.name].values():
+              add(zdev, mode_down)
+
+      dedup = []
+      refs = set()
+      for child, next_mode in children:
+        cref = id(child)
+        key = (cref, next_mode)
+        if not key in refs:
+          refs.add(key)
+          dedup.append((child, next_mode))
+
+      if sort_attr is None:
+        return dedup
+
+      return sorted(dedup, key=lambda pair: sort_key_for_entity(pair[0]))
+
+    def graph_walk(entity, depth, visited, mode, root_ref, prev_ref=None):
+      ref = id(entity)
+      ordered_entities_with_depth.append((entity, depth))
+
+      if ref in visited:
+        return
+      visited.add(ref)
+
+      for child, next_mode in graph_children(entity, mode, ref == root_ref):
+        if id(child) == prev_ref:
+          continue
+        graph_walk(child, depth + 1, visited, next_mode, root_ref, ref)
+
+    for root in roots:
+      graph_walk(root, 0, set(), mode_down, id(root), None)
+
+  elif hierarchy:
+    def walk(entity):
+      if not isinstance(entity, ZMirror):
+        if id(entity) in included_entities_by_ref:
+          ordered_entities.append(entity)
+
+      content = getattr(entity, "content", None)
+      if isinstance(content, list):
+        children = sorted_siblings(list(content))
+        for child in children:
+          walk(child)
+
+    walk(config.config_root)
+  else:
+    for entity in entities_in_config_order:
+      if id(entity) in included_entities_by_ref:
+        ordered_entities.append(entity)
+
+    if sort_attr is not None:
+      ordered_entities = sorted(ordered_entities, key=sort_key_for_entity)
+
+  if graph:
+    result = [entity_to_table_entry(entity, indent_depth=depth) for entity, depth in ordered_entities_with_depth]
+  else:
+    result = [entity_to_table_entry(entity, tree=hierarchy) for entity in ordered_entities]
 
   r = json.dumps(result)
   stream.write(r)
@@ -739,4 +1099,3 @@ def make_send_entity_daemon_command(command, typ):
       "identifiers": vars(args)
     }
   return make_send_daemon_wrapper(do)
-

@@ -87,19 +87,23 @@ class Tests():
         entity.update_interval = "4 weeks"
 
     
-    zpool = config.config_dict["ZPool|name:zmirror-sysfs"]
-    a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
-    b = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
-    c = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-c"]
-    s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
-    bak_a = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
-    bak_b = config.config_dict["ZDev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
+    zpool = config.config_dict["zpool|name:zmirror-sysfs"]
+    a = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+    b = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-b"]
+    c = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-c"]
+    s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    bak_a = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    bak_b = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-b/sysfs"]
 
     # the pool is initially online, and so is the main zdev
     cached(zpool).state.what = EntityState.ONLINE
     cached(a).state.what = EntityState.ONLINE
 
     config.set_log_level("debug")
+
+  @classmethod
+  def teardown_class(cls):
+    zmirror.commands.stop_workers()
 
 
 
@@ -118,7 +122,7 @@ class Tests():
 
   def test_resilver_not_overdue(self):
 
-    s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
     cached(s).last_update = datetime.now()
     
     rqst = request_overdue(Operation.RESILVER, s)
@@ -128,7 +132,7 @@ class Tests():
 
   def test_resilver_overdue(self):
 
-    s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
     cached(s).last_update = datetime.now() - timedelta(weeks=6)
     
     rqst = request_overdue(Operation.RESILVER, s)
@@ -149,7 +153,7 @@ class Tests():
 
   def test_trim_not_overdue(self):
 
-    s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
     cached(s).last_trim = datetime.now()
     
     rqst = request_overdue(Operation.TRIM, s)
@@ -159,7 +163,7 @@ class Tests():
 
   def test_trim_overdue(self):
 
-    s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
     cached(s).last_trim = datetime.now() - timedelta(weeks=6)
     
     rqst = request_overdue(Operation.TRIM, s)
@@ -177,7 +181,7 @@ class Tests():
 
   def test_scrub_not_overdue(self):
 
-    s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
     cached(s).last_scrub = datetime.now()
     
     rqst = request_overdue(Operation.SCRUB, s)
@@ -187,7 +191,7 @@ class Tests():
 
   def test_scrub_overdue(self):
 
-    s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
     cached(s).last_scrub = datetime.now() - timedelta(weeks=6)
     
     rqst = request_overdue(Operation.SCRUB, s)
@@ -217,7 +221,7 @@ class Tests():
     
     assert_commands([])
 
-    s = config.config_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
     cache = cached(s)
     assert cache.state.what == EntityState.ONLINE 
     assert since_in(Operation.RESILVER, cache.operations)
@@ -237,7 +241,7 @@ class Tests():
   def test_zdev_sysfs_s_scrub_start(self):
 
 
-    blockdev = config.cache_dict["ZDev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     s = uncached(blockdev)
 
@@ -268,5 +272,4 @@ class Tests():
     for timer in config.timers:
       timer.cancel()
     config.timers = []
-
 

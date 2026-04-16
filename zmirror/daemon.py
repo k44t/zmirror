@@ -24,6 +24,7 @@ from . import defaults
 from ._version import __version__
 
 from . import commands
+from .commands import CommandResultEvent
 from .logging import log
 from .entities import *
 # from .actions import handle_entity_online, handle_entity_offline, handle_entity_present
@@ -34,18 +35,26 @@ from . import config as globals
 
 
 class EnvKey(Enum):
-  ZEVENT_SUBCLASS = "ZEVENT_SUBCLASS"
-  ZEVENT_POOL = "ZEVENT_POOL"
-  ZEVENT_VDEV_PATH = "ZEVENT_VDEV_PATH"
-  ZEVENT_VDEV_STATE_STR = "ZEVENT_VDEV_STATE_STR"
-  DEVTYPE = "DEVTYPE"
-  ACTION = "ACTION"
-  ID_PART_TABLE_UUID = "ID_PART_TABLE_UUID"
-  DM_NAME = "DM_NAME"
-  DEVPATH = "DEVPATH"
-  DEVLINKS = "DEVLINKS"
-  PARTNAME = "PARTNAME"
-  DM_ACTIVATION = "DM_ACTIVATION"
+  # ZED (ZFS Event Daemon) environment for zevents.
+  # See `zed` zedlets: these keys are exported by ZFS/zed.
+  ZEVENT_SUBCLASS = "ZEVENT_SUBCLASS"  # Event type, e.g. pool_import, vdev_online.
+  ZEVENT_POOL = "ZEVENT_POOL"  # Zpool name the zevent belongs to.
+  ZEVENT_VDEV_PATH = "ZEVENT_VDEV_PATH"  # Vdev path, e.g. /dev/mapper/<name>.
+  ZEVENT_VDEV_STATE_STR = "ZEVENT_VDEV_STATE_STR"  # New vdev state, e.g. OFFLINE.
+
+  # udev environment keys from kernel uevents.
+  # Available for block/dm devices handled by udev rules.
+  DEVTYPE = "DEVTYPE"  # udev device type, usually "disk"/"partition".
+  ACTION = "ACTION"  # udev action, e.g. add, remove, change.
+  ID_PART_TABLE_UUID = "ID_PART_TABLE_UUID"  # Partition table UUID from udev ID_*.
+  DM_NAME = "DM_NAME"  # device-mapper logical name, e.g. <pool>-b-main.
+  DEVPATH = "DEVPATH"  # Kernel sysfs device path (/devices/...).
+  DEVLINKS = "DEVLINKS"  # Space-separated /dev symlinks created by udev.
+  PARTNAME = "PARTNAME"  # GPT partition name/label from udev.
+  DM_ACTIVATION = "DM_ACTIVATION"  # dm activation status from udev dm rules.
+
+  # zmirror's internal daemon command channel key.
+  # This is injected by zmirror (not udev/zed) for socket commands.
   ZMIRROR_COMMAND = "ZMIRROR_COMMAND"
 
 
@@ -56,6 +65,97 @@ LOGGABLE_ENV_KEYS = tuple(sorted(key.value for key in EnvKey))
 class UserEvent:
   event: dict
   con: socket.socket
+
+
+def _counter_nonzero(value):
+  try:
+    return int(value) != 0
+  except Exception:
+    return value not in {"0", "-", ""}
+
+
+POOL_SCRUB_ERRORS_REGEX = re.compile(r'^\s*scan:.*\bwith\s+(?P<errors>[0-9]+)\s+errors\b', re.MULTILINE)
+
+
+def _parents_all_online(cache):
+  entity = config.load_config_for_cache(cache)
+  if entity is None:
+    return False
+
+  parent = getattr(entity, "parent", None)
+  while isinstance(parent, Entity):
+    if cached(parent).state.what != EntityState.ONLINE:
+      return False
+    parent = getattr(parent, "parent", None)
+  return True
+
+
+def _collect_pool_status_snapshot(zpool, zpool_status=None):
+  if zpool_status is None:
+    try:
+      zpool_status = config.get_zpool_status(zpool)
+    except Exception as ex:
+      log.debug(f"failed to get zpool status for pool {zpool}: {ex}")
+      return None
+
+  if zpool_status is None:
+    return None
+
+  devices = {}
+  scrub_errors = None
+  scrub_errors_match = POOL_SCRUB_ERRORS_REGEX.search(zpool_status)
+  if scrub_errors_match is not None:
+    scrub_errors = int(scrub_errors_match.group("errors"))
+
+  for match in POOL_DEVICES_REGEX.finditer(zpool_status):
+    dev = match.group("dev")
+    if MIRROR_OR_RAIDZ_REGEX.match(dev):
+      continue
+    devices[dev] = {
+      "state": match.group("state"),
+      "read": match.group("read"),
+      "write": match.group("write"),
+      "cksum": match.group("cksum"),
+      "operations": match.group("operations") or "",
+      "errors": _counter_nonzero(match.group("read")) or _counter_nonzero(match.group("write")) or _counter_nonzero(match.group("cksum")),
+    }
+
+  return {
+    "zpool": zpool,
+    "scrub_errors": scrub_errors,
+    "devices": devices,
+  }
+
+
+def _is_device_eligible(cache, status):
+  return status["state"] == "ONLINE" and cache.state.what == EntityState.ONLINE and _parents_all_online(cache)
+
+
+def _scrub_successful(snapshot, cache, status):
+  scrub_errors = snapshot.get("scrub_errors")
+  if scrub_errors is None or scrub_errors != 0:
+    return False
+  return _is_device_eligible(cache, status)
+
+
+def update_vdev_error_state(snapshot):
+  if snapshot is None:
+    return
+
+  try:
+    devices = snapshot["devices"]
+    zpool = snapshot["zpool"]
+  except Exception as ex:
+    log.debug(f"failed to update vdev error state from snapshot: {ex}")
+    return
+
+  for dev, status in devices.items():
+    cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
+    eligible = _is_device_eligible(cache, status)
+    if not eligible:
+      cache.errors = False
+      continue
+    cache.errors = status["errors"]
 
 
 
@@ -97,6 +197,8 @@ def handle(env):
     elif zevent in ["scrub_finish", "scrub_start", "scrub_abort", "pool_import", "pool_create"]:
       log.debug(f"zpool {zpool}: {zevent}")
       zpool_status = config.get_zpool_status(zpool)
+      pool_snapshot = _collect_pool_status_snapshot(zpool, zpool_status)
+      update_vdev_error_state(pool_snapshot)
 
 
 
@@ -115,9 +217,13 @@ def handle(env):
 
             found_online = True
             if zevent == "scrub_finish":
-              log.info(f"zdev {cache.pool}:{cache.name}: scrubbing finished")
-              handle_scrub_finished(cache)
-              event_handled = True
+              if since_in(Operation.SCRUB, cache.operations):
+                log.info(f"zdev {cache.pool}:{cache.name}: scrubbing finished")
+                scrub_ok = False
+                if pool_snapshot is not None and cache.name in pool_snapshot["devices"]:
+                  scrub_ok = _scrub_successful(pool_snapshot, cache, pool_snapshot["devices"][cache.name])
+                handle_scrub_finished(cache, successful_scrub=scrub_ok)
+                event_handled = True
             elif zevent == "scrub_start":
               log.info(f"zdev {cache.pool}:{cache.name}: scrubbing started")
               handle_scrub_started(cache)
@@ -153,6 +259,8 @@ def handle(env):
         # ZEVENT:: /dev/{sda3}
         # ZEVENT:: /dev/disk/by-partlabel/mypartlabel
       vdev_path = env[EnvKey.ZEVENT_VDEV_PATH.value]
+      pool_snapshot = _collect_pool_status_snapshot(zpool)
+      update_vdev_error_state(pool_snapshot)
       cache = find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path)
       if zevent == "vdev_online":
         # we have no event by witch we can reliably capture that a resilver started for a zdev
@@ -179,7 +287,6 @@ def handle(env):
         handle_trim_canceled(cache)
         event_handled = True
 
-
     # zool-vdev event
     elif zevent in ["resilver_start", "resilver_finish"]:
 
@@ -188,6 +295,8 @@ def handle(env):
       time.sleep(0.25)
 
       zpool_status = config.get_zpool_status(zpool)
+      pool_snapshot = _collect_pool_status_snapshot(zpool, zpool_status)
+      update_vdev_error_state(pool_snapshot)
       
       for match in POOL_DEVICES_REGEX.finditer(zpool_status):
         if match.group("state") == "ONLINE":
@@ -208,6 +317,7 @@ def handle(env):
               if since_in(Operation.RESILVER, cache.operations):
                 handle_resilver_finished(cache)
                 event_handled = True
+
           
 
   elif EnvKey.DEVTYPE.value in env:
@@ -268,7 +378,7 @@ def handle(env):
           else:
             log.debug("need a filesystem uuid or a zvol devlink (if applicable) to identify virtual blockdevices")
         else:
-          log.info("nothing to do for disk event")
+          log.debug("nothing to do for disk event")
 
       elif devtype == "partition":
         # sometimes, while modifying partitions, there appears an event concerning the partition
@@ -370,6 +480,10 @@ def handle_events(event_queue, shutdown_fn):
       elif isinstance(event, UserEvent):
         
         handled = handle_command(event.event, event.con)
+
+      elif isinstance(event, CommandResultEvent):
+        event.cmd.handle(event.returncode, event.results, event.errors)
+        handled = True
         
 
       elif isinstance(event, TimerEvent):
@@ -488,6 +602,7 @@ def daemon(args):# pylint: disable=unused-argument
 
   event_queue = queue.Queue()
   config.event_queue = event_queue
+  commands.start_workers(event_queue, num_workers=1)
 
 
 
@@ -505,6 +620,10 @@ def daemon(args):# pylint: disable=unused-argument
         pass
       try:
         config.cancel_timers()
+      except Exception:
+        pass
+      try:
+        commands.stop_workers()
       except Exception:
         pass
 

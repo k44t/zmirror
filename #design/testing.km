@@ -1,0 +1,32 @@
+Running tests for zmirror
+
+Install dependencies (once):
+
+::
+  poetry install
+
+Run the test suite:
+
+::
+  poetry run pytest tests -q
+
+Run a specific test module:
+
+::
+  poetry run pytest tests/commands/test_commands.py -q
+  poetry run pytest tests/requests/test_requests.py -q
+  poetry run pytest tests/maintenance/test_maintenance.py -q
+
+Run a single test:
+
+::
+  poetry run pytest tests/commands/test_commands.py::Tests::test_zdev_sysfs_s_offline -q
+
+Run tests with a hard timeout (useful in CI or when debugging hangs):
+
+::
+  timeout 10s poetry run pytest tests -q
+
+Notes:
+- Prefer `poetry run pytest tests ...` instead of `poetry run pytest` so pytest does not try to collect from non-test folders.
+- Most tests are stateful by module/class design; running single tests can behave differently from full ordered runs.
