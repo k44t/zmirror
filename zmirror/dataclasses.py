@@ -795,7 +795,10 @@ class Disk(ManualChildren):
   
   def handle_onlined(self, prev_state):
     possibly_force_enable_trim(self)
-    return super().handle_onlined(prev_state)
+    super().handle_onlined(prev_state)
+    cache = cached(self)
+    if cache.state.what == EntityState.CONNECTED and any(is_online(child) for child in self.content):
+      set_cache_state(cache, EntityState.ACTIVE)
 
   def handle_child_online(self, _child, _prev_state):
     cache = cached(self)

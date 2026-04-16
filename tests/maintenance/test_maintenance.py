@@ -289,6 +289,19 @@ class Tests():
     assert disk_cache.state.what == EntityState.CONNECTED
 
 
+  def test_disk_onlined_with_online_child_becomes_active(self):
+    disk = config.config_dict["disk|uuid:00000000-0000-0000-0000-000000000004"]
+    partition = config.config_dict["partition|name:zmirror-sysfs-s"]
+    disk_cache = cached(disk)
+    partition_cache = cached(partition)
+
+    disk_cache.state.what = EntityState.DISCONNECTED
+    partition_cache.state.what = EntityState.CONNECTED
+    handle_onlined(disk_cache)
+
+    assert disk_cache.state.what == EntityState.ACTIVE
+
+
 
   # this is necessary because we have not allowed all requests to be fulfilled
   # and we don't want the testing process to run until the timers have finished
