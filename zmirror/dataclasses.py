@@ -122,6 +122,9 @@ def state_corresponds_to_request(state, request):
     return is_offline_state(state)
   if request == RequestType.ONLINE:
     return is_online_state(state)
+  # Fallback relies on aligned enum values for request/state pairs that are not
+  # explicitly mapped above (for example SNAPSHOT). Keep state/request numeric
+  # values intentionally non-colliding except for intended pairs.
   return state.value == request.value
 
 def operation_corresponds_to_request(oper, request):
@@ -533,8 +536,7 @@ class Entity:
     err_state = None
     if cache.state.what not in [EntityState.DISCONNECTED, EntityState.UNKNOWN] :
       err_state = cache.state.what
-      if is_online_state(cache.state.what):
-        new_state = EntityState.CONNECTED
+      new_state = cache.state.what
     if err_state:
       log.error(f"{human_readable_id(self)} was already {err_state.name}, when parent became ONLINE. This is either some inconsistency in the cache (due to events being missed when zmirror wasn't running), or a bug in zmirror. Setting new state to: {new_state.name}. Please note, that this might not fix all inconsistencies, as now we will not run the event handlers for entity.on_appeared as it would be unsafe without knowledge of the previous state.")
     prev_state = set_cache_state(cache, new_state)
@@ -1572,15 +1574,9 @@ def handle_resilver_started(cache):
     cache.operations.append(Since(Operation.RESILVER, inaccurate_now()))
     cache_log_info(cache, "resilver started")
   if cache.state.what != EntityState.ACTIVE:
-    cache.state = Since(EntityState.ACTIVE)
+    set_state_online(cache)
   cache.last_online = inaccurate_now()
 
-
-def handle_activated(cache):
-  prev_state = set_cache_state(cache, EntityState.ACTIVE)
-  if prev_state is not None:
-    cache_log_info(cache, "onlined")
-    uncached_handle_by_name(cache, "onlined", prev_state)
 
 # used for zdevs when brought online via zpool online (instead of zpool import)
 def handle_zdev_onlined(cache):
@@ -1594,12 +1590,12 @@ def handle_zdev_onlined(cache):
       handle_resilver_started(cache)
     else:
       log.verbose(f"{human_readable_id(cache)}: ONLINE. This is not (configured as) a mirror device, assuming that no resilvering is happening.")
-      handle_activated(cache)
+      handle_onlined(cache)
 
 
 def handle_resilver_finished(cache):
   if cache.state.what != EntityState.ACTIVE:
-    cache.state = Since(EntityState.ACTIVE)
+    set_state_online(cache)
   cache_log_info(cache, "resilvered (updated)")
   cache.last_online = cache.last_update = inaccurate_now()
   since_remove(Operation.RESILVER, cache.operations)
@@ -1690,14 +1686,23 @@ def handle_appeared(cache):
     cache_log_info(cache, "appeared")
     uncached_handle_by_name(cache, "appeared", prev_state)
 
+
+def set_state_online(entity):
+  cache = entity
+  configured = entity
+  if not isinstance(entity, Entity):
+    configured = uncached(entity)
+  else:
+    cache = cached(entity)
+
+  state = EntityState.CONNECTED
+  if isinstance(configured, Entity) and configured.is_automatically_active():
+    state = EntityState.ACTIVE
+  return set_cache_state(cache, state)
+
 # the device has activated
 def handle_onlined(cache):
-  state = EntityState.CONNECTED
-  entity = uncached(cache)
-  if isinstance(entity, Entity):
-    if entity.is_automatically_active():
-      state = EntityState.ACTIVE
-  prev_state = set_cache_state(cache, state)
+  prev_state = set_state_online(cache)
   if prev_state is not None:
     cache_log_info(cache, "onlined")
     uncached_handle_by_name(cache, "onlined", prev_state)
