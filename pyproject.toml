@@ -5,7 +5,7 @@ authors = [
   {name = "devvythelopper"}
 ]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dynamic = ["version"]
 version = "0.1.8b10"
 
@@ -38,7 +38,7 @@ zmirror-trigger = "zmirror.trigger:main"
 [tool.poetry.group.dev.dependencies]
 kpyutils = { path = "../kpyutils", develop = true }
 debugpy = ">=1.8.14"
-pytest = ">=8.3.5"
+pytest = "^9.0.3"
 # argparse-manpage = { path = "/#/projects/argparse-manpage", develop = true } # "^4.7"
 toml = ">=0.10.2"
 dunamai = ">=1.0.0"
