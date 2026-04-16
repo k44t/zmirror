@@ -302,6 +302,30 @@ class Tests():
     assert disk_cache.state.what == EntityState.ACTIVE
 
 
+  def test_dmcrypt_activates_on_child_online(self):
+    dmcrypt = config.config_dict["dm-crypt|name:zmirror-sysfs-s"]
+    zdev = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    dmcrypt_cache = cached(dmcrypt)
+
+    dmcrypt_cache.state.what = EntityState.CONNECTED
+    dmcrypt.handle_child_online(zdev, EntityState.INACTIVE)
+
+    assert dmcrypt_cache.state.what == EntityState.ACTIVE
+
+
+  def test_dmcrypt_deactivates_to_connected_on_children_offline(self):
+    dmcrypt = config.config_dict["dm-crypt|name:zmirror-sysfs-s"]
+    zdev = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    dmcrypt_cache = cached(dmcrypt)
+    zdev_cache = cached(zdev)
+
+    dmcrypt_cache.state.what = EntityState.ACTIVE
+    zdev_cache.state.what = EntityState.DISCONNECTED
+    dmcrypt.handle_child_offline(zdev, EntityState.CONNECTED)
+
+    assert dmcrypt_cache.state.what == EntityState.CONNECTED
+
+
 
   # this is necessary because we have not allowed all requests to be fulfilled
   # and we don't want the testing process to run until the timers have finished

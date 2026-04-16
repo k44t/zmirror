@@ -401,7 +401,7 @@ class Tests():
   def test_zdev_sysfs_s_offline(self):
 
     crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
-    assert crypt.state.what == EntityState.CONNECTED
+    assert crypt.state.what == EntityState.ACTIVE
 
     trigger_event()
 
@@ -480,7 +480,7 @@ class Tests():
     assert_commands([
       'zpool scrub -s zmirror-sysfs', 
       'zpool scrub zmirror-sysfs', 
-      'cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-s zmirror-sysfs-s --key-file ./test/zmirror-key', 
+      'cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-s zmirror-sysfs-s --key-file ./test/zmirror-key',
       'cryptsetup open /dev/disk/by-partlabel/zmirror-bak-a zmirror-bak-a --key-file ./test/zmirror-key'
     ])
 
@@ -562,8 +562,8 @@ class Tests():
 
     
     assert_commands([
-      'zpool scrub -s zmirror-sysfs', 
-      'zpool scrub zmirror-sysfs', 
+      'zpool scrub -s zmirror-sysfs',
+      'zpool scrub zmirror-sysfs',
     ])
 
 
@@ -903,7 +903,6 @@ class Tests():
     s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     assert cached(s).state.what == EntityState.INACTIVE
-
     request = s.requested[RequestType.ONLINE]
     
 
@@ -911,9 +910,9 @@ class Tests():
 
     assert queue.empty()
 
-
     assert not request.handled
     assert not request.succeeded
+
 
     log.info("\n\n\n######################")
     log.info("waiting for timeout")
@@ -927,7 +926,6 @@ class Tests():
     event = queue.get()
     assert isinstance(event, TimerEvent)
     event.action()
-
 
     assert request.handled
     assert not request.succeeded

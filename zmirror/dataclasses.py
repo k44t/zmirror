@@ -825,13 +825,11 @@ class Disk(ManualChildren):
       possibly_force_enable_trim(self)
 
   def handle_child_online(self, _child, _prev_state):
-    cache = cached(self)
-    if cache.state.what == EntityState.CONNECTED:
+    if self.get_state() == EntityState.CONNECTED:
       self.set_state(EntityState.ACTIVE, "activated")
 
   def handle_children_offline(self):
-    cache = cached(self)
-    if cache.state.what == EntityState.ACTIVE:
+    if self.get_state() == EntityState.ACTIVE:
       self.set_state(EntityState.CONNECTED, "deactivated")
     return super().handle_children_offline()
 
@@ -1487,7 +1485,13 @@ class DMCrypt(Onlineable, Embedded, Children):
 
 
   def handle_child_online(self, child, prev_state):
-    pass
+    if self.get_state() == EntityState.CONNECTED:
+      self.set_state(EntityState.ACTIVE, "activated")
+
+  def handle_children_offline(self):
+    if self.get_state() == EntityState.ACTIVE:
+      self.set_state(EntityState.CONNECTED, "deactivated")
+    return super().handle_children_offline()
 
   def load_initial_state(self):
     if config.dev_exists(self.dev_path()):

@@ -1,5 +1,6 @@
 
 import socket
+import shlex
 
 from zmirror.entities import *
 from . import config
@@ -1098,3 +1099,120 @@ def make_send_entity_daemon_command(command, typ):
       "identifiers": vars(args)
     }
   return make_send_daemon_wrapper(do)
+def run_and_print_command(command: str, stream):
+  stream.write(f"$ {command}\n")
+  returncode, _output, response, errors = myexec(command)
+
+  wrote_output = False
+  for line in response:
+    stream.write(f"stdout: {line}\n")
+    wrote_output = True
+  for line in errors:
+    stream.write(f"stderr: {line}\n")
+    wrote_output = True
+  if not wrote_output:
+    stream.write("(no output)\n")
+
+  stream.write(f"exit code: {returncode}\n")
+  stream.write("\n")
+  return returncode, response, errors
+
+
+def handle_check_trim_command(args):
+  stream = getattr(args, "stream", sys.stdout)
+
+  device = args.device.strip()
+  if not device.startswith("/dev/"):
+    device = f"/dev/{device}"
+
+  stream.write(f"checking trim capability for: {device}\n\n")
+
+  mode = None
+  provisioning_mode_path = config.find_provisioning_mode(device)
+  if provisioning_mode_path is None:
+    stream.write(
+      "provisioning_mode path was not found; kernel-side recognition check skipped.\n\n"
+    )
+  else:
+    quoted_path = shlex.quote(provisioning_mode_path)
+    _returncode, response, _errors = run_and_print_command(
+      f"cat {quoted_path}",
+      stream,
+    )
+    if response:
+      mode = response[-1].strip().lower()
+
+  quoted_device = shlex.quote(device)
+  returncode, response, _errors = run_and_print_command(
+    f"sg_vpd -a {quoted_device} | grep -i map",
+    stream,
+  )
+
+  unmap_hint = None
+  reports_support = False
+  if returncode != 0:
+    interpretation = "interpretation: could not evaluate TRIM/UNMAP support from command output."
+  else:
+    for line in response:
+      lower = line.lower()
+      if "maximum unmap lba count" in lower:
+        unmap_hint = line.strip()
+      if "unmap command not implemented" in lower:
+        reports_support = False
+      elif "maximum unmap lba count:" in lower and "not implemented" not in lower:
+        reports_support = True
+
+    if reports_support and mode == "full":
+      hint = unmap_hint or "Maximum unmap LBA count reported"
+      interpretation = f"interpretation: device reports TRIM/UNMAP support ({hint}) but kernel did not recognize it (mode is `full` instead of `unmap`)."
+    elif reports_support and mode == "unmap":
+      hint = unmap_hint or "Maximum unmap LBA count reported"
+      interpretation = f"interpretation: device reports TRIM/UNMAP support ({hint}) and kernel also reports `unmap`."
+    elif reports_support:
+      hint = unmap_hint or "Maximum unmap LBA count reported"
+      if mode is None:
+        interpretation = f"interpretation: device reports TRIM/UNMAP support ({hint}), but kernel mode could not be determined."
+      else:
+        interpretation = f"interpretation: device reports TRIM/UNMAP support ({hint}), kernel mode is `{mode}`."
+    else:
+      interpretation = "interpretation: device does not report TRIM/UNMAP support in SCSI VPD output."
+
+  stream.write(f"{interpretation}\n")
+  stream.write("WARNING: this interpretation is preliminary; zmirror provides no guarantees, especially no guarantee that TRIM support is reported correctly for this device.\n")
+
+
+def handle_enable_trim_command(args):
+  stream = getattr(args, "stream", sys.stdout)
+
+  device = args.device.strip()
+  if not device.startswith("/dev/"):
+    device = f"/dev/{device}"
+
+  stream.write(f"manually enabling trim for: {device}\n\n")
+
+  provisioning_mode_path = config.find_provisioning_mode(device)
+  if provisioning_mode_path is None:
+    stream.write("provisioning_mode path was not found; cannot enable trim for this device.\n")
+    return
+
+  quoted_path = shlex.quote(provisioning_mode_path)
+  returncode, response, _errors = run_and_print_command(f"cat {quoted_path}", stream)
+  if returncode != 0 or not response:
+    stream.write("could not determine current provisioning_mode; no changes applied.\n")
+    return
+
+  current_mode = response[-1].strip().lower()
+  if current_mode == "unmap":
+    stream.write("trim already enabled (`unmap`); no changes applied.\n")
+    return
+
+  run_and_print_command(f"echo unmap > {quoted_path}", stream)
+  _verify_returncode, verify_response, _verify_errors = run_and_print_command(
+    f"cat {quoted_path}",
+    stream,
+  )
+
+  if verify_response and verify_response[-1].strip().lower() == "unmap":
+    stream.write("trim enable command applied; provisioning_mode now reports `unmap`.\n")
+  else:
+    stream.write("trim enable command was attempted, but provisioning_mode still does not report `unmap`.\n")

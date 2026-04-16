@@ -116,6 +116,20 @@ def make_arg_parser():
   daemon_parser = subs.add_parser('daemon', parents=[shared_parser, socket_parser], help="starts zmirror in daemon mode")
   daemon_parser.set_defaults(func=daemon)
 
+  check_trim_parser = subs.add_parser(
+    'check-trim',
+    help='verify trim capability and print all executed shell commands and output',
+  )
+  check_trim_parser.add_argument('device', help='block device (for example: sda or /dev/sda)')
+  check_trim_parser.set_defaults(func=handle_check_trim_command)
+
+  enable_trim_parser = subs.add_parser(
+    'enable-trim',
+    help='manually force provisioning_mode to unmap for one device',
+  )
+  enable_trim_parser.add_argument('device', help='block device path (for example: /dev/sda)')
+  enable_trim_parser.set_defaults(func=handle_enable_trim_command)
+
 
   # daemon commands
   # #######################

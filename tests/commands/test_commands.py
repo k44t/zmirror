@@ -969,12 +969,8 @@ class Tests():
     assert not since_in(Operation.RESILVER, blockdev.operations)
 
     assert_commands([
-      
-      # and then we take it offline.
       "zpool offline zmirror-sysfs zvol/zmirror-bak-b/sysfs",
-      
-      # we make a snapshot of the volume that backs it
-      re.compile(r"zfs snapshot zmirror-bak-b/sysfs@.+")
+      re.compile(r"zfs snapshot zmirror-bak-b/sysfs@.+"),
     ])
 
 
@@ -1004,12 +1000,8 @@ class Tests():
     trigger_event()
 
     assert_commands([
-
-      # and then we take it offline.
       "zpool offline zmirror-big zvol/zmirror-bak-b/big",
-
-      # we make a snapshot of the volume that backs it
-      re.compile(r"zfs snapshot zmirror-bak-b/big@.+")
+      re.compile(r"zfs snapshot zmirror-bak-b/big@.+"),
     ])
 
   # when the blockdev disappears from the pool it backs
@@ -1033,8 +1025,8 @@ class Tests():
     dm_beta = config.cache_dict["dm-crypt|name:zmirror-bak-b-beta"]
     zpool = config.cache_dict["zpool|name:zmirror-bak-b"]
 
-    assert dm_alpha.state.what == EntityState.CONNECTED
-    assert dm_beta.state.what == EntityState.CONNECTED
+    assert dm_alpha.state.what == EntityState.ACTIVE
+    assert dm_beta.state.what == EntityState.ACTIVE
 
     assert blockdev_alpha.state.what == EntityState.ACTIVE
     assert blockdev_beta.state.what == EntityState.ACTIVE
@@ -1063,9 +1055,7 @@ class Tests():
 
     trigger_event()
 
-    assert_commands([
-      # we do nothing
-    ])
+    assert_commands([])
 
 
   # when the second encrypted disk is closed
@@ -1073,9 +1063,7 @@ class Tests():
 
     trigger_event()
 
-    assert_commands([
-      # we do nothing
-    ])
+    assert_commands([])
 
 
   # when the first physical disk is being unplugged
