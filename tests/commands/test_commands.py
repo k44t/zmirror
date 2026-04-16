@@ -306,7 +306,7 @@ class Tests():
     crypt = config.cache_dict["dm-crypt|name:zmirror-sysfs-s"]
     zdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
-    assert disk.state.what == EntityState.CONNECTED
+    assert disk.state.what == EntityState.ACTIVE
     assert partition.state.what == EntityState.CONNECTED
     assert crypt.state.what == EntityState.CONNECTED
     assert zdev.state.what == EntityState.ACTIVE

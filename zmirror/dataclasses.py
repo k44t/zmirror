@@ -797,6 +797,19 @@ class Disk(ManualChildren):
     possibly_force_enable_trim(self)
     return super().handle_onlined(prev_state)
 
+  def handle_child_online(self, _child, _prev_state):
+    cache = cached(self)
+    if cache.state.what == EntityState.CONNECTED:
+      set_cache_state(cache, EntityState.ACTIVE)
+      cache_log_info(cache, "activated")
+
+  def handle_children_offline(self):
+    cache = cached(self)
+    if cache.state.what == EntityState.ACTIVE:
+      set_cache_state(cache, EntityState.CONNECTED)
+      cache_log_info(cache, "deactivated")
+    return super().handle_children_offline()
+
 
   # this requires a udev rule to be installed which ensures that the disk appears under its GPT partition table UUID under /dev/disk/by-uuid
   def dev_path(self):
@@ -1710,6 +1723,8 @@ def set_state_online(entity):
 
   state = EntityState.CONNECTED
   if isinstance(configured, Entity) and configured.is_automatically_active():
+    state = EntityState.ACTIVE
+  if cache.state.what == EntityState.ACTIVE and state == EntityState.CONNECTED:
     state = EntityState.ACTIVE
   return set_cache_state(cache, state)
 

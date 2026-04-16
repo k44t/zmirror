@@ -265,6 +265,30 @@ class Tests():
     assert RequestType.SCRUB not in s.requested
 
 
+  def test_disk_activates_on_child_online(self):
+    disk = config.config_dict["disk|uuid:00000000-0000-0000-0000-000000000004"]
+    partition = config.config_dict["partition|name:zmirror-sysfs-s"]
+    disk_cache = cached(disk)
+
+    disk_cache.state.what = EntityState.CONNECTED
+    disk.handle_child_online(partition, EntityState.DISCONNECTED)
+
+    assert disk_cache.state.what == EntityState.ACTIVE
+
+
+  def test_disk_deactivates_to_connected_on_children_offline(self):
+    disk = config.config_dict["disk|uuid:00000000-0000-0000-0000-000000000004"]
+    partition = config.config_dict["partition|name:zmirror-sysfs-s"]
+    disk_cache = cached(disk)
+    partition_cache = cached(partition)
+
+    disk_cache.state.what = EntityState.ACTIVE
+    partition_cache.state.what = EntityState.DISCONNECTED
+    disk.handle_child_offline(partition, EntityState.CONNECTED)
+
+    assert disk_cache.state.what == EntityState.CONNECTED
+
+
 
   # this is necessary because we have not allowed all requests to be fulfilled
   # and we don't want the testing process to run until the timers have finished
