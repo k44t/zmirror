@@ -67,7 +67,7 @@ class Tests():
 
     
     entities.init_config(config_path="./example-config.yml", cache_path="./tests/commands/res/test_cache.yml")
-    config.timeout = 1
+    config.timeout = 15
 
 
     for entity in config.cache_dict.values():

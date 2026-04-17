@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from typing import Any
 import time
+import traceback
 from .util import read_file
 from enum import Enum
 import shutil
@@ -610,7 +611,11 @@ def run_action(self, action):
       else:
         return self.request(RequestType.OFFLINE, enactment_level=0).enact_hierarchy()
     else:
-      log.error(f"{human_readable_id(self)}: entity does not support being taken offline")
+      log.error(
+        "%s: entity does not support being taken offline\n%s",
+        human_readable_id(self),
+        "".join(traceback.format_stack())
+      )
       return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
   elif action == "online":
     if hasattr(self, "enact_online"):

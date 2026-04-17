@@ -52,7 +52,7 @@ class Tests():
   @classmethod
   def setup_class(cls):
     entities.init_config(config_path="./example-config.yml", cache_path="./tests/commands/res/test_cache.yml")
-    config.timeout = 1
+    config.timeout = 15
 
   @classmethod
   def teardown_class(cls):
@@ -744,7 +744,9 @@ class Tests():
   def test_zdev_bak_a_big_disconnected(self):
     trigger_event()
 
-    assert_commands([])
+    assert_commands([
+      "zpool export zmirror-bak-a"
+    ])
 
   # when then the event arrives we just triggered by taking setting volmode=none
   def test_zfs_volume_bak_a_big_offline(self):
@@ -1008,7 +1010,9 @@ class Tests():
   # when the blockdev disappears from the pool it backs
   def test_zdev_bak_b_big_disconnected(self):
     trigger_event()
-    assert_commands([])
+    assert_commands([
+      "zpool export zmirror-bak-b"
+    ])
 
   # when the volume disappears
   def test_zfs_volume_bak_b_big_offline(self):

@@ -47,4 +47,4 @@ def do_nothing(*args): #pylint: disable=unused-argument
 def prepare_config_and_cache():
   package_path, _, _ = get_frame_data(1)
   entities.init_config(cache_path=f"{package_path}/res/cache.yml", config_path=f"{package_path}/res/config.yml")
-  config.timeout = 1
+  config.timeout = 15

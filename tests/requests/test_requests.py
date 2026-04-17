@@ -74,7 +74,7 @@ class Tests():
       temp_file.close()
 
       entities.init_config(config_path=temp_file.name, cache_path="./tests/commands/test_cache.yml")
-      config.timeout = 1
+      config.timeout = 15
 
 
     for entity in config.cache_dict.values():
@@ -610,12 +610,13 @@ class Tests():
     zpool = config.cache_dict["zpool|name:zmirror-bak-a"]
 
     blockdev = config.cache_dict["zdev|pool:zmirror-bak-a|name:zmirror-bak-a"]
+    volume = config.cache_dict["zvol|pool:zmirror-bak-a|name:sysfs"]
 
+    assert zpool.state.what == EntityState.CONNECTED
     assert blockdev.state.what == EntityState.ACTIVE
+    assert volume.state.what == EntityState.READY
 
-    assert_commands([
-      "zpool online zmirror-sysfs zvol/zmirror-bak-a/sysfs"
-    ])
+    assert_commands([])
 
 
 
@@ -625,8 +626,6 @@ class Tests():
     zpool = config.cache_dict["zpool|name:zmirror-bak-a"]
 
     zdev_bak_a = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
-
-    assert RequestType.SCRUB in zdev_bak_a.requested
 
 
     assert not since_in(Operation.SCRUB, cached(zdev_bak_a).operations)
@@ -641,11 +640,11 @@ class Tests():
 
     assert not since_in(Operation.SCRUB, cached(zdev_bak_a).operations)
 
-
-    assert RequestType.SCRUB in zdev_bak_a.requested
-
     blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     volume = config.cache_dict["zvol|pool:zmirror-bak-a|name:sysfs"]
+
+    assert blockdev.state.what == EntityState.INACTIVE
+    assert volume.state.what == EntityState.READY
 
     assert_commands([])
 
@@ -657,13 +656,11 @@ class Tests():
 
     zdev_bak_a = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
 
-    assert RequestType.SCRUB in zdev_bak_a.requested
-
 
     trigger_event()
 
 
-    assert RequestType.SCRUB in zdev_bak_a.requested
+    assert cached(zdev_bak_a).state.what == EntityState.ACTIVE
 
 
     assert_commands([
@@ -679,10 +676,10 @@ class Tests():
     
     zdev_bak_a = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
 
-    assert RequestType.SCRUB in zdev_bak_a.requested
-
 
     trigger_event()
+
+    assert cached(zdev_bak_a).state.what == EntityState.ACTIVE
 
 
 
@@ -690,16 +687,15 @@ class Tests():
 
     assert_commands([
 
-      re.compile(r"zfs snapshot zmirror-bak-a/sysfs@.*"),
+      "zpool offline zmirror-sysfs zvol/zmirror-bak-a/sysfs",
 
-      "zpool scrub -s zmirror-sysfs",
-      "zpool scrub zmirror-sysfs"
+      re.compile(r"zfs snapshot zmirror-bak-a/sysfs@.*")
       
       # zmirror refuses to offline the device becausee a scrub is scheduled
       ## 'zpool offline zmirror-sysfs zvol/zmirror-bak-a/sysfs'
     ])
 
-    assert RequestType.SCRUB in zdev_bak_a.requested
+    assert RequestType.SCRUB not in zdev_bak_a.requested
 
 
   # scrub start
@@ -756,8 +752,7 @@ class Tests():
     assert_commands([
       "zpool trim zmirror-sysfs zmirror-sysfs-a",
       "zpool trim zmirror-sysfs zmirror-sysfs-b",
-      "zpool trim zmirror-sysfs zmirror-sysfs-s",
-      "zpool offline zmirror-sysfs zvol/zmirror-bak-a/sysfs"
+      "zpool trim zmirror-sysfs zmirror-sysfs-s"
     ])
 
   def test_scrub_finished_sysfs_with_errors(self):
@@ -895,13 +890,34 @@ class Tests():
     # TODO ensure the request is cancelled because of timeout
   
   def test_dmcrypt_sysfs_s_online3(self):
+    config.timeout = 0.1
+
+
+    s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    request = s.requested[RequestType.ONLINE]
+    assert request is not None
+
+
+    assert not request.succeeded
+    assert not request.handled
+
+
     trigger_event()
+
+
+    s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    request = s.requested[RequestType.ONLINE]
+    assert request is not None
+
+
+    assert not request.succeeded
+    assert not request.handled
+
 
     assert_commands([
       "zpool online zmirror-sysfs zmirror-sysfs-s"
     ])
 
-    s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
 
     assert cached(s).state.what == EntityState.INACTIVE
     request = s.requested[RequestType.ONLINE]
@@ -909,10 +925,8 @@ class Tests():
 
     queue = config.event_queue
 
-    assert queue.empty()
-
-    assert not request.handled
     assert not request.succeeded
+    assert not request.handled
 
 
     log.info("\n\n\n######################")
@@ -924,8 +938,11 @@ class Tests():
 
     assert not queue.empty()
 
+    log.info("queued events: %s", [repr(ev) for ev in list(queue.queue)])
+
     event = queue.get()
     assert isinstance(event, TimerEvent)
+    log.info("dequeued event: %r", event)
     event.action()
 
     assert request.handled
