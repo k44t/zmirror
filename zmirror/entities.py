@@ -4,6 +4,7 @@ import re
 import logging
 import json
 from typing import Optional
+from kpyutils.scheduler import Scheduler, parse_schedule
 
 from .util import init_cache_db, load_yaml_config, remove_cache_db, require_path
 from .util import myexec as myexec #pylint: disable=redefined-builtin
@@ -83,8 +84,87 @@ def init_config(cache_path, config_path):
 
   commands.execute_commands()
   save_cache_now()
+  _configure_internal_scheduler()
 
   log.info("configuration initialized")
+
+
+def _as_scheduler_list(value):
+  if not value:
+    return []
+  if isinstance(value, list):
+    return value
+  return [value]
+
+
+def _compile_scheduler_entries(entries, label):
+  schedules = []
+  for index, entry in enumerate(entries):
+    if not isinstance(entry, dict):
+      raise ValueError(f"{label}[{index}] must be a dict")
+    try:
+      schedules.append(parse_schedule(
+        times=entry.get("times"),
+        days=entry.get("days"),
+        months=entry.get("months"),
+        weekdays=entry.get("weekdays"),
+      ))
+    except ValueError as ex:
+      raise ValueError(f"{label}[{index}]: {ex}") from ex
+  return schedules
+
+
+def _make_scheduler_callback(action, message):
+  def callback():
+    log.info(message)
+    action()
+    return True
+  return callback
+
+
+def _queue_scheduler_callback(callback):
+  config.event_queue.put(callback)
+
+
+def _stop_internal_schedulers():
+  for attr in ["update_scheduler", "maintenance_scheduler"]:
+    scheduler = getattr(config, attr, None)
+    if scheduler is not None:
+      scheduler.cancel()
+      setattr(config, attr, None)
+
+
+def _configure_internal_scheduler():
+  _stop_internal_schedulers()
+
+  if not config.is_daemon or config.event_queue is None:
+    return
+
+  from .user_commands import handle_do_overdue_command, handle_maintenance_command
+
+  update_schedules = _compile_scheduler_entries(_as_scheduler_list(getattr(config.config_root, "update_scheduler", [])), "update_scheduler")
+  maintenance_schedules = _compile_scheduler_entries(_as_scheduler_list(getattr(config.config_root, "maintenance_scheduler", [])), "maintenance_scheduler")
+
+  if update_schedules:
+    config.update_scheduler = Scheduler(
+      schedules=update_schedules,
+      callback=_make_scheduler_callback(
+        lambda: handle_do_overdue_command(Operation.RESILVER),
+        "scheduler: checking for overdue updates",
+      ),
+      dispatch=_queue_scheduler_callback,
+    )
+    config.update_scheduler.start()
+  if maintenance_schedules:
+    config.maintenance_scheduler = Scheduler(
+      schedules=maintenance_schedules,
+      callback=_make_scheduler_callback(
+        handle_maintenance_command,
+        "scheduler: running maintenance and checking for overdue scrub, trim, and updates",
+      ),
+      dispatch=_queue_scheduler_callback,
+    )
+    config.maintenance_scheduler.start()
 
 
 def refresh_all_vdev_error_state_from_status():

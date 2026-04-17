@@ -579,6 +579,8 @@ def handle_events(event_queue, shutdown_fn):
       elif isinstance(event, TimerEvent):
         log.debug(f"timer event: ({config.timeout})")
         handled = event.action()
+      elif callable(event):
+        handled = event()
       else:
         handled = handle(event)
       
@@ -711,6 +713,14 @@ def daemon(args):# pylint: disable=unused-argument
         pass
       try:
         config.cancel_timers()
+      except Exception:
+        pass
+      try:
+        for attr in ["update_scheduler", "maintenance_scheduler"]:
+          scheduler = getattr(config, attr, None)
+          if scheduler is not None:
+            scheduler.cancel()
+            setattr(config, attr, None)
       except Exception:
         pass
       try:

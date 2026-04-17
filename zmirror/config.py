@@ -26,6 +26,8 @@ timeout = None
 timers = []
 cache_save_timeout = 4 # seconds
 running = True
+update_scheduler = None
+maintenance_scheduler = None
 
 is_daemon = False
 
@@ -152,4 +154,3 @@ def start_event_queue_timer(duration, action):
   timers.append(timer)
   timer.start()
   return timer
-

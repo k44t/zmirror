@@ -112,6 +112,7 @@ def make_arg_parser():
   list_args_parser.add_argument("--id-regex", type=str, default=None, help="limit the entities to ids matching this regex")
   list_args_parser.add_argument("--hierarchy", action="store_true", default=False, help="expand matched entities to related hierarchy (parents/children plus zpool<->zdev) and indent output")
   list_args_parser.add_argument("--graph", action="store_true", default=False, help="display matched entities as graph roots, scoped by traversal direction")
+  list_args_parser.add_argument("--include-available-update-overdue", action="store_true", default=False, help="when listing overdue updates, also include devices overdue by available_update_interval")
 
 
   daemon_parser = subs.add_parser('daemon', parents=[shared_parser, socket_parser], help="starts zmirror in daemon mode")

@@ -45,8 +45,14 @@ def request_overdue(op: Operation, entity):
   if isinstance(entity, ZDev):
     msg = f"{entity_id_string(entity)}: last {rqst.name} was {entity.last(op) or "NEVER"} (interval: {entity.effective_interval(op)})."
     overdue_since = entity.is_overdue(op)
-    if overdue_since:
-      overdue = datetime.now().replace(microsecond=0) - overdue_since
+    available_overdue_since = False
+    if op == Operation.RESILVER:
+      available_overdue_since = entity.is_available_update_overdue()
+      if available_overdue_since and not overdue_since:
+        msg += f" available interval: {entity.effective_available_update_interval()}."
+    effective_overdue_since = overdue_since or available_overdue_since
+    if effective_overdue_since:
+      overdue = datetime.now().replace(microsecond=0) - effective_overdue_since
       if overdue.days > 356:
         msg += " OVERDUE since more than a year."
       else:
@@ -503,7 +509,7 @@ def make_send_daemon_wrapper(fn, stream=sys.stdout):
 
 
 LIST_DEFAULT_KEYS = ["hrid", "last_online", "last_update", "update_overdue", "last_trim", "trim_overdue", "last_scrub", "scrub_overdue", "errors", "operations"]
-LIST_KEYS = ["id", "hrid", "state", "parent", "depth", "last_online", "last_update", "update_overdue", "update_interval", "last_trim", "trim_overdue", "trim_interval", "last_scrub", "scrub_overdue", "scrub_interval", "errors", "operations"]
+LIST_KEYS = ["id", "hrid", "state", "parent", "depth", "last_online", "last_update", "update_overdue", "available_update_overdue", "update_interval", "available_update_interval", "last_trim", "trim_overdue", "trim_interval", "last_scrub", "scrub_overdue", "scrub_interval", "errors", "operations"]
 
 
 def make_list_command(op: Operation, overdue=False):
@@ -530,6 +536,8 @@ def make_list_command(op: Operation, overdue=False):
         r["hierarchy"] = True
       if args.graph:
         r["graph"] = True
+      if args.include_available_update_overdue:
+        r["include_available_update_overdue"] = True
       
       return r
     
@@ -709,6 +717,8 @@ def entity_to_table_entry(entity: Entity, tree=False, indent_depth=None, repeate
         "last_update": special_ki_to_json(to_kd_date(entity.get_last_update())),
         "update_overdue": to_kd_date(entity.is_overdue(Operation.RESILVER)),
         "update_interval": entity.update_interval,
+        "available_update_overdue": to_kd_date(entity.is_available_update_overdue()),
+        "available_update_interval": entity.available_update_interval,
         "last_trim": to_kd_date(cache.last_trim),
         "trim_overdue": to_kd_date(entity.is_overdue(Operation.TRIM)),
         "trim_interval": entity.trim_interval,
@@ -783,6 +793,12 @@ def handle_list_command(command, stream):
   if "sort" in command:
     sort_attr = command["sort"]
 
+  include_available_update_overdue = False
+  if "include_available_update_overdue" in command:
+    include_available_update_overdue = command["include_available_update_overdue"]
+    if not isinstance(include_available_update_overdue, bool):
+      raise ValueError("`include_available_update_overdue` must be a bool")
+
 
   def matches_group_type_or_id(entity):
     if groups is not None:
@@ -824,7 +840,11 @@ def handle_list_command(command, stream):
       return False
 
     if op:
+      if op == Operation.RESILVER and include_available_update_overdue and isinstance(entity, ZDev):
+        return bool(entity.is_overdue(op) or entity.is_available_update_overdue())
       return bool(entity.is_overdue(op))
+    if include_available_update_overdue and isinstance(entity, ZDev):
+      return bool(is_anything_overdue(entity) or entity.is_available_update_overdue())
     return is_anything_overdue(entity)
 
 

@@ -15,6 +15,8 @@
 import pytest
 import re
 import tempfile
+import io
+import json
 
 from itertools import zip_longest
 
@@ -85,6 +87,7 @@ class Tests():
         entity.scrub_interval = "4 weeks"
         entity.trim_interval = "4 weeks"
         entity.update_interval = "4 weeks"
+        entity.available_update_interval = None
 
     
     zpool = config.config_dict["zpool|name:zmirror-sysfs"]
@@ -146,6 +149,49 @@ class Tests():
     ])
 
     rqst.cancel(Reason.USER_REQUESTED)
+
+
+  def test_resilver_available_update_overdue(self):
+
+    s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    s.update_interval = "4 weeks"
+    s.available_update_interval = "10 mins"
+    cached(s).last_update = datetime.now() - timedelta(minutes=20)
+
+    assert not s.is_overdue(Operation.RESILVER)
+    assert s.is_available_update_overdue()
+
+    rqst = request_overdue(Operation.RESILVER, s)
+
+    assert rqst
+
+    rqst.enact_hierarchy()
+
+    assert_commands([
+      "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-s zmirror-sysfs-s --key-file ./test/zmirror-key"
+    ])
+
+    rqst.cancel(Reason.USER_REQUESTED)
+
+
+  def test_list_update_overdue_can_include_available_update_overdue(self):
+
+    s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    s.update_interval = "4 weeks"
+    s.available_update_interval = "10 mins"
+    cached(s).last_update = datetime.now() - timedelta(minutes=20)
+
+    stream = io.StringIO()
+    user_commands.handle_list_command({
+      "command": "list",
+      "operation": "resilver",
+      "overdue": True,
+      "include_available_update_overdue": True,
+    }, stream)
+
+    rows = json.loads(stream.getvalue())
+
+    assert any(row["id"] == entity_id_string(s) for row in rows)
 
 
 

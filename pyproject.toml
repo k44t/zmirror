@@ -39,6 +39,7 @@ zmirror-trigger = "zmirror.trigger:main"
 kpyutils = { path = "../kpyutils", develop = true }
 debugpy = ">=1.8.14"
 pytest = "^9.0.3"
+pytest-timeout = ">=2.4.0"
 # argparse-manpage = { path = "/#/projects/argparse-manpage", develop = true } # "^4.7"
 toml = ">=0.10.2"
 dunamai = ">=1.0.0"
@@ -46,6 +47,7 @@ dunamai = ">=1.0.0"
 [tool.pytest.ini_options]
 log_cli = true
 log_level = "INFO"
+timeout = 10
 
 [build-system]
 requires = ["poetry-core"]

@@ -206,9 +206,12 @@ class ZMirror:
 
 
   update_interval: str = None
+  available_update_interval: str = None
   scrub_interval: str = None
   trim_interval: str = None
   zpool_import_args: str = None
+  update_scheduler: list = field(default_factory=list)
+  maintenance_scheduler: list = field(default_factory=list)
 
   def id(self):
     return make_id(self)
@@ -1870,6 +1873,7 @@ class ZDev(Onlineable, Embedded, Entity):
   scrub_interval: str = None
   trim_interval: str = None
   update_interval: str = None
+  available_update_interval: str = None
 
   is_mirror: bool = False
 
@@ -1944,12 +1948,20 @@ class ZDev(Onlineable, Embedded, Entity):
         val = None
       setattr(self, prop_name, val)
 
+    if self.available_update_interval is None:
+      self.available_update_interval = getattr(config.config_root, "available_update_interval", None)
+    if self.available_update_interval is not None and self.available_update_interval.lower() in {"nil", "none", "void"}:
+      self.available_update_interval = None
+
   def effective_interval(self, op: Operation):
     return self.configured_interval(op)
   
 
   def configured_interval(self, op: Operation):
     return getattr(self, f"{name_for_operation[op]}_interval")
+
+  def effective_available_update_interval(self):
+    return self.available_update_interval
   
   def last(self, op: Operation):
     cache = cached(self)
@@ -1958,34 +1970,44 @@ class ZDev(Onlineable, Embedded, Entity):
 
   
   def is_overdue(self, op: Operation):
-    interval = self.effective_interval(op)
-    if interval is not None:
+    overdue_since = self._overdue_since(self.effective_interval(op), op=op)
+    if overdue_since and op == Operation.RESILVER:
       cache = cached(self)
-      now = inaccurate_now()
-      allowed_delta_since = dateparser.parse(interval)
-      if allowed_delta_since is None:
+      if is_online_state(cache.state.what) and not since_in(Operation.RESILVER, cache.operations):
         return False
-      allowed_delta = now - allowed_delta_since
+    return overdue_since
 
-      last = self.last(op)
-      if last is None:
-        if cache.added is None:
-          base = now
-        else:
-          base = datetime.fromtimestamp(cache.added)
+  def is_available_update_overdue(self):
+    return self._overdue_since(self.effective_available_update_interval(), op=Operation.RESILVER)
+
+  def _overdue_since(self, interval, op: Operation):
+    if interval is None:
+      return False
+
+    cache = cached(self)
+    now = inaccurate_now()
+    allowed_delta_since = dateparser.parse(interval)
+    if allowed_delta_since is None:
+      return False
+    allowed_delta = now - allowed_delta_since
+
+    last = self.last(op)
+    if last is None:
+      if cache.added is None:
+        base = now
       else:
-        base = last
+        base = datetime.fromtimestamp(cache.added)
+    else:
+      base = last
 
-      overdue_for = now - (base + allowed_delta)
-      if overdue_for > timedelta(0):
-        if op == Operation.RESILVER:
-          if is_online_state(cache.state.what) and not since_in(Operation.RESILVER, cache.operations):
-            return False
-        overdue_since = now - overdue_for
-        if overdue_since.microsecond > 0:
-          overdue_since = overdue_since + timedelta(seconds=1)
-        return overdue_since.replace(microsecond=0)
-    return False
+    overdue_for = now - (base + allowed_delta)
+    if overdue_for <= timedelta(0):
+      return False
+
+    overdue_since = now - overdue_for
+    if overdue_since.microsecond > 0:
+      overdue_since = overdue_since + timedelta(seconds=1)
+    return overdue_since.replace(microsecond=0)
 
   def handle_resilver_finished(self):
 
@@ -2003,11 +2025,15 @@ class ZDev(Onlineable, Embedded, Entity):
         kdstream.print_property_prefix("last_update")
         last_update = self.get_last_update()
         kdstream.print_obj(last_update, nil=KiSymbol("never"))
+        if self.is_available_update_overdue():
+          kdstream.print_raw(" # AVAILABLE OVERDUE")
       else:
         kdstream.print_property(cache, get_last_property_name_for_operation(op), nil=KiSymbol("never"))
       if self.is_overdue(op):
         kdstream.print_raw(" # OVERDUE")
       kdstream.print_property(self, f"{name_for_operation[op]}_interval", hide_if_empty=True)
+      if op is Operation.RESILVER:
+        kdstream.print_property(self, "available_update_interval", hide_if_empty=True)
 
     if cache.operations:
       kdstream.newline()

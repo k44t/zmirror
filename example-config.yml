@@ -48,9 +48,23 @@ timeout: 300
 # scheduling
 # #########################
 #
-# `zmirror` itself does not have an inbuilt scheduler. Instead it relies
-# on systemd or or cron to run `zmirror maintenance` at some user-specified 
-# time of day.
+# zmirror can run its own internal schedulers from the daemon.
+#
+# each scheduler is a list of schedule entries. every entry requires `times`
+# and may restrict execution further via `days`, `months` or `weekdays`.
+#
+# time formats:
+# - ":SS" every minute at second SS
+# - "MM:SS" every hour at minute MM second SS
+# - "HH:MM:SS" every day at HH:MM:SS
+#
+# range filters are inclusive and allow wraparound for weekdays.
+# examples: ["1-15"], ["3-5"], ["mon-fri"], ["fri-mon"]
+#
+# update_scheduler runs the equivalent of `zmirror update-overdue`.
+# maintenance_scheduler runs what `zmirror maintenance` does now.
+update_scheduler: []
+maintenance_scheduler: []
 
 # global default for whether disks are SSDs. Individual disks may override via
 # `ssd: yes|no`.
@@ -86,6 +100,12 @@ scrub_interval: nil # 4 weeks
 #
 # defaults to: `nil` (no interval)
 update_interval: nil # 2 weeks
+
+# while a device is available for updating, you may want a much shorter update
+# cadence than the long-term administrative `update_interval` above.
+#
+# defaults to: `nil` (no interval)
+available_update_interval: nil # 10 mins
 
 # extra arguments passed to `zpool import`.
 # useful for search paths like: "-d /dev/disk/by-id -d /dev/mapper"
