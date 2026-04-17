@@ -741,9 +741,6 @@ content:
       # internal state of the volume to online.
       - !zvol
         name: sysfs
-
-        on_children_offline:
-          - offline
         
         # we do not want it to be taken online when it appears
         #
@@ -845,9 +842,6 @@ content:
       # the note from zmirror-bak-a/sysfs applies
       - !zvol
         name: big
-        
-        on_children_offline: 
-          - offline
 
         content:
           
@@ -952,8 +946,6 @@ content:
       
       - !zvol
         name: sysfs
-        on_children_offline: 
-          - offline
         content:
 
           # the note from zmirror-bak-a/sysfs applies
@@ -973,8 +965,6 @@ content:
 
       - !zvol
         name: big
-        on_children_offline:
-          - offline
         content:
 
           # the note from zmirror-bak-a/sysfs applies
@@ -1144,9 +1134,6 @@ content:
       
       - !zvol
         name: blubak
-
-        on_children_offline: 
-          - offline
 
         content:
 

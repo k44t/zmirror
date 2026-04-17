@@ -114,6 +114,10 @@ class EntityState(KiEnum):
   # present and offline (inactive)
   INACTIVE = 2
 
+  # present and both online/offline boundary compatible
+  # (used for virtual/container-like entities such as zvol-backed paths)
+  READY = 3
+
 
 def state_corresponds_to_request(state, request):
   if request == RequestType.APPEAR:
@@ -122,10 +126,9 @@ def state_corresponds_to_request(state, request):
     return is_offline_state(state)
   if request == RequestType.ONLINE:
     return is_online_state(state)
-  # Fallback relies on aligned enum values for request/state pairs that are not
-  # explicitly mapped above (for example SNAPSHOT). Keep state/request numeric
-  # values intentionally non-colliding except for intended pairs.
-  return state.value == request.value
+  if request in {RequestType.SCRUB, RequestType.TRIM, RequestType.CANCEL_SCRUB, RequestType.CANCEL_TRIM, RequestType.SNAPSHOT}:
+    return False
+  raise ValueError(f"unmapped request/state correspondence for request type: {request}")
 
 def operation_corresponds_to_request(oper, request):
   return oper.value == request.value
@@ -145,7 +148,7 @@ def enum_command_name(enum):
 
 
 def is_online_state(state):
-  return state in {EntityState.CONNECTED, EntityState.ACTIVE}
+  return state in {EntityState.READY, EntityState.CONNECTED, EntityState.ACTIVE}
 
 
 def is_online(entity):
@@ -154,7 +157,7 @@ def is_online(entity):
 
 
 def is_offline_state(state):
-  return state in {EntityState.INACTIVE, EntityState.DISCONNECTED}
+  return state in {EntityState.READY, EntityState.INACTIVE, EntityState.DISCONNECTED}
 
 
 
@@ -589,7 +592,7 @@ class Entity:
 def run_event_handlers(self, event_name, excepted=None):
 
   if not config.event_handlers_enabled:
-    log.info(f"{human_readable_id(self)}: {event_name}. Skipping event handlers (disabled)")
+    log.info(f"{human_readable_id(self)}: {event_name}. Skipping event handlers (because they are disabled)")
     return
   handlers = getattr(self, "on_" + event_name)
   if handlers:
@@ -1401,7 +1404,7 @@ class ZFSVolume(ManualChildren):
 
 
   def unsupported_request(self, request_type):
-    if request_type in {RequestType.ONLINE, RequestType.OFFLINE, RequestType.SNAPSHOT}:
+    if request_type in {RequestType.SNAPSHOT}:
       return None
     return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
 
@@ -1424,7 +1427,7 @@ class ZFSVolume(ManualChildren):
     self.enact_requests()
     run_event_handlers(self, "appeared")
 
-  def handle_onlined(self, state=EntityState.CONNECTED):
+  def handle_onlined(self, state=EntityState.READY):
     if any(is_online(child) for child in self.content):
       state = EntityState.ACTIVE
     super().handle_onlined(state=state)
@@ -1434,17 +1437,17 @@ class ZFSVolume(ManualChildren):
     tell_parent_child_offline(self.parent, self, prev_state)
 
   def handle_child_online(self, child, prev_state):
-    if self.get_state() == EntityState.CONNECTED:
+    if self.get_state() == EntityState.READY:
       self.set_state(EntityState.ACTIVE, "activated")
     tell_parent_child_online(self.parent, self, prev_state)
 
   def handle_children_offline(self):
     if self.get_state() == EntityState.ACTIVE:
-      self.set_state(EntityState.CONNECTED, "deactivated")
+      self.set_state(EntityState.READY, "child deactivated")
     return super().handle_children_offline()
 
-  def handle_parent_online(self, _new_state=EntityState.CONNECTED):
-    handle_onlined(cached(self))
+  def handle_parent_online(self, _new_state=EntityState.READY):
+    handle_onlined(cached(self), state=EntityState.READY)
 
   def handle_parent_offline(self, _new_state=EntityState.DISCONNECTED):
     handle_disconnected(cached(self))
@@ -1463,7 +1466,7 @@ class ZFSVolume(ManualChildren):
     if is_online_state(parent_state):
       if any(is_online(child) for child in self.content):
         return EntityState.ACTIVE
-      return EntityState.CONNECTED
+      return EntityState.READY
     return EntityState.DISCONNECTED
 
   def enact_snapshot(self):
@@ -1775,14 +1778,18 @@ def handle_appeared(cache):
   entity.handle_appeared()
 
 # the device has activated
-def handle_onlined(cache):
+def handle_onlined(cache, state=None):
   cache = cached(cache)
   entity = uncached(cache)
   if entity is None:
-    state = EntityState.ACTIVE if cache.state.what == EntityState.ACTIVE else EntityState.CONNECTED
+    if state is None:
+      state = EntityState.CONNECTED
     cache.set_state(state, "onlined")
     return
-  entity.handle_onlined()
+  if state is None:
+    entity.handle_onlined()
+  else:
+    entity.handle_onlined(state=state)
 
 
 

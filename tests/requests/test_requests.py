@@ -74,6 +74,7 @@ class Tests():
       temp_file.close()
 
       entities.init_config(config_path=temp_file.name, cache_path="./tests/commands/test_cache.yml")
+      config.timeout = 1
 
 
     for entity in config.cache_dict.values():

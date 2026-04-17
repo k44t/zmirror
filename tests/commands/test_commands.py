@@ -52,6 +52,7 @@ class Tests():
   @classmethod
   def setup_class(cls):
     entities.init_config(config_path="./example-config.yml", cache_path="./tests/commands/res/test_cache.yml")
+    config.timeout = 1
 
   @classmethod
   def teardown_class(cls):
@@ -615,13 +616,13 @@ class Tests():
     blockdev = config.cache_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     volume = config.cache_dict["zvol|pool:zmirror-bak-a|name:sysfs"]
 
-    assert volume.state.what == EntityState.CONNECTED
+    assert volume.state.what == EntityState.READY
     assert blockdev.state.what == EntityState.INACTIVE
 
     trigger_event()
 
 
-    assert volume.state.what == EntityState.CONNECTED
+    assert volume.state.what == EntityState.READY
     assert blockdev.state.what == EntityState.INACTIVE
 
     assert_commands([
@@ -716,7 +717,7 @@ class Tests():
 
     trigger_event()
 
-    assert volume.state.what == EntityState.CONNECTED
+    assert volume.state.what == EntityState.READY
 
     assert_commands([])
 
@@ -754,7 +755,7 @@ class Tests():
     trigger_event()
 
 
-    assert big_volume.state.what == EntityState.CONNECTED
+    assert big_volume.state.what == EntityState.READY
     assert big_blockdev.state.what == EntityState.INACTIVE
     # assert zz.state.what == EntityState.DISCONNECTED
 

@@ -23,6 +23,7 @@ class Tests():
   @classmethod
   def setup_class(cls):
     entities.init_config(config_path="./example-config.yml", cache_path="./tests/commands/res/test_cache.yml")
+    config.timeout = 1
 
     for entity in config.cache_dict.values():
       if type(entity) in {Disk, Partition}:
@@ -156,12 +157,12 @@ class Tests():
     zdev = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     volume_cache = cached(volume)
 
-    volume_cache.state.what = EntityState.CONNECTED
+    volume_cache.state.what = EntityState.READY
     volume.handle_child_online(zdev, EntityState.INACTIVE)
 
     assert volume_cache.state.what == EntityState.ACTIVE
 
-  def test_zfs_volume_deactivates_to_connected_on_children_offline(self):
+  def test_zfs_volume_deactivates_to_ready_on_children_offline(self):
     volume = config.config_dict["zvol|pool:zmirror-bak-a|name:sysfs"]
     zdev = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
     volume_cache = cached(volume)
@@ -171,7 +172,7 @@ class Tests():
     zdev_cache.state.what = EntityState.DISCONNECTED
     volume.handle_child_offline(zdev, EntityState.CONNECTED)
 
-    assert volume_cache.state.what == EntityState.CONNECTED
+    assert volume_cache.state.what == EntityState.READY
 
   def test_zfs_volume_onlined_with_online_child_becomes_active(self):
     volume = config.config_dict["zvol|pool:zmirror-bak-a|name:sysfs"]
@@ -185,6 +186,18 @@ class Tests():
 
     assert volume_cache.state.what == EntityState.ACTIVE
 
+  def test_zfs_volume_onlined_without_online_child_becomes_ready(self):
+    volume = config.config_dict["zvol|pool:zmirror-bak-a|name:sysfs"]
+    zdev = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    volume_cache = cached(volume)
+    zdev_cache = cached(zdev)
+
+    volume_cache.state.what = EntityState.DISCONNECTED
+    zdev_cache.state.what = EntityState.INACTIVE
+    handle_onlined(volume_cache)
+
+    assert volume_cache.state.what == EntityState.READY
+
   def test_zfs_volume_update_initial_state_becomes_active_with_online_child(self):
     volume = config.config_dict["zvol|pool:zmirror-bak-a|name:sysfs"]
     pool = config.config_dict["zpool|name:zmirror-bak-a"]
@@ -196,6 +209,34 @@ class Tests():
     zdev_cache.state.what = EntityState.ACTIVE
 
     assert volume.update_initial_state() == EntityState.ACTIVE
+
+  def test_zfs_volume_update_initial_state_becomes_ready_without_online_child(self):
+    volume = config.config_dict["zvol|pool:zmirror-bak-a|name:sysfs"]
+    pool = config.config_dict["zpool|name:zmirror-bak-a"]
+    zdev = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    pool_cache = cached(pool)
+    zdev_cache = cached(zdev)
+
+    pool_cache.state.what = EntityState.CONNECTED
+    zdev_cache.state.what = EntityState.INACTIVE
+
+    assert volume.update_initial_state() == EntityState.READY
+
+  def test_zfs_volume_offline_request_fails_without_command(self):
+    volume = config.config_dict["zvol|pool:zmirror-bak-a|name:sysfs"]
+    zdev = config.config_dict["zdev|pool:zmirror-sysfs|name:zvol/zmirror-bak-a/sysfs"]
+    volume_cache = cached(volume)
+    zdev_cache = cached(zdev)
+
+    volume_cache.state.what = EntityState.ACTIVE
+    zdev_cache.state.what = EntityState.INACTIVE
+    request = volume.request(RequestType.OFFLINE)
+    request.enact_hierarchy()
+
+    assert request.handled is True
+    assert request.succeeded is False
+    assert RequestType.OFFLINE not in volume.requested
+    assert commands.commands == []
 
   def test_dmcrypt_activates_on_child_online(self):
     dmcrypt = config.config_dict["crypt|name:zmirror-sysfs-s"]
