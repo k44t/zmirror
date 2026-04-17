@@ -10,7 +10,6 @@ import json
 import traceback
 import stat
 from enum import Enum
-from threading import Timer
 import signal
 import sys
 import time
@@ -59,6 +58,9 @@ class EnvKey(Enum):
 
 
 LOGGABLE_ENV_KEYS = tuple(sorted(key.value for key in EnvKey))
+
+RESILVER_START_DELAY = 5
+_pending_resilver_start_checks = {}
 
 
 @dataclass
@@ -109,6 +111,49 @@ def _pool_resilvering(snapshot):
   fn = str(scan_stats.get("function", "")).upper()
   st = str(scan_stats.get("state", "")).upper()
   return fn == "RESILVER" and st not in {"FINISHED", "NONE", "-", ""}
+
+
+def _clear_pending_resilver_start_check(zpool):
+  timer = _pending_resilver_start_checks.pop(zpool, None)
+  if timer is None:
+    return
+  timer.cancel()
+  try:
+    config.timers.remove(timer)
+  except Exception:
+    pass
+
+
+def _handle_delayed_resilver_start(zpool):
+  _pending_resilver_start_checks.pop(zpool, None)
+
+  zpool_status = config.get_zpool_status(zpool)
+  pool_snapshot = _collect_pool_status_snapshot(zpool, zpool_status)
+  if pool_snapshot is None or not _pool_resilvering(pool_snapshot):
+    update_vdev_error_state(pool_snapshot)
+    return False
+
+  handled = False
+  resilver_targets = _resilver_activation_targets(pool_snapshot)
+  for dev, status in pool_snapshot["devices"].items():
+    if status["state"] != "ONLINE":
+      continue
+    if dev not in resilver_targets:
+      continue
+    cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
+    handle_resilver_started(cache)
+    handled = True
+
+  update_vdev_error_state(pool_snapshot)
+  return handled
+
+
+def _schedule_delayed_resilver_start(zpool):
+  if zpool in _pending_resilver_start_checks:
+    return False
+  timer = config.start_event_queue_timer(RESILVER_START_DELAY, lambda: _handle_delayed_resilver_start(zpool))
+  _pending_resilver_start_checks[zpool] = timer
+  return True
 
 
 def _resilver_activation_targets(snapshot):
@@ -273,6 +318,7 @@ def handle(env):
     zpool = env[EnvKey.ZEVENT_POOL.value]
 
     if zevent == "pool_export" or zevent == "pool_destroy":
+      _clear_pending_resilver_start_check(zpool)
 
       zpool_cache = find_or_create_cache(ZPool, name=zpool)
       handle_disconnected(zpool_cache)
@@ -386,35 +432,31 @@ def handle(env):
 
     # zool-vdev event
     elif zevent in ["resilver_start", "resilver_finish"]:
+      if zevent == "resilver_start":
+        event_handled = _schedule_delayed_resilver_start(zpool)
+      else:
+        _clear_pending_resilver_start_check(zpool)
 
-      # sometimes resilver_finish is not being recognized
-      # maybe the zevent is too fast, so we wait just a little
-      time.sleep(0.25)
+        # sometimes resilver_finish is not being recognized
+        # maybe the zevent is too fast, so we wait just a little
+        time.sleep(0.25)
 
-      zpool_status = config.get_zpool_status(zpool)
-      pool_snapshot = _collect_pool_status_snapshot(zpool, zpool_status)
-      if pool_snapshot is not None:
-        resilver_targets = _resilver_activation_targets(pool_snapshot)
-        for dev, status in pool_snapshot["devices"].items():
-          if status["state"] != "ONLINE":
-            continue
-          cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
+        zpool_status = config.get_zpool_status(zpool)
+        pool_snapshot = _collect_pool_status_snapshot(zpool, zpool_status)
+        if pool_snapshot is not None:
+          resilver_targets = _resilver_activation_targets(pool_snapshot)
+          for dev, status in pool_snapshot["devices"].items():
+            if status["state"] != "ONLINE":
+              continue
+            cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
 
-
-          if zevent == "resilver_start":
             if dev in resilver_targets:
-              # this method will only have an effect if the operation is not currently resilvering
-              # hence this should never have an effect, because we assume that mirrored devices will
-              # start resilvering the moment they come online.
-              handle_resilver_started(cache)
-              event_handled = True
-          else:
-            log.verbose(f"{human_readable_id(cache)}: handling resilver_finish")
-            if since_in(Operation.RESILVER, cache.operations):
-              handle_resilver_finished(cache)
-              event_handled = True
+              log.verbose(f"{human_readable_id(cache)}: handling resilver_finish")
+              if since_in(Operation.RESILVER, cache.operations):
+                handle_resilver_finished(cache)
+                event_handled = True
 
-      update_vdev_error_state(pool_snapshot)
+        update_vdev_error_state(pool_snapshot)
 
           
 

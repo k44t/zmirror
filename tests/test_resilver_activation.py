@@ -1,7 +1,8 @@
 from zmirror import config
-from zmirror.daemon import _resilver_activation_targets
+from zmirror.daemon import _clear_pending_resilver_start_check, _handle_delayed_resilver_start, _resilver_activation_targets
+from zmirror.entities import find_or_create_cache
 from zmirror.entities import get_zpool_backing_device_state
-from zmirror.dataclasses import Operation
+from zmirror.dataclasses import Operation, ZDev, since_in
 
 
 def _snapshot(pool, scan_function, scan_state, devices):
@@ -98,3 +99,44 @@ def test_get_zpool_backing_device_state_fallbacks_to_all_online_without_scan_pro
 
   assert Operation.RESILVER in opers_a
   assert Operation.RESILVER in opers_b
+
+
+def test_delayed_resilver_start_marks_all_online_devices_when_scan_still_active(monkeypatch):
+  old_cache_dict = config.cache_dict
+  old_config_dict = config.config_dict
+  try:
+    config.cache_dict = {}
+    config.config_dict = {}
+    cache_a = find_or_create_cache(ZDev, pool="tank", name="a")
+    cache_b = find_or_create_cache(ZDev, pool="tank", name="b")
+    monkeypatch.setattr(config, "get_zpool_status", lambda _pool: _snapshot("tank", "RESILVER", "SCANNING", {
+      "a": {"state": "ONLINE"},
+      "b": {"state": "ONLINE"},
+    }))
+
+    assert _handle_delayed_resilver_start("tank") is True
+    assert since_in(Operation.RESILVER, cache_a.operations)
+    assert since_in(Operation.RESILVER, cache_b.operations)
+  finally:
+    _clear_pending_resilver_start_check("tank")
+    config.cache_dict = old_cache_dict
+    config.config_dict = old_config_dict
+
+
+def test_delayed_resilver_start_is_noop_when_scan_finished(monkeypatch):
+  old_cache_dict = config.cache_dict
+  old_config_dict = config.config_dict
+  try:
+    config.cache_dict = {}
+    config.config_dict = {}
+    cache_a = find_or_create_cache(ZDev, pool="tank", name="a")
+    monkeypatch.setattr(config, "get_zpool_status", lambda _pool: _snapshot("tank", "RESILVER", "FINISHED", {
+      "a": {"state": "ONLINE"},
+    }))
+
+    assert _handle_delayed_resilver_start("tank") is False
+    assert not since_in(Operation.RESILVER, cache_a.operations)
+  finally:
+    _clear_pending_resilver_start_check("tank")
+    config.cache_dict = old_cache_dict
+    config.config_dict = old_config_dict
