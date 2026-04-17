@@ -16,7 +16,6 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from typing import Any
 import time
-import traceback
 from .util import read_file
 from enum import Enum
 import shutil
@@ -538,8 +537,8 @@ class Entity:
     prev_state = self.set_state(EntityState.DISCONNECTED, "disconnected")
     if prev_state is None:
       return
-    succeed_request(self, RequestType.OFFLINE)
     tell_parent_child_offline(self.parent, self, prev_state)
+    succeed_request(self, RequestType.OFFLINE)
 
 
 
@@ -547,8 +546,8 @@ class Entity:
     prev_state = self.set_state(EntityState.INACTIVE, "deactivated")
     if prev_state is None:
       return
-    succeed_request(self, RequestType.OFFLINE)
     tell_parent_child_offline(self.parent, self, prev_state)
+    succeed_request(self, RequestType.OFFLINE)
     if isinstance(self.parent, Entity):
       if cached(self.parent).state.what == EntityState.DISCONNECTED:
         self.handle_disconnected()
@@ -599,60 +598,57 @@ def run_event_handlers(self, event_name, excepted=None):
   if handlers:
     for event in handlers:
       if event != excepted:
-        run_action(self, event)
+        run_action(self, event, event_name=event_name)
 
 
 
-def run_action(self, action):
+def run_action(self, action, event_name=None):
+  handler_ctx = f"user-defined handler on_{event_name} -> {action}: " if event_name else ""
   if action == "offline":
     if hasattr(self, "enact_offline"):
       if any(e in [RequestType.TRIM, RequestType.SCRUB] for e in self.requested):
-        log.info(f"{human_readable_id(self)}: not taking offline since other operations are pending")
+        log.info(f"{human_readable_id(self)}: {handler_ctx}not taking offline since other operations are pending")
       else:
         return self.request(RequestType.OFFLINE, enactment_level=0).enact_hierarchy()
     else:
-      log.error(
-        "%s: entity does not support being taken offline\n%s",
-        human_readable_id(self),
-        "".join(traceback.format_stack())
-      )
+      log.error(f"{human_readable_id(self)}: {handler_ctx}entity does not support being taken offline")
       return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
   elif action == "online":
     if hasattr(self, "enact_online"):
       return self.request(RequestType.ONLINE, enactment_level=0).enact_hierarchy()
     else:
-      log.error(f"{human_readable_id(self)}: entity does not support being taken online")
+      log.error(f"{human_readable_id(self)}: {handler_ctx}entity does not support being taken online")
       return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
   elif action == "snapshot":
     if hasattr(self, "enact_snapshot"):
       self.request(RequestType.SNAPSHOT, enactment_level=0).enact_hierarchy()
     else:
-      log.error(f"{human_readable_id(self)}: entity does not have the ability to create snapshots")
+      log.error(f"{human_readable_id(self)}: {handler_ctx}entity does not have the ability to create snapshots")
       return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
   elif action == "scrub":
     if hasattr(self, "enact_scrub"):
       self.request(RequestType.SCRUB, enactment_level=0).enact_hierarchy()
     else:
-      log.error(f"{human_readable_id(self)}: entity cannot be scrubbed")
+      log.error(f"{human_readable_id(self)}: {handler_ctx}entity cannot be scrubbed")
       return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
   elif action == "trim":
     if hasattr(self, "enact_trim"):
       self.request(RequestType.TRIM, enactment_level=0).enact_hierarchy()
     else:
-      log.error(f"{human_readable_id(self)}: entity cannot be trimmed")
+      log.error(f"{human_readable_id(self)}: {handler_ctx}entity cannot be trimmed")
       return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
 
   elif action == "snapshot-parent":
     if hasattr(self.parent, "enact_snapshot"):
       return self.parent.request(RequestType.SNAPSHOT, enactment_level=0).enact_hierarchy()
     else:
-      log.error(f"{make_id(self)}: the parent entity does not have the ability to create snapshots")
+      log.error(f"{make_id(self)}: {handler_ctx}the parent entity does not have the ability to create snapshots")
       return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
   elif action == "pass":
     # do nothing
     pass
   else:
-    log.error(f"unknown event type for {make_id(self)}: {action}")
+    log.error(f"{make_id(self)}: {handler_ctx}unknown event type: {action}")
     return Reason.NOT_SUPPORTED_FOR_ENTITY_TYPE
 
 
