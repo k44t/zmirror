@@ -101,7 +101,8 @@ def make_arg_parser():
 
 
   list_args_parser.add_argument("--keys", type=lambda s: s.split(','), default=LIST_DEFAULT_KEYS, help="only output this list of keys (columns)")
-  list_args_parser.add_argument("--extra-columns", nargs='+', default=None, help="append additional columns to the default output")
+  list_args_parser.add_argument("--add-columns", "--extra-columns", dest="add_columns", nargs='+', default=None, help="append additional columns to the default output")
+  list_args_parser.add_argument("--remove-columns", nargs='+', default=None, help="remove columns from the output")
   list_args_parser.add_argument("--no_headers", action="store_true", default=False, help="do not print headers when outputting a table")
   list_args_parser.add_argument("--format", choices=TABLE_FORMATS, default=argparse.SUPPRESS, help="either `json` or one of the formats defined by the tabulate library (see https://https://pypi.org/project/tabulate/#description)")
   list_args_parser.add_argument("--sort", choices=LIST_KEYS, help="the key (column) to sort for")

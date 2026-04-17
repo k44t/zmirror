@@ -110,12 +110,18 @@ def legacy_zpool_status_to_json(zpool_name, text):
     read_errors = parts[2]
     write_errors = parts[3]
     checksum_errors = parts[4]
+    operations = []
+    operations_match = re.search(r"\(([^)]*)\)\s*$", stripped)
+    if operations_match:
+      operations = [op.strip() for op in operations_match.group(1).split(",") if op.strip()]
+
     devices[name] = {
       "name": name,
       "state": state,
       "read_errors": read_errors,
       "write_errors": write_errors,
       "checksum_errors": checksum_errors,
+      "operations": operations,
     }
 
   return {

@@ -195,6 +195,7 @@ class ZMirror:
   log_full_events: bool = False
   enable_commands: bool = True
   enable_event_handlers: bool = True
+  ssd: bool = True
   timeout: int = 300
   log_level: str = "info"
 
@@ -804,6 +805,7 @@ class Disk(ManualChildren):
 
   uuid: str = None
   info: str = None
+  ssd: bool = None
 
   force_enable_trim: bool = False
 
@@ -843,6 +845,8 @@ class Disk(ManualChildren):
     return load_disk_or_partition_initial_state(self)
 
   def finalize_init(self):
+    if self.ssd is None:
+      self.ssd = getattr(config.config_root, "ssd", True)
     if is_present_or_online(cached(self)):
       possibly_force_enable_trim(self)
 
@@ -1379,6 +1383,14 @@ class ZFSVolume(ManualChildren):
   def id_fields(cls):
     return ["pool", "name"]
 
+  def hrid(self):
+    type_name = get_name_for_type(type(self))
+    zvol_name = self.name or "-"
+    pool_name = self.get_pool()
+    if pool_name:
+      return f"{type_name}: {zvol_name} ({pool_name})"
+    return f"{type_name}: {zvol_name}"
+
 
   def unsupported_request(self, request_type):
     if request_type in {RequestType.ONLINE, RequestType.OFFLINE, RequestType.SNAPSHOT}:
@@ -1896,11 +1908,38 @@ class ZDev(Onlineable, Embedded, Entity):
     
   
   def finalize_init(self):
+    def inherited_trim_interval():
+      root_trim_interval = getattr(config.config_root, "trim_interval", None)
+      if root_trim_interval is None:
+        return None
+
+      current = getattr(self, "parent", None)
+      disk = None
+      while current is not None:
+        if isinstance(current, Disk):
+          disk = current
+          break
+        current = getattr(current, "parent", None)
+
+      if disk is None:
+        effective_ssd = getattr(config.config_root, "ssd", True)
+      elif disk.ssd is None:
+        effective_ssd = getattr(config.config_root, "ssd", True)
+      else:
+        effective_ssd = disk.ssd
+
+      if effective_ssd:
+        return root_trim_interval
+      return None
+
     for op in Operation:
       prop_name = f"{name_for_operation[op]}_interval"
       val = getattr(self, prop_name)
       if val is None:
-        val = getattr(config.config_root, prop_name)
+        if op == Operation.TRIM:
+          val = inherited_trim_interval()
+        else:
+          val = getattr(config.config_root, prop_name)
       if val is not None and val.lower() in {"nil", "none", "void"}:
         val = None
       setattr(self, prop_name, val)

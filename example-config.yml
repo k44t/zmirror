@@ -52,14 +52,20 @@ timeout: 300
 # on systemd or or cron to run `zmirror maintenance` at some user-specified 
 # time of day.
 
-
-# sets the global trim interval. May be overridden by setting `trim_interval` 
-# directly on a device.
+# global default for whether disks are SSDs. Individual disks may override via
+# `ssd: yes|no`.
 #
-# please note that this interval will be inherited by all zdevs, even those that
-# are on HDDs, which means that zmirror will try to trim them (and fail). If you set
-# the global trim_interval to anything other than `nil`, you need to set 
-# `trim_interval: nil` on each zdev on an HDD.
+# this only affects whether zdevs inherit `trim_interval` from root. It does
+# not affect explicit per-zdev `trim_interval` values.
+# defaults to: `yes`
+ssd: yes
+
+
+# sets the global trim interval. May be overridden by setting `trim_interval`
+# directly on a zdev.
+#
+# this interval is inherited only by zdevs that live on SSD disks (`disk.ssd: yes`).
+# if a disk does not set `ssd`, it inherits this from root `ssd`.
 # 
 # you can also set the interval to `nil` which means that no interval is set.
 # defaults to: `nil` (meaning no interval is set)

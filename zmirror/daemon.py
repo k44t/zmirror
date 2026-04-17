@@ -111,6 +111,33 @@ def _pool_resilvering(snapshot):
   return fn == "RESILVER" and st not in {"FINISHED", "NONE", "-", ""}
 
 
+def _vdev_resilvering(vdev):
+  if not isinstance(vdev, dict):
+    return False
+
+  explicit = vdev.get("resilvering")
+  if isinstance(explicit, bool):
+    return explicit
+
+  operations = vdev.get("operations")
+  if isinstance(operations, (list, tuple, set)):
+    for operation in operations:
+      if "resilver" in str(operation).lower():
+        return True
+  elif operations is not None:
+    if "resilver" in str(operations).lower():
+      return True
+
+  scan_stats = vdev.get("scan_stats")
+  if isinstance(scan_stats, dict):
+    fn = str(scan_stats.get("function", "")).upper()
+    st = str(scan_stats.get("state", "")).upper()
+    if fn == "RESILVER" and st not in {"FINISHED", "NONE", "-", ""}:
+      return True
+
+  return False
+
+
 def _parents_all_online(cache):
   entity = config.load_config_for_cache(cache)
   if entity is None:
@@ -168,6 +195,7 @@ def _collect_pool_status_snapshot(zpool, zpool_status=None):
       "read": read_errors,
       "write": write_errors,
       "cksum": cksum_errors,
+      "resilvering": _vdev_resilvering(vdev),
       "errors": _counter_nonzero(read_errors) or _counter_nonzero(write_errors) or _counter_nonzero(cksum_errors),
     }
 
@@ -266,7 +294,6 @@ def handle(env):
       if pool_snapshot is None:
         log.error(f"zpool status failed for pool {zpool}")
       else:
-        resilvering = _pool_resilvering(pool_snapshot)
         for dev, status in pool_snapshot["devices"].items():
           cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
           if status["state"] == "ONLINE":
@@ -289,7 +316,7 @@ def handle(env):
               event_handled = True
             elif zevent == "pool_import":
               log.debug(f"zdev {cache.pool}:{cache.name}: pool imported, device online")
-              if resilvering:
+              if status.get("resilvering"):
                 handle_resilver_started(cache)
                 event_handled = True
               else:
@@ -366,7 +393,6 @@ def handle(env):
       zpool_status = config.get_zpool_status(zpool)
       pool_snapshot = _collect_pool_status_snapshot(zpool, zpool_status)
       if pool_snapshot is not None:
-        resilvering = _pool_resilvering(pool_snapshot)
         for dev, status in pool_snapshot["devices"].items():
           if status["state"] != "ONLINE":
             continue
@@ -374,7 +400,7 @@ def handle(env):
 
 
           if zevent == "resilver_start":
-            if resilvering:
+            if status.get("resilvering"):
               # this method will only have an effect if the operation is not currently resilvering
               # hence this should never have an effect, because we assume that mirrored devices will
               # start resilvering the moment they come online.
@@ -382,7 +408,7 @@ def handle(env):
               event_handled = True
           else:
             log.verbose(f"{human_readable_id(cache)}: handling resilver_finish")
-            if not resilvering:
+            if not status.get("resilvering"):
               if since_in(Operation.RESILVER, cache.operations):
                 handle_resilver_finished(cache)
                 event_handled = True

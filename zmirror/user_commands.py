@@ -502,8 +502,8 @@ def make_send_daemon_wrapper(fn, stream=sys.stdout):
 
 
 
-LIST_DEFAULT_KEYS = ["hrid", "state", "last_online", "last_update", "update_overdue", "last_trim", "trim_overdue", "last_scrub", "scrub_overdue", "errors", "operations"]
-LIST_KEYS = ["id", "hrid", "state", "parent", "depth", "last_online", "last_update", "update_overdue", "last_trim", "trim_overdue", "last_scrub", "scrub_overdue", "errors", "operations"]
+LIST_DEFAULT_KEYS = ["hrid", "last_online", "last_update", "update_overdue", "last_trim", "trim_overdue", "last_scrub", "scrub_overdue", "errors", "operations"]
+LIST_KEYS = ["id", "hrid", "state", "parent", "depth", "last_online", "last_update", "update_overdue", "update_interval", "last_trim", "trim_overdue", "trim_interval", "last_scrub", "scrub_overdue", "scrub_interval", "errors", "operations"]
 
 
 def make_list_command(op: Operation, overdue=False):
@@ -543,10 +543,14 @@ def make_list_command(op: Operation, overdue=False):
       return
 
     keys = list(args.keys)
-    if args.extra_columns:
-      for col in args.extra_columns:
+    add_columns = getattr(args, "add_columns", None)
+    remove_columns = getattr(args, "remove_columns", None)
+    if add_columns:
+      for col in add_columns:
         if col not in keys:
           keys.append(col)
+    if remove_columns:
+      keys = [col for col in keys if col not in remove_columns]
 
     items = result
     for item in items:
@@ -704,10 +708,13 @@ def entity_to_table_entry(entity: Entity, tree=False, indent_depth=None, repeate
         "added": special_ki_to_json(to_kd_date(added)),
         "last_update": special_ki_to_json(to_kd_date(entity.get_last_update())),
         "update_overdue": to_kd_date(entity.is_overdue(Operation.RESILVER)),
+        "update_interval": entity.update_interval,
         "last_trim": to_kd_date(cache.last_trim),
         "trim_overdue": to_kd_date(entity.is_overdue(Operation.TRIM)),
+        "trim_interval": entity.trim_interval,
         "last_scrub": to_kd_date(cache.last_scrub),
         "scrub_overdue": to_kd_date(entity.is_overdue(Operation.SCRUB)),
+        "scrub_interval": entity.scrub_interval,
         "errors": cache.errors,
         "operations": [get_name_for_operaiton(op.what) for op in cache.operations]
       }
