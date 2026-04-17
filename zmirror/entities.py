@@ -82,6 +82,7 @@ def init_config(cache_path, config_path):
   log.info(f"event handlers enabled: {to_yes(config.event_handlers_enabled)}")
 
   commands.execute_commands()
+  save_cache_now()
 
   log.info("configuration initialized")
 
@@ -461,6 +462,9 @@ def get_zpool_backing_device_state(zpool, dev):
   root_children = root_vdev.get("vdevs", {}) if isinstance(root_vdev, dict) else {}
 
   vdev = None
+  online_leaf_names = []
+  online_with_scan_processed = []
+  online_with_explicit_resilver = []
   stack = [root_children]
   while stack:
     node = stack.pop()
@@ -471,11 +475,23 @@ def get_zpool_backing_device_state(zpool, dev):
         continue
       if child.get("name") == dev:
         vdev = child
-        stack = []
-        break
       nested = child.get("vdevs")
       if isinstance(nested, dict):
         stack.append(nested)
+      else:
+        if str(child.get("state", "")).upper() == "ONLINE":
+          name = child.get("name")
+          if isinstance(name, str):
+            online_leaf_names.append(name)
+            if child.get("scan_processed") is not None:
+              online_with_scan_processed.append(name)
+            operations = child.get("operations", [])
+            if isinstance(operations, (list, tuple, set)):
+              operations_text = ",".join(map(str, operations)).lower()
+            else:
+              operations_text = str(operations).lower()
+            if "resilver" in operations_text:
+              online_with_explicit_resilver.append(name)
 
   if vdev is None:
     return None
@@ -486,6 +502,14 @@ def get_zpool_backing_device_state(zpool, dev):
   scan_state = str(scan.get("state", "")).upper()
   scrubbing = scan_function == "SCRUB" and scan_state not in {"FINISHED", "NONE", "-", ""}
   resilvering = scan_function == "RESILVER" and scan_state not in {"FINISHED", "NONE", "-", ""}
+  resilver_targets = set()
+  if online_with_explicit_resilver:
+    resilver_targets = set(online_with_explicit_resilver)
+  elif resilvering:
+    if online_with_scan_processed:
+      resilver_targets = set(online_with_scan_processed)
+    else:
+      resilver_targets = set(online_leaf_names)
 
   state = EntityState.DISCONNECTED
   vdev_state = str(vdev.get("state", ""))
@@ -493,7 +517,7 @@ def get_zpool_backing_device_state(zpool, dev):
     state = EntityState.ACTIVE
     if scrubbing:
       opers.add(Operation.SCRUB)
-    if resilvering:
+    if dev in resilver_targets:
       opers.add(Operation.RESILVER)
   else:
     state = EntityState.INACTIVE
