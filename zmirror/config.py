@@ -28,6 +28,7 @@ cache_save_timeout = 4 # seconds
 running = True
 update_scheduler = None
 maintenance_scheduler = None
+regular_status_scheduler = None
 
 is_daemon = False
 
@@ -148,8 +149,12 @@ def iterate_content_tree(o, fn):
 
 def start_event_queue_timer(duration, action):
   def do():
-    timers.remove(timer)
-    event_queue.put(TimerEvent(action))
+    try:
+      timers.remove(timer)
+    except ValueError:
+      pass
+    if event_queue is not None:
+      event_queue.put(TimerEvent(action))
   timer = Timer(duration, do)
   timers.append(timer)
   timer.start()

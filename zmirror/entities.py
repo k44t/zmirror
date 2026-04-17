@@ -127,7 +127,7 @@ def _queue_scheduler_callback(callback):
 
 
 def _stop_internal_schedulers():
-  for attr in ["update_scheduler", "maintenance_scheduler"]:
+  for attr in ["update_scheduler", "maintenance_scheduler", "regular_status_scheduler"]:
     scheduler = getattr(config, attr, None)
     if scheduler is not None:
       scheduler.cancel()
@@ -141,9 +141,11 @@ def _configure_internal_scheduler():
     return
 
   from .user_commands import handle_do_overdue_command, handle_maintenance_command
+  from . import daemon as daemon_module
 
   update_schedules = _compile_scheduler_entries(_as_scheduler_list(getattr(config.config_root, "update_scheduler", [])), "update_scheduler")
   maintenance_schedules = _compile_scheduler_entries(_as_scheduler_list(getattr(config.config_root, "maintenance_scheduler", [])), "maintenance_scheduler")
+  regular_status_schedules = _compile_scheduler_entries(_as_scheduler_list(getattr(config.config_root, "regular_status_scheduler", [])), "regular_status_scheduler")
 
   if update_schedules:
     config.update_scheduler = Scheduler(
@@ -165,6 +167,16 @@ def _configure_internal_scheduler():
       dispatch=_queue_scheduler_callback,
     )
     config.maintenance_scheduler.start()
+  if regular_status_schedules:
+    config.regular_status_scheduler = Scheduler(
+      schedules=regular_status_schedules,
+      callback=_make_scheduler_callback(
+        lambda: config.event_queue.put(daemon_module.RegularStatusCheckEvent()),
+        "scheduler: running regular zpool status check",
+      ),
+      dispatch=_queue_scheduler_callback,
+    )
+    config.regular_status_scheduler.start()
 
 
 def refresh_all_vdev_error_state_from_status():
@@ -255,6 +267,10 @@ def find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path):
 
 def get_zpool_status(zpool_name):
   return simple_json_command(f"zpool status {zpool_name} --json", f"failed to get status of zpool {zpool_name}", log.debug)
+
+
+def get_all_zpool_status():
+  return simple_json_command("zpool status --json", "failed to get status of zpools", log.debug)
 
 
 def simple_string_command(command, error, logfn=log.error):
@@ -542,9 +558,9 @@ def get_zpool_backing_device_state(zpool, dev):
   root_children = root_vdev.get("vdevs", {}) if isinstance(root_vdev, dict) else {}
 
   vdev = None
-  online_leaf_names = []
-  online_with_scan_processed = []
   online_with_explicit_resilver = []
+  online_with_scan_processed = []
+  trim_targets = set()
   stack = [root_children]
   while stack:
     node = stack.pop()
@@ -562,9 +578,6 @@ def get_zpool_backing_device_state(zpool, dev):
         if str(child.get("state", "")).upper() == "ONLINE":
           name = child.get("name")
           if isinstance(name, str):
-            online_leaf_names.append(name)
-            if child.get("scan_processed") is not None:
-              online_with_scan_processed.append(name)
             operations = child.get("operations", [])
             if isinstance(operations, (list, tuple, set)):
               operations_text = ",".join(map(str, operations)).lower()
@@ -572,6 +585,10 @@ def get_zpool_backing_device_state(zpool, dev):
               operations_text = str(operations).lower()
             if "resilver" in operations_text:
               online_with_explicit_resilver.append(name)
+            if "trim" in operations_text:
+              trim_targets.add(name)
+            if child.get("scan_processed") is not None:
+              online_with_scan_processed.append(name)
 
   if vdev is None:
     return None
@@ -585,11 +602,8 @@ def get_zpool_backing_device_state(zpool, dev):
   resilver_targets = set()
   if online_with_explicit_resilver:
     resilver_targets = set(online_with_explicit_resilver)
-  elif resilvering:
-    if online_with_scan_processed:
-      resilver_targets = set(online_with_scan_processed)
-    else:
-      resilver_targets = set(online_leaf_names)
+  elif resilvering and online_with_scan_processed:
+    resilver_targets = set(online_with_scan_processed)
 
   state = EntityState.DISCONNECTED
   vdev_state = str(vdev.get("state", ""))
@@ -599,6 +613,8 @@ def get_zpool_backing_device_state(zpool, dev):
       opers.add(Operation.SCRUB)
     if dev in resilver_targets:
       opers.add(Operation.RESILVER)
+    if dev in trim_targets:
+      opers.add(Operation.TRIM)
   else:
     state = EntityState.INACTIVE
   return (state, opers)
@@ -618,5 +634,6 @@ config.load_config_for_id = load_config_for_id
 config.find_or_create_cache = find_or_create_cache
 config.get_zpool_backing_device_state = get_zpool_backing_device_state
 config.get_zpool_status = get_zpool_status
+config.get_all_zpool_status = get_all_zpool_status
 config.get_zfs_volume_mode = get_zfs_volume_mode
 config.get_zfs_mounted = get_zfs_mounted

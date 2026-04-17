@@ -1,8 +1,12 @@
 from datetime import datetime
+import queue
 
 import pytest
 
 from kpyutils.scheduler import Scheduler, _next_after_any, parse_schedule, parse_weekday_ranges
+from zmirror import config
+from zmirror.dataclasses import ZMirror
+import zmirror.entities as entities
 from zmirror.user_commands import LIST_DEFAULT_KEYS, LIST_KEYS
 
 
@@ -53,3 +57,56 @@ def test_available_update_fields_not_in_default_list_output():
   assert "available_update_interval" not in LIST_DEFAULT_KEYS
   assert "available_update_overdue" in LIST_KEYS
   assert "available_update_interval" in LIST_KEYS
+
+
+def test_regular_status_scheduler_defaults_to_every_ten_minutes():
+  root = ZMirror()
+
+  assert root.regular_status_scheduler == [{"times": ["00:00", "10:00", "20:00", "30:00", "40:00", "50:00"]}]
+
+
+def test_configure_internal_scheduler_starts_regular_status_scheduler(monkeypatch):
+  created = []
+
+  class FakeScheduler:
+    def __init__(self, schedules, callback, dispatch):
+      self.schedules = schedules
+      self.callback = callback
+      self.dispatch = dispatch
+      self.started = False
+      created.append(self)
+
+    def start(self):
+      self.started = True
+
+    def cancel(self):
+      self.started = False
+
+  old_is_daemon = config.is_daemon
+  old_event_queue = config.event_queue
+  old_config_root = config.config_root
+  old_update_scheduler = config.update_scheduler
+  old_maintenance_scheduler = config.maintenance_scheduler
+  old_regular_status_scheduler = config.regular_status_scheduler
+  try:
+    config.is_daemon = True
+    config.event_queue = queue.Queue()
+    config.config_root = ZMirror(update_scheduler=[], maintenance_scheduler=[])
+    config.update_scheduler = None
+    config.maintenance_scheduler = None
+    config.regular_status_scheduler = None
+    monkeypatch.setattr(entities, "Scheduler", FakeScheduler)
+
+    entities._configure_internal_scheduler()
+
+    assert len(created) == 1
+    assert created[0].started is True
+    assert config.regular_status_scheduler is created[0]
+  finally:
+    entities._stop_internal_schedulers()
+    config.is_daemon = old_is_daemon
+    config.event_queue = old_event_queue
+    config.config_root = old_config_root
+    config.update_scheduler = old_update_scheduler
+    config.maintenance_scheduler = old_maintenance_scheduler
+    config.regular_status_scheduler = old_regular_status_scheduler

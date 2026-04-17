@@ -737,6 +737,7 @@ def entity_to_table_entry(entity: Entity, tree=False, indent_depth=None, repeate
         "depth": row_indent_depth,
         "last_online": special_ki_to_json(to_kd_date(entity.get_last_online())),
         "added": special_ki_to_json(to_kd_date(added))
+        ,"errors": getattr(cache, "errors", False)
       }
 
 def handle_list_command(command, stream):

@@ -69,6 +69,16 @@ class UserEvent:
   con: socket.socket
 
 
+@dataclass
+class DelayedResilverStartCheckEvent:
+  zpool: str
+
+
+@dataclass
+class RegularStatusCheckEvent:
+  zpool: str = None
+
+
 def _counter_nonzero(value):
   try:
     return int(value) != 0
@@ -113,6 +123,81 @@ def _pool_resilvering(snapshot):
   return fn == "RESILVER" and st not in {"FINISHED", "NONE", "-", ""}
 
 
+def _online_snapshot_devices(snapshot):
+  devices = snapshot.get("devices", {}) if isinstance(snapshot, dict) else {}
+  if not isinstance(devices, dict):
+    return set()
+  return {dev for dev, status in devices.items() if status.get("state") == "ONLINE"}
+
+
+def _reliable_resilver_targets(snapshot):
+  devices = snapshot.get("devices", {}) if isinstance(snapshot, dict) else {}
+  if not isinstance(devices, dict):
+    return set()
+
+  online = _online_snapshot_devices(snapshot)
+  with_explicit_resilver = {dev for dev in online if devices[dev].get("resilvering")}
+  if with_explicit_resilver:
+    return with_explicit_resilver
+
+  if not _pool_resilvering(snapshot):
+    return set()
+
+  return {dev for dev in online if devices[dev].get("scan_processed") is not None}
+
+
+def _pool_has_updating_device(zpool):
+  for dev in config.zfs_blockdevs.get(zpool, {}).keys():
+    cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
+    if is_online_state(cache.state.what) and since_in(Operation.RESILVER, cache.operations):
+      return True
+  return False
+
+
+def _apply_resilver_start_from_snapshot(snapshot, allow_fallback=False):
+  if snapshot is None or not _pool_resilvering(snapshot):
+    return False
+
+  targets = _reliable_resilver_targets(snapshot)
+  if allow_fallback and not targets and not _pool_has_updating_device(snapshot["zpool"]):
+    targets = _online_snapshot_devices(snapshot)
+
+  handled = False
+  for dev in targets:
+    cache = find_or_create_cache(ZDev, pool=snapshot["zpool"], name=dev)
+    if not is_online_state(cache.state.what):
+      continue
+    handle_resilver_started(cache)
+    handled = True
+  return handled
+
+
+def _apply_resilver_finish_from_snapshot(snapshot):
+  if snapshot is None:
+    return False
+
+  handled = False
+  active_targets = _reliable_resilver_targets(snapshot) if _pool_resilvering(snapshot) else set()
+  for dev in config.zfs_blockdevs.get(snapshot["zpool"], {}).keys():
+    cache = find_or_create_cache(ZDev, pool=snapshot["zpool"], name=dev)
+    if not is_online_state(cache.state.what):
+      continue
+    if dev in active_targets:
+      continue
+    if since_in(Operation.RESILVER, cache.operations):
+      log.verbose(f"{human_readable_id(cache)}: handling resilver_finish")
+      handle_resilver_finished(cache)
+      handled = True
+  return handled
+
+
+def _queue_synthetic_event(event):
+  if config.event_queue is None:
+    return False
+  config.event_queue.put(event)
+  return False
+
+
 def _clear_pending_resilver_start_check(zpool):
   timer = _pending_resilver_start_checks.pop(zpool, None)
   if timer is None:
@@ -124,56 +209,63 @@ def _clear_pending_resilver_start_check(zpool):
     pass
 
 
-def _handle_delayed_resilver_start(zpool):
+def _handle_delayed_resilver_start(event):
+  zpool = event.zpool
   _pending_resilver_start_checks.pop(zpool, None)
 
-  zpool_status = config.get_zpool_status(zpool)
+  try:
+    zpool_status = config.get_zpool_status(zpool)
+  except Exception as ex:
+    log.debug(f"failed to get zpool status for delayed resilver check on pool {zpool}: {ex}")
+    zpool_status = None
   pool_snapshot = _collect_pool_status_snapshot(zpool, zpool_status)
-  if pool_snapshot is None or not _pool_resilvering(pool_snapshot):
-    update_vdev_error_state(pool_snapshot)
-    return False
-
-  handled = False
-  resilver_targets = _resilver_activation_targets(pool_snapshot)
-  for dev, status in pool_snapshot["devices"].items():
-    if status["state"] != "ONLINE":
-      continue
-    if dev not in resilver_targets:
-      continue
-    cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
-    handle_resilver_started(cache)
-    handled = True
-
+  handled = _apply_resilver_start_from_snapshot(pool_snapshot, allow_fallback=True)
   update_vdev_error_state(pool_snapshot)
   return handled
+
+
+def _handle_regular_status_check(event):
+  checked = False
+  if event.zpool is None:
+    try:
+      zpool_status = get_all_zpool_status()
+    except Exception as ex:
+      log.debug(f"failed to get zpool status for regular status check: {ex}")
+      zpool_status = None
+    pools = list(config.zfs_blockdevs.keys())
+  else:
+    try:
+      zpool_status = config.get_zpool_status(event.zpool)
+    except Exception as ex:
+      log.debug(f"failed to get zpool status for regular status check on pool {event.zpool}: {ex}")
+      zpool_status = None
+    pools = [event.zpool]
+
+  handled = False
+  for zpool in pools:
+    pool_snapshot = _collect_pool_status_snapshot(zpool, zpool_status)
+    if pool_snapshot is not None:
+      checked = True
+    handled = _apply_resilver_start_from_snapshot(pool_snapshot) or handled
+    update_vdev_error_state(pool_snapshot)
+  return handled or checked
 
 
 def _schedule_delayed_resilver_start(zpool):
   if zpool in _pending_resilver_start_checks:
     return False
-  timer = config.start_event_queue_timer(RESILVER_START_DELAY, lambda: _handle_delayed_resilver_start(zpool))
+  timer = config.start_event_queue_timer(RESILVER_START_DELAY, lambda: _queue_synthetic_event(DelayedResilverStartCheckEvent(zpool)))
   _pending_resilver_start_checks[zpool] = timer
   return True
 
 
 def _resilver_activation_targets(snapshot):
-  devices = snapshot.get("devices", {}) if isinstance(snapshot, dict) else {}
-  if not isinstance(devices, dict):
+  reliable_targets = _reliable_resilver_targets(snapshot)
+  if reliable_targets:
+    return reliable_targets
+  if snapshot is None or not _pool_resilvering(snapshot):
     return set()
-
-  online = [dev for dev, status in devices.items() if status.get("state") == "ONLINE"]
-  with_explicit_resilver = [dev for dev in online if devices[dev].get("resilvering")]
-  if with_explicit_resilver:
-    return set(with_explicit_resilver)
-
-  if not _pool_resilvering(snapshot):
-    return set()
-
-  with_scan_processed = [dev for dev in online if devices[dev].get("scan_processed") is not None]
-  if with_scan_processed:
-    return set(with_scan_processed)
-
-  return set(online)
+  return _online_snapshot_devices(snapshot)
 
 
 def _parents_all_online(cache):
@@ -241,7 +333,7 @@ def _collect_pool_status_snapshot(zpool, zpool_status=None):
       "cksum": cksum_errors,
       "scan_processed": vdev.get("scan_processed"),
       "resilvering": "resilver" in operations_text,
-      "errors": _counter_nonzero(read_errors) or _counter_nonzero(write_errors) or _counter_nonzero(cksum_errors),
+      "errors": str(vdev.get("state", "")).upper() != "ONLINE" or _counter_nonzero(read_errors) or _counter_nonzero(write_errors) or _counter_nonzero(cksum_errors),
     }
 
   return {
@@ -263,6 +355,67 @@ def _scrub_successful(snapshot, cache, status):
   return _is_device_eligible(cache, status)
 
 
+def _pool_status_has_errors(snapshot):
+  if snapshot is None:
+    return False
+
+  scrub_errors = snapshot.get("scrub_errors")
+  if scrub_errors not in {None, 0}:
+    return True
+
+  pool_data = snapshot.get("pool") if isinstance(snapshot, dict) else None
+  if not isinstance(pool_data, dict):
+    return False
+
+  error_count = pool_data.get("error_count")
+  try:
+    if error_count is not None and int(error_count) != 0:
+      return True
+  except Exception:
+    if error_count not in {None, "0", "", "-"}:
+      return True
+
+  devices = snapshot.get("devices", {}) if isinstance(snapshot, dict) else {}
+  saw_offline_device = False
+  if isinstance(devices, dict):
+    for status in devices.values():
+      device_state = str(status.get("state", "")).upper()
+      if device_state not in {"", "ONLINE", "OFFLINE"}:
+        return True
+      if device_state == "OFFLINE":
+        saw_offline_device = True
+      if device_state == "ONLINE" and bool(status.get("errors")):
+        return True
+
+  pool_state = str(pool_data.get("state", "")).upper()
+  if pool_state == "DEGRADED":
+    pool_status = str(pool_data.get("status", "")).lower()
+    admin_offline = "taken offline by the administrator" in pool_status
+    if admin_offline and saw_offline_device:
+      return False
+    return True
+
+  if pool_state and pool_state not in {"ONLINE", "OFFLINE"}:
+    return True
+
+  return False
+
+
+def update_zpool_error_state(snapshot):
+  if snapshot is None:
+    return
+
+  zpool = snapshot.get("zpool")
+  if zpool is None:
+    return
+
+  cache = find_or_create_cache(ZPool, name=zpool)
+  if not is_online_state(cache.state.what):
+    return
+
+  cache.errors = _pool_status_has_errors(snapshot)
+
+
 def update_vdev_error_state(snapshot):
   if snapshot is None:
     return
@@ -278,7 +431,6 @@ def update_vdev_error_state(snapshot):
   for dev in configured_devs.keys():
     cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
     if not is_online_state(cache.state.what):
-      cache.errors = False
       continue
 
     status = devices.get(dev)
@@ -287,6 +439,8 @@ def update_vdev_error_state(snapshot):
       continue
 
     cache.errors = bool(status["errors"])
+
+  update_zpool_error_state(snapshot)
 
 
 
@@ -332,7 +486,7 @@ def handle(env):
 
       event_handled = True
     # zpool event
-    elif zevent in ["scrub_finish", "scrub_start", "scrub_abort", "pool_import", "pool_create"]:
+    elif zevent in ["scrub_finish", "scrub_start", "scrub_abort", "pool_import", "pool_create", "config_sync"]:
       log.debug(f"zpool {zpool}: {zevent}")
       zpool_status = config.get_zpool_status(zpool)
       pool_snapshot = _collect_pool_status_snapshot(zpool, zpool_status)
@@ -340,7 +494,6 @@ def handle(env):
       if pool_snapshot is None:
         log.error(f"zpool status failed for pool {zpool}")
       else:
-        resilver_targets = _resilver_activation_targets(pool_snapshot)
         for dev, status in pool_snapshot["devices"].items():
           cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
           if status["state"] == "ONLINE":
@@ -363,18 +516,17 @@ def handle(env):
               event_handled = True
             elif zevent == "pool_import":
               log.debug(f"zdev {cache.pool}:{cache.name}: pool imported, device online")
-              if dev in resilver_targets:
-                handle_resilver_started(cache)
-                event_handled = True
-              else:
-                handle_onlined(cache)
-                event_handled = True
+              handle_onlined(cache)
+              event_handled = True
 
       if zevent == "pool_import" or zevent == "pool_create":
         zpool_cache = find_or_create_cache(ZPool, name=zpool)
         
         handle_onlined(zpool_cache)
         event_handled = True
+
+      if zevent == "config_sync":
+        event_handled = _handle_regular_status_check(RegularStatusCheckEvent(zpool)) or event_handled
 
       if found_online is False:
         log.error("likely bug: zpool event but no devices online")
@@ -386,9 +538,7 @@ def handle(env):
       vdev_path = env.get(EnvKey.ZEVENT_VDEV_PATH.value)
       if vdev_path:
         cache = find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path)
-        prev_errors = cache.errors
-        cache.errors = False
-        log.debug(f"vdev_clear: cleared errors for zdev {cache.pool}:{cache.name} (previous errors={prev_errors})")
+        log.debug(f"vdev_clear: recorded clear event for zdev {cache.pool}:{cache.name}")
         event_handled = True
       else:
         log.debug("vdev_clear event missing ZEVENT_VDEV_PATH")
@@ -427,9 +577,6 @@ def handle(env):
         handle_trim_canceled(cache)
         event_handled = True
 
-      pool_snapshot = _collect_pool_status_snapshot(zpool)
-      update_vdev_error_state(pool_snapshot)
-
     # zool-vdev event
     elif zevent in ["resilver_start", "resilver_finish"]:
       if zevent == "resilver_start":
@@ -443,20 +590,7 @@ def handle(env):
 
         zpool_status = config.get_zpool_status(zpool)
         pool_snapshot = _collect_pool_status_snapshot(zpool, zpool_status)
-        if pool_snapshot is not None:
-          resilver_targets = _resilver_activation_targets(pool_snapshot)
-          for dev, status in pool_snapshot["devices"].items():
-            if status["state"] != "ONLINE":
-              continue
-            cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
-
-            if dev in resilver_targets:
-              log.verbose(f"{human_readable_id(cache)}: handling resilver_finish")
-              if since_in(Operation.RESILVER, cache.operations):
-                handle_resilver_finished(cache)
-                event_handled = True
-
-        update_vdev_error_state(pool_snapshot)
+        event_handled = _apply_resilver_finish_from_snapshot(pool_snapshot) or event_handled
 
           
 
@@ -621,6 +755,10 @@ def handle_events(event_queue, shutdown_fn):
       elif isinstance(event, TimerEvent):
         log.debug(f"timer event: ({config.timeout})")
         handled = event.action()
+      elif isinstance(event, DelayedResilverStartCheckEvent):
+        handled = _handle_delayed_resilver_start(event)
+      elif isinstance(event, RegularStatusCheckEvent):
+        handled = _handle_regular_status_check(event)
       elif callable(event):
         handled = event()
       else:
@@ -758,7 +896,7 @@ def daemon(args):# pylint: disable=unused-argument
       except Exception:
         pass
       try:
-        for attr in ["update_scheduler", "maintenance_scheduler"]:
+        for attr in ["update_scheduler", "maintenance_scheduler", "regular_status_scheduler"]:
           scheduler = getattr(config, attr, None)
           if scheduler is not None:
             scheduler.cancel()

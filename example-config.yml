@@ -63,8 +63,12 @@ timeout: 300
 #
 # update_scheduler runs the equivalent of `zmirror update-overdue`.
 # maintenance_scheduler runs what `zmirror maintenance` does now.
+# regular_status_scheduler runs `zpool status --json` for all pools and applies
+# the result to configured zdevs only.
 update_scheduler: []
 maintenance_scheduler: []
+regular_status_scheduler:
+  - times: ["00:00", "10:00", "20:00", "30:00", "40:00", "50:00"]
 
 # global default for whether disks are SSDs. Individual disks may override via
 # `ssd: yes|no`.

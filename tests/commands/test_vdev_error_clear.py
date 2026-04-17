@@ -1,6 +1,6 @@
 from zmirror.daemon import handle, update_vdev_error_state
 from zmirror.entities import find_or_create_cache, refresh_all_vdev_error_state_from_status
-from zmirror.dataclasses import ZDev, EntityState
+from zmirror.dataclasses import ZDev, ZPool, EntityState
 from zmirror import config
 
 
@@ -27,13 +27,18 @@ def _snapshot_with_one_vdev(pool, name, state, read="0", write="0", cksum="0", s
   }
 
 
-def test_vdev_clear_event_clears_errors_even_for_offline_target():
+def test_vdev_clear_event_does_not_change_errors_for_offline_target(monkeypatch):
   old_cache_dict = config.cache_dict
   try:
     config.cache_dict = {}
     cache = find_or_create_cache(ZDev, pool="tank", name="disk1")
     cache.state.what = EntityState.INACTIVE
     cache.errors = True
+    monkeypatch.setattr(
+      config,
+      "get_zpool_status",
+      lambda pool: _snapshot_with_one_vdev(pool, "disk1", state="OFFLINE", read="0", write="0", cksum="0"),
+    )
 
     handled = handle({
       "ZEVENT_SUBCLASS": "vdev_clear",
@@ -43,12 +48,12 @@ def test_vdev_clear_event_clears_errors_even_for_offline_target():
     })
 
     assert handled is True
-    assert cache.errors is False
+    assert cache.errors is True
   finally:
     config.cache_dict = old_cache_dict
 
 
-def test_status_update_clears_errors_when_counters_are_zero_even_if_vdev_offline():
+def test_status_update_sets_errors_when_online_cache_sees_non_online_vdev_state():
   old_cache_dict = config.cache_dict
   old_blockdevs = config.zfs_blockdevs
   try:
@@ -62,17 +67,17 @@ def test_status_update_clears_errors_when_counters_are_zero_even_if_vdev_offline
     update_vdev_error_state({
       "zpool": "tank",
       "devices": {
-        "disk1": {"state": "OFFLINE", "errors": False}
+        "disk1": {"state": "OFFLINE", "errors": True}
       }
     })
 
-    assert cache.errors is False
+    assert cache.errors is True
   finally:
     config.cache_dict = old_cache_dict
     config.zfs_blockdevs = old_blockdevs
 
 
-def test_refresh_all_vdev_error_state_from_status_updates_from_zpool_status(monkeypatch):
+def test_refresh_all_vdev_error_state_from_status_uses_vdev_state_as_error(monkeypatch):
   old_cache_dict = config.cache_dict
   old_blockdevs = config.zfs_blockdevs
   try:
@@ -91,7 +96,98 @@ def test_refresh_all_vdev_error_state_from_status_updates_from_zpool_status(monk
 
     refresh_all_vdev_error_state_from_status()
 
-    assert cache.errors is False
+    assert cache.errors is True
   finally:
     config.cache_dict = old_cache_dict
     config.zfs_blockdevs = old_blockdevs
+
+
+def test_status_update_does_not_set_pool_errors_for_admin_offline_degraded_pool():
+  old_cache_dict = config.cache_dict
+  try:
+    config.cache_dict = {}
+
+    cache = find_or_create_cache(ZPool, name="tank")
+    cache.state.what = EntityState.ACTIVE
+    cache.errors = False
+
+    update_vdev_error_state({
+      "zpool": "tank",
+      "scrub_errors": 0,
+      "pool": {
+        "state": "DEGRADED",
+        "status": "One or more devices has been taken offline by the administrator.",
+        "error_count": "0",
+      },
+      "devices": {
+        "disk1": {"state": "ONLINE", "errors": False},
+        "disk2": {"state": "OFFLINE", "errors": True},
+      },
+    })
+
+    assert cache.errors is False
+  finally:
+    config.cache_dict = old_cache_dict
+
+
+def test_status_update_sets_pool_errors_for_non_admin_degraded_pool_state():
+  old_cache_dict = config.cache_dict
+  try:
+    config.cache_dict = {}
+
+    cache = find_or_create_cache(ZPool, name="tank")
+    cache.state.what = EntityState.ACTIVE
+    cache.errors = False
+
+    update_vdev_error_state({
+      "zpool": "tank",
+      "scrub_errors": 0,
+      "pool": {"state": "DEGRADED", "status": "One or more devices could not be used because the label is missing or invalid."},
+      "devices": {},
+    })
+
+    assert cache.errors is True
+  finally:
+    config.cache_dict = old_cache_dict
+
+
+def test_status_update_does_not_set_pool_errors_for_offline_pool_state():
+  old_cache_dict = config.cache_dict
+  try:
+    config.cache_dict = {}
+
+    cache = find_or_create_cache(ZPool, name="tank")
+    cache.state.what = EntityState.ACTIVE
+    cache.errors = True
+
+    update_vdev_error_state({
+      "zpool": "tank",
+      "scrub_errors": 0,
+      "pool": {"state": "OFFLINE"},
+      "devices": {},
+    })
+
+    assert cache.errors is False
+  finally:
+    config.cache_dict = old_cache_dict
+
+
+def test_status_update_leaves_offline_zmirror_pool_errors_unchanged():
+  old_cache_dict = config.cache_dict
+  try:
+    config.cache_dict = {}
+
+    cache = find_or_create_cache(ZPool, name="tank")
+    cache.state.what = EntityState.DISCONNECTED
+    cache.errors = False
+
+    update_vdev_error_state({
+      "zpool": "tank",
+      "scrub_errors": 1,
+      "pool": {"state": "DEGRADED"},
+      "devices": {},
+    })
+
+    assert cache.errors is False
+  finally:
+    config.cache_dict = old_cache_dict

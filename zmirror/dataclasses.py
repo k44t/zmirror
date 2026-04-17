@@ -212,6 +212,7 @@ class ZMirror:
   zpool_import_args: str = None
   update_scheduler: list = field(default_factory=list)
   maintenance_scheduler: list = field(default_factory=list)
+  regular_status_scheduler: list = field(default_factory=lambda: [{"times": ["00:00", "10:00", "20:00", "30:00", "40:00", "50:00"]}])
 
   def id(self):
     return make_id(self)
@@ -1097,6 +1098,7 @@ def init_backing(self: DevicesAgregate, pool, blockdevs):
 @yaml_data("zpool", also_use_class_name=False)
 class ZPool(Onlineable, Children):
   name: str = None
+  errors: bool = field(metadata={"db": True}, default=False)
 
   root: str = None
   zpool_import_args: str = None
@@ -1154,6 +1156,9 @@ class ZPool(Onlineable, Children):
 
   def print_status(self, kdstream):
     Entity.print_status(self, kdstream)
+
+    kdstream.newline()
+    kdstream.print_property(cached(self), "errors")
 
     if self.name in config.zfs_blockdevs:
 
