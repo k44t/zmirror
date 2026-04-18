@@ -27,6 +27,14 @@ log_level: info
 # defaults to: `yes`
 enable_commands: yes
 
+# whether devices in this subtree are expected to be physically unplugged as part
+# of normal operation. This is inherited by all entities unless overridden.
+#
+# this only affects how zmirror interprets zpool fault/removed/unavail error
+# signals; it does not change command issuance.
+# defaults to: `no`
+unpluggable: no
+
 # the timeout in seconds for user requests after which the request will be considered failed 
 # and removed.
 #

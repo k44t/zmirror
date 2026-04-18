@@ -1,5 +1,5 @@
 from zmirror import config
-from zmirror.dataclasses import ZMirror, Disk, Part, ZDev
+from zmirror.dataclasses import ZMirror, Disk, Part, ZDev, effective_unpluggable
 
 
 def wire_chain(root_ssd=True, disk_ssd=None, root_trim="1 week", zdev_trim=None):
@@ -88,5 +88,18 @@ def test_scrub_interval_inheritance_is_unchanged_by_ssd_gate():
     zdev.finalize_init()
 
     assert zdev.scrub_interval == "4 weeks"
+  finally:
+    config.config_root = original_root
+
+
+def test_unpluggable_inherits_from_root_to_child_entities():
+  original_root = config.config_root
+  try:
+    root, disk, zdev = wire_chain()
+    root.unpluggable = True
+    config.config_root = root
+
+    assert effective_unpluggable(disk) is True
+    assert effective_unpluggable(zdev) is True
   finally:
     config.config_root = original_root

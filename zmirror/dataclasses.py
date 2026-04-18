@@ -198,6 +198,7 @@ class ZMirror:
   log_full_events: bool = False
   enable_commands: bool = True
   enable_event_handlers: bool = True
+  unpluggable: bool = False
   ssd: bool = True
   timeout: int = 300
   log_level: str = "info"
@@ -284,6 +285,16 @@ def any_parent_offline(self):
   return False
 
 
+def effective_unpluggable(self):
+  current = self
+  while current is not None:
+    value = getattr(current, "unpluggable", None)
+    if value is not None:
+      return value
+    current = getattr(current, "parent", None)
+  return False
+
+
 
 @yaml_data
 class Onlineable:
@@ -326,6 +337,7 @@ class Entity:
   last_online: datetime = field(metadata={"db": True}, default=None)
   notes: str = None
   groups: list = field(default_factory=list)
+  unpluggable: bool = None
 
 
   # these are the fields we want serialized on change

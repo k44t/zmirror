@@ -188,6 +188,12 @@ def refresh_all_vdev_error_state_from_status():
 
 def finalize_init(entity, _parent, _ignored):
   if isinstance(entity, Entity):
+    if entity.unpluggable is None:
+      parent = getattr(entity, "parent", None)
+      if parent is not None:
+        entity.unpluggable = effective_unpluggable(parent)
+      else:
+        entity.unpluggable = getattr(config.config_root, "unpluggable", False)
     cache = cached(entity)
     if is_present_or_online_state(cache.state.what):
       statstr = f"{human_readable_id(entity)}: {cache.state.what.name}"

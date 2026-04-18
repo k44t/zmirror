@@ -186,7 +186,7 @@ def test_parent_online_failed_zdev_offline_command_does_not_disconnect_child():
     commands.commands = old_commands
 
 
-def test_statechange_unavail_deactivates_zdev_and_sets_error():
+def test_statechange_unavail_sets_error_without_state_change():
   old_cache_dict = config.cache_dict
   old_config_dict = config.config_dict
   try:
@@ -204,14 +204,14 @@ def test_statechange_unavail_deactivates_zdev_and_sets_error():
     })
 
     assert handled is True
-    assert cache.state.what == EntityState.INACTIVE
+    assert cache.state.what == EntityState.ACTIVE
     assert cache.errors is True
   finally:
     config.cache_dict = old_cache_dict
     config.config_dict = old_config_dict
 
 
-def test_statechange_faulted_with_offline_parent_disconnects_without_error():
+def test_statechange_faulted_with_offline_parent_clears_error_without_state_change():
   old_cache_dict = config.cache_dict
   old_config_dict = config.config_dict
   try:
@@ -219,6 +219,7 @@ def test_statechange_faulted_with_offline_parent_disconnects_without_error():
     config.config_dict = {}
 
     crypt = Crypt(name="crypt1")
+    crypt.unpluggable = True
     zdev = ZDev(pool="tank", name="crypt1")
     zdev.parent = crypt
 
@@ -239,7 +240,7 @@ def test_statechange_faulted_with_offline_parent_disconnects_without_error():
     })
 
     assert handled is True
-    assert zdev_cache.state.what == EntityState.DISCONNECTED
+    assert zdev_cache.state.what == EntityState.ACTIVE
     assert zdev_cache.errors is False
   finally:
     config.cache_dict = old_cache_dict
@@ -267,14 +268,14 @@ def test_statechange_faulted_without_offline_parent_sets_error():
     })
 
     assert handled is True
-    assert zdev_cache.state.what == EntityState.INACTIVE
+    assert zdev_cache.state.what == EntityState.ACTIVE
     assert zdev_cache.errors is True
   finally:
     config.cache_dict = old_cache_dict
     config.config_dict = old_config_dict
 
 
-def test_removed_event_with_offline_parent_disconnects_without_error():
+def test_removed_event_with_offline_parent_clears_error_without_state_change():
   old_cache_dict = config.cache_dict
   old_config_dict = config.config_dict
   try:
@@ -282,6 +283,7 @@ def test_removed_event_with_offline_parent_disconnects_without_error():
     config.config_dict = {}
 
     crypt = Crypt(name="crypt1")
+    crypt.unpluggable = True
     zdev = ZDev(pool="tank", name="crypt1")
     zdev.parent = crypt
 
@@ -302,8 +304,72 @@ def test_removed_event_with_offline_parent_disconnects_without_error():
     })
 
     assert handled is True
-    assert zdev_cache.state.what == EntityState.DISCONNECTED
+    assert zdev_cache.state.what == EntityState.ACTIVE
     assert zdev_cache.errors is False
+  finally:
+    config.cache_dict = old_cache_dict
+    config.config_dict = old_config_dict
+
+
+def test_removed_event_without_offline_parent_sets_error_without_state_change():
+  old_cache_dict = config.cache_dict
+  old_config_dict = config.config_dict
+  try:
+    config.cache_dict = {}
+    config.config_dict = {}
+
+    zdev = ZDev(pool="tank", name="disk1")
+    config.config_dict[entity_id_string(zdev)] = zdev
+    zdev_cache = find_or_create_cache(ZDev, pool="tank", name="disk1")
+    zdev_cache.state.what = EntityState.ACTIVE
+    zdev_cache.errors = False
+
+    handled = handle({
+      "ZEVENT_SUBCLASS": "removed",
+      "ZEVENT_POOL": "tank",
+      "ZEVENT_VDEV_PATH": "/dev/disk1",
+      "ZEVENT_VDEV_STATE_STR": "REMOVED",
+    })
+
+    assert handled is True
+    assert zdev_cache.state.what == EntityState.ACTIVE
+    assert zdev_cache.errors is True
+  finally:
+    config.cache_dict = old_cache_dict
+    config.config_dict = old_config_dict
+
+
+def test_statechange_faulted_with_offline_parent_and_not_unpluggable_sets_error():
+  old_cache_dict = config.cache_dict
+  old_config_dict = config.config_dict
+  try:
+    config.cache_dict = {}
+    config.config_dict = {}
+
+    crypt = Crypt(name="crypt1")
+    crypt.unpluggable = False
+    zdev = ZDev(pool="tank", name="crypt1")
+    zdev.parent = crypt
+
+    config.config_dict[entity_id_string(crypt)] = crypt
+    config.config_dict[entity_id_string(zdev)] = zdev
+
+    crypt_cache = find_or_create_cache(Crypt, name="crypt1")
+    crypt_cache.state.what = EntityState.DISCONNECTED
+    zdev_cache = find_or_create_cache(ZDev, pool="tank", name="crypt1")
+    zdev_cache.state.what = EntityState.ACTIVE
+    zdev_cache.errors = False
+
+    handled = handle({
+      "ZEVENT_SUBCLASS": "statechange",
+      "ZEVENT_POOL": "tank",
+      "ZEVENT_VDEV_PATH": "/dev/mapper/crypt1",
+      "ZEVENT_VDEV_STATE_STR": "FAULTED",
+    })
+
+    assert handled is True
+    assert zdev_cache.state.what == EntityState.ACTIVE
+    assert zdev_cache.errors is True
   finally:
     config.cache_dict = old_cache_dict
     config.config_dict = old_config_dict
