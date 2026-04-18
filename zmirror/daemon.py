@@ -553,15 +553,27 @@ def handle(env):
       vdev_path = env[EnvKey.ZEVENT_VDEV_PATH.value]
       cache = find_or_create_zfs_cache_by_vdev_path(zpool, vdev_path)
       if zevent == "vdev_online":
-        # we have no event by witch we can reliably capture that a resilver started for a zdev
-        # (resilver_started is a pool event). Hence we automatically assume that a zdev 
-        # that is configured to be within a mirror (zpool.backing)
-        # and that has been onlined in an active pool will resilver
-        handle_zdev_onlined(cache)
-        event_handled = True
+        new_state = env.get(EnvKey.ZEVENT_VDEV_STATE_STR.value)
+        if new_state == "UNAVAIL":
+          cache.errors = True
+          handle_deactivated(cache)
+          entity = uncached(cache)
+          if entity and RequestType.ONLINE in entity.requested:
+            entity.requested[RequestType.ONLINE].fail(Reason.COMMAND_FAILED)
+          log.info(f"{human_readable_id(cache)}: ONLINE event reported UNAVAIL; marked as deactivated")
+          event_handled = True
+        else:
+          # we have no event by witch we can reliably capture that a resilver started for a zdev
+          # (resilver_started is a pool event). Hence we automatically assume that a zdev 
+          # that is configured to be within a mirror (zpool.backing)
+          # and that has been onlined in an active pool will resilver
+          handle_zdev_onlined(cache)
+          event_handled = True
       elif zevent == "statechange":
         new_state = env[EnvKey.ZEVENT_VDEV_STATE_STR.value]
-        if new_state == "OFFLINE":
+        if new_state in {"OFFLINE", "UNAVAIL"}:
+          if new_state == "UNAVAIL":
+            cache.errors = True
           handle_deactivated(cache)
           event_handled = True
         # else:

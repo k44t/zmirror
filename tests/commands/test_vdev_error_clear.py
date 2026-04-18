@@ -1,6 +1,6 @@
 from zmirror.daemon import handle, update_vdev_error_state
 from zmirror.entities import find_or_create_cache, refresh_all_vdev_error_state_from_status
-from zmirror.dataclasses import ZDev, ZPool, EntityState
+from zmirror.dataclasses import ZDev, ZPool, EntityState, RequestType, Request, entity_id_string
 from zmirror import config
 
 
@@ -75,6 +75,65 @@ def test_status_update_sets_errors_when_online_cache_sees_non_online_vdev_state(
   finally:
     config.cache_dict = old_cache_dict
     config.zfs_blockdevs = old_blockdevs
+
+
+def test_vdev_online_unavail_keeps_zdev_deactivated_sets_error_and_fails_online_request():
+  old_cache_dict = config.cache_dict
+  old_config_dict = config.config_dict
+  try:
+    config.cache_dict = {}
+    config.config_dict = {}
+
+    zdev = ZDev(pool="tank", name="disk1")
+    config.config_dict[entity_id_string(zdev)] = zdev
+    cache = find_or_create_cache(ZDev, pool="tank", name="disk1")
+    cache.state.what = EntityState.INACTIVE
+    cache.errors = False
+
+    request = Request(RequestType.ONLINE, zdev, 0)
+    zdev.requested[RequestType.ONLINE] = request
+
+    handled = handle({
+      "ZEVENT_SUBCLASS": "vdev_online",
+      "ZEVENT_POOL": "tank",
+      "ZEVENT_VDEV_PATH": "/dev/disk1",
+      "ZEVENT_VDEV_STATE_STR": "UNAVAIL",
+    })
+
+    assert handled is True
+    assert cache.state.what == EntityState.INACTIVE
+    assert cache.errors is True
+    assert request.handled is True
+    assert request.succeeded is False
+    assert RequestType.ONLINE not in zdev.requested
+  finally:
+    config.cache_dict = old_cache_dict
+    config.config_dict = old_config_dict
+
+
+def test_statechange_unavail_deactivates_zdev_and_sets_error():
+  old_cache_dict = config.cache_dict
+  old_config_dict = config.config_dict
+  try:
+    config.cache_dict = {}
+    config.config_dict = {}
+    cache = find_or_create_cache(ZDev, pool="tank", name="disk1")
+    cache.state.what = EntityState.ACTIVE
+    cache.errors = False
+
+    handled = handle({
+      "ZEVENT_SUBCLASS": "statechange",
+      "ZEVENT_POOL": "tank",
+      "ZEVENT_VDEV_PATH": "/dev/disk1",
+      "ZEVENT_VDEV_STATE_STR": "UNAVAIL",
+    })
+
+    assert handled is True
+    assert cache.state.what == EntityState.INACTIVE
+    assert cache.errors is True
+  finally:
+    config.cache_dict = old_cache_dict
+    config.config_dict = old_config_dict
 
 
 def test_refresh_all_vdev_error_state_from_status_uses_vdev_state_as_error(monkeypatch):
