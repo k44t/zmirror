@@ -48,6 +48,12 @@ def init_config(cache_path, config_path):
   config.log_events = config.config_root.log_events
   config.log_full_events = getattr(config.config_root, "log_full_events", False)
 
+  config.commands_enabled = config.config_root.enable_commands
+  log.info(f"command execution enabled: {to_yes(config.commands_enabled)}")
+
+  config.event_handlers_enabled = config.config_root.enable_event_handlers
+  log.info(f"event handlers enabled: {to_yes(config.event_handlers_enabled)}")
+
 
 
   cache_parent = os.path.dirname(cache_path)
@@ -75,12 +81,6 @@ def init_config(cache_path, config_path):
 
   iterate_content_tree3(config.config_root, finalize_init, None, None)
   refresh_all_vdev_error_state_from_status()
-
-  config.commands_enabled = config.config_root.enable_commands
-  log.info(f"command execution enabled: {to_yes(config.commands_enabled)}")
-
-  config.event_handlers_enabled = config.config_root.enable_event_handlers
-  log.info(f"event handlers enabled: {to_yes(config.event_handlers_enabled)}")
 
   commands.execute_commands()
   save_cache_now()

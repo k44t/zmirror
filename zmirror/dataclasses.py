@@ -779,6 +779,9 @@ def handle_online_request(self):
 
 
 def possibly_force_enable_trim(self):
+  if not config.commands_enabled:
+    log.info(f"{entity_id_string(self)}: skipping force-enable-trim (command execution disabled)")
+    return None
   if self.force_enable_trim:
     path = config.find_provisioning_mode(self.dev_path())
     if path is None:

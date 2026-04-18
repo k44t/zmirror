@@ -3,6 +3,7 @@ import io
 
 from zmirror.zmirror import make_arg_parser
 from zmirror import user_commands
+from zmirror import dataclasses
 
 
 def test_check_trim_parser_wiring():
@@ -115,3 +116,23 @@ def test_enable_trim_runs_same_force_enable_logic(monkeypatch):
     "echo unmap > /sys/block/sda/device/scsi_disk/0:0:0:0/provisioning_mode",
     "cat /sys/block/sda/device/scsi_disk/0:0:0:0/provisioning_mode",
   ]
+
+
+def test_force_enable_trim_skips_when_commands_disabled(monkeypatch):
+  disk = dataclasses.Disk(uuid="test-uuid", force_enable_trim=True)
+  calls = []
+
+  monkeypatch.setattr(dataclasses.config, "commands_enabled", False)
+  monkeypatch.setattr(dataclasses.config, "find_provisioning_mode", lambda _dev: "/sys/block/sda/provisioning_mode")
+  monkeypatch.setattr(dataclasses, "read_file", lambda _path: "full")
+
+  def add_script_stub(script, unless_redundant=False, input=None): # pylint: disable=unused-argument,redefined-builtin
+    calls.append(script)
+    return None
+
+  monkeypatch.setattr(dataclasses.commands, "add_script", add_script_stub)
+
+  result = dataclasses.possibly_force_enable_trim(disk)
+
+  assert result is None
+  assert calls == []
