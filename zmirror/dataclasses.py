@@ -267,6 +267,23 @@ def entity_id_string(o):
   return make_id_string(o.id())
 
 
+def parent_chain(self):
+  current = getattr(self, "parent", None)
+  result = []
+  while current is not None:
+    result.append(current)
+    current = getattr(current, "parent", None)
+  return result
+
+
+def any_parent_offline(self):
+  for parent in parent_chain(self):
+    parent_cache = cached(parent)
+    if parent_cache is not None and is_offline_state(parent_cache.state.what):
+      return True
+  return False
+
+
 
 @yaml_data
 class Onlineable:
@@ -411,17 +428,35 @@ class Entity:
 
     attr = f"enact_{request_type.name.lower()}"
     if hasattr(self, attr):
+      def on_done(_rslt):
+        if request_type == RequestType.OFFLINE and any_parent_offline(self):
+          handle_disconnected(self)
+
       def on_fail(rslt):
+        if request_type == RequestType.OFFLINE and any_parent_offline(self):
+          handle_disconnected(self)
+          if isinstance(rslt, tuple) and len(rslt) == 4:
+            cmd, _, _, errors = rslt
+            log.error(f"command `{cmd.command}` failed: \n\t{"\n\t".join(errors)}")
+          elif isinstance(rslt, ValueError) and rslt.args and isinstance(rslt.args[0], tuple) and len(rslt.args[0]) == 4:
+            cmd, _, _, errors = rslt.args[0]
+            log.error(f"command `{cmd.command}` failed: \n\t{"\n\t".join(errors)}")
+          else:
+            log.error(f"command failed: {rslt}")
+          return
         request.fail(Reason.COMMAND_FAILED)
         if isinstance(rslt, tuple) and len(rslt) == 4:
           cmd, _, _, errors = rslt
           log.error(f"command `{cmd.command}` failed: \n\t{"\n\t".join(errors)}")
+        elif isinstance(rslt, ValueError) and rslt.args and isinstance(rslt.args[0], tuple) and len(rslt.args[0]) == 4:
+          cmd, _, _, errors = rslt.args[0]
+          log.error(f"command `{cmd.command}` failed: \n\t{"\n\t".join(errors)}")
         else:
-          log.error(f"command `{cmd.command}` failed: {rslt}")
+          log.error(f"command failed: {rslt}")
 
       enact = getattr(self, attr)
       promise = enact()
-      promise.catch(on_fail)
+      promise.done(on_done, on_fail)
       request.set_enacted()
     else:
       log.debug(f"{human_readable_id(self)}: request type cannot be enacted by this entity: {request_type}")

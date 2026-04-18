@@ -191,6 +191,30 @@ def _apply_resilver_finish_from_snapshot(snapshot):
   return handled
 
 
+def _handle_zdev_non_online_state(cache, new_state):
+  entity = uncached(cache)
+  expected_offline = entity is not None and any_parent_offline(entity)
+
+  if new_state == "REMOVED":
+    handle_disconnected(cache)
+  elif new_state == "FAULTED":
+    if expected_offline:
+      handle_disconnected(cache)
+    else:
+      handle_deactivated(cache)
+  elif new_state in {"OFFLINE", "UNAVAIL"}:
+    handle_deactivated(cache)
+  else:
+    return False
+
+  if new_state == "UNAVAIL":
+    cache.errors = True
+  elif new_state in {"FAULTED", "REMOVED"}:
+    cache.errors = not expected_offline
+
+  return True
+
+
 def _queue_synthetic_event(event):
   if config.event_queue is None:
     return False
@@ -543,7 +567,7 @@ def handle(env):
       else:
         log.debug("vdev_clear event missing ZEVENT_VDEV_PATH")
 
-    elif zevent in ["vdev_online", "statechange", "trim_start", "trim_finish", "trim_suspend", "trim_resume"]:
+    elif zevent in ["vdev_online", "statechange", "removed", "trim_start", "trim_finish", "trim_suspend", "trim_resume"]:
       # possible cases:
         # ZEVENT_POOL:: mypoolname
         # ZEVENT_VDEV_PATH:: /dev/mapper/mypoolname-b-main
@@ -571,14 +595,15 @@ def handle(env):
           event_handled = True
       elif zevent == "statechange":
         new_state = env[EnvKey.ZEVENT_VDEV_STATE_STR.value]
-        if new_state in {"OFFLINE", "UNAVAIL"}:
-          if new_state == "UNAVAIL":
-            cache.errors = True
-          handle_deactivated(cache)
+        if new_state in {"OFFLINE", "UNAVAIL", "FAULTED", "REMOVED"}:
+          _handle_zdev_non_online_state(cache, new_state)
           event_handled = True
         # else:
           # log.debug(f"unknown statechange event: { new_state }")
           # set_cache_state(cache, EntityState.UNKNOWN)
+      elif zevent == "removed":
+        _handle_zdev_non_online_state(cache, "REMOVED")
+        event_handled = True
       elif zevent == "trim_start" or zevent == "trim_resume":
         handle_trim_started(cache)
         event_handled = True
