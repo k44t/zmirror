@@ -616,9 +616,9 @@ def handle(env):
         #  log.info(f"{cache.__class__.__name__} {cache.name}: {to_kd(cache.state)}")
         #  event_handled = True
 
-        # dm_crypts
+        # crypt devices
         elif EnvKey.DM_NAME.value in env:
-          cache = find_or_create_cache(DMCrypt, name=env[EnvKey.DM_NAME.value])
+          cache = find_or_create_cache(Crypt, name=env[EnvKey.DM_NAME.value])
           if action == "add":
             handle_onlined(cache)
           else:
@@ -650,11 +650,11 @@ def handle(env):
         # sometimes, while modifying partitions, there appears an event concerning the partition
         # that not yet contains a PARTNAME
         if EnvKey.PARTNAME.value in env:
-          cache = find_or_create_cache(Partition, name=env[EnvKey.PARTNAME.value])
+          cache = find_or_create_cache(Part, name=env[EnvKey.PARTNAME.value])
           udev_event_action(cache, action, now)
           event_handled = True
     
-    # this UDEV event means that the DMCrypt was `open`ed
+    # this UDEV event means that the Crypt was `open`ed
     elif action == "change" and EnvKey.DM_ACTIVATION.value in env and env[EnvKey.DM_ACTIVATION.value] == "1":
       devlinks = env[EnvKey.DEVLINKS.value].split(" ")
       for devlink in devlinks:
@@ -662,7 +662,7 @@ def handle(env):
         if match:
           dm_name = match.group(1)
 
-          cache = find_or_create_cache(DMCrypt, name=dm_name)
+          cache = find_or_create_cache(Crypt, name=dm_name)
           handle_onlined(cache)
           event_handled = True
 

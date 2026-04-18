@@ -2,7 +2,7 @@ import yaml
 import pytest
 
 from kpyutils.kiify import yaml_data
-from zmirror.dataclasses import ZMirror, ZPool, ZDev, Disk, Partition, DMCrypt, ZFSVolume
+from zmirror.dataclasses import ZMirror, ZPool, ZDev, Disk, Part, Crypt, ZVol
 
 
 def test_yaml_data_name_alias_uses_only_preferred_tag_by_default():
@@ -58,10 +58,10 @@ content:
   assert isinstance(config, ZMirror)
   assert isinstance(config.content[0], ZPool)
   assert isinstance(config.content[0].content[0], ZDev)
-  assert isinstance(config.content[0].content[1], ZFSVolume)
-  assert isinstance(config.content[0].content[2], Partition)
+  assert isinstance(config.content[0].content[1], ZVol)
+  assert isinstance(config.content[0].content[2], Part)
   assert isinstance(config.content[0].content[3], Disk)
-  assert isinstance(config.content[0].content[4], DMCrypt)
+  assert isinstance(config.content[0].content[4], Crypt)
 
 
 def test_zmirror_does_not_accept_class_name_yaml_tags_for_short_named_types():

@@ -272,7 +272,7 @@ def make_arg_parser():
 
 
 
-  for typ in [Disk, Partition, ZPool, ZFSVolume, DMCrypt, ZDev]:
+  for typ in [Disk, Part, ZPool, ZVol, Crypt, ZDev]:
     make_onlineable_commands(typ)
 
 

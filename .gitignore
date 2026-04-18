@@ -5,6 +5,7 @@
 doc/Zmirror.one
 dist
 temp
+\#temp
 logs
 history.log
 temp.txt

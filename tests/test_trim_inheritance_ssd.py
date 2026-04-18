@@ -1,5 +1,5 @@
 from zmirror import config
-from zmirror.dataclasses import ZMirror, Disk, Partition, ZDev
+from zmirror.dataclasses import ZMirror, Disk, Part, ZDev
 
 
 def wire_chain(root_ssd=True, disk_ssd=None, root_trim="1 week", zdev_trim=None):
@@ -14,7 +14,7 @@ def wire_chain(root_ssd=True, disk_ssd=None, root_trim="1 week", zdev_trim=None)
   disk.ssd = disk_ssd
   disk.parent = root
 
-  part = Partition()
+  part = Part()
   part.name = "part-a"
   part.parent = disk
 

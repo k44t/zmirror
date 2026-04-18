@@ -78,9 +78,9 @@ class Tests():
       # we are simulating that all disks are connected, which
       # would in a non-simulated state mean that all DMCrypts 
       # are INACTIVE, so we simulate that too.
-      if type(entity) in {Disk, Partition}:
+      if type(entity) in {Disk, Part}:
         entity.state.what = EntityState.CONNECTED
-      elif type(entity) in {DMCrypt}:
+      elif type(entity) in {Crypt}:
         entity.state.what = EntityState.INACTIVE
       
     for entity in config.config_dict.values():

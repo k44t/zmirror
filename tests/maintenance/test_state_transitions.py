@@ -26,9 +26,9 @@ class Tests():
     config.timeout = 15
 
     for entity in config.cache_dict.values():
-      if type(entity) in {Disk, Partition}:
+      if type(entity) in {Disk, Part}:
         entity.state.what = EntityState.CONNECTED
-      elif type(entity) in {DMCrypt}:
+      elif type(entity) in {Crypt}:
         entity.state.what = EntityState.INACTIVE
       else:
         entity.state.what = EntityState.DISCONNECTED

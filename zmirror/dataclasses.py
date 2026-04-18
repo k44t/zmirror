@@ -872,7 +872,7 @@ class Disk(ManualChildren):
 
 
 @yaml_data("part", also_use_class_name=False)
-class Partition(ManualChildren):
+class Part(ManualChildren):
   name: str = None
 
 
@@ -1200,7 +1200,7 @@ class ZPool(Onlineable, Children):
       run_event_handlers(self, "backing_appeared")
 
   def _is_content_effectively_online(self, entity):
-    if isinstance(entity, ZFSVolume):
+    if isinstance(entity, ZVol):
       for child in entity.content:
         if is_online(child):
           return True
@@ -1384,7 +1384,7 @@ class ZFSDataset(Entity):
 
 
 @yaml_data("zvol", also_use_class_name=False)
-class ZFSVolume(ManualChildren):
+class ZVol(ManualChildren):
   pool: str = None
   name: str = None
 
@@ -1506,7 +1506,7 @@ class Embedded:
 
 
 @yaml_data("crypt", also_use_class_name=False)
-class DMCrypt(Onlineable, Embedded, Children):
+class Crypt(Onlineable, Embedded, Children):
   name: str = None
   key_file: str = None
 
@@ -2068,11 +2068,11 @@ class ZDev(Onlineable, Embedded, Entity):
 
   def dev_name(self):
     def do():
-      if isinstance(self.parent, Partition):
+      if isinstance(self.parent, Part):
         return self.parent.name
-      elif isinstance(self.parent, DMCrypt):
+      elif isinstance(self.parent, Crypt):
         return self.parent.name
-      elif isinstance(self.parent, ZFSVolume):
+      elif isinstance(self.parent, ZVol):
         return f"zvol/{self.parent.parent.name}/{self.parent.name}"
       else:
         return self.name
@@ -2197,11 +2197,11 @@ class ZDev(Onlineable, Embedded, Entity):
 NAME_FOR_TYPE = {
   None: None,
   Disk: "disk",
-  Partition: "part",
+  Part: "part",
   ZPool: "zpool",
   ZDev: "zdev",
-  ZFSVolume: "zvol",
-  DMCrypt: "crypt",
+  ZVol: "zvol",
+  Crypt: "crypt",
   ZMirror: "zmirror",
   UnavailableDependency: "unavailable-dependency",
   Mirror: "mirror"
@@ -2209,6 +2209,6 @@ NAME_FOR_TYPE = {
 
 TYPE_FOR_NAME = {value: key for key, value in NAME_FOR_TYPE.items()}
 # legacy aliases for cache/config compatibility
-TYPE_FOR_NAME["zfs-volume"] = ZFSVolume
-TYPE_FOR_NAME["dm-crypt"] = DMCrypt
-TYPE_FOR_NAME["partition"] = Partition
+TYPE_FOR_NAME["zfs-volume"] = ZVol
+TYPE_FOR_NAME["dm-crypt"] = Crypt
+TYPE_FOR_NAME["partition"] = Part
