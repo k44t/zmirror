@@ -251,6 +251,7 @@ class Tests():
       "cryptsetup open /dev/disk/by-partlabel/zmirror-sysfs-s zmirror-sysfs-s --key-file ./test/zmirror-key"
     ])
 
+
   # dmcrypt of sysfs-s appears
   def test_dmcrypt_sysfs_s_online(self):
 

@@ -126,6 +126,23 @@ def test_get_zpool_backing_device_state_uses_per_vdev_trim_operation(monkeypatch
   assert Operation.TRIM in opers_b
 
 
+def test_get_zpool_backing_device_state_marks_scrub_active_for_online_devices(monkeypatch):
+  status = _snapshot("tank", "SCRUB", "SCANNING", {
+    "a": {"state": "ONLINE"},
+    "b": {"state": "ONLINE"},
+    "c": {"state": "OFFLINE"},
+  })
+  monkeypatch.setattr(config, "get_zpool_status", lambda _pool: status)
+
+  _state_a, opers_a = get_zpool_backing_device_state("tank", "a")
+  _state_b, opers_b = get_zpool_backing_device_state("tank", "b")
+  _state_c, opers_c = get_zpool_backing_device_state("tank", "c")
+
+  assert Operation.SCRUB in opers_a
+  assert Operation.SCRUB in opers_b
+  assert Operation.SCRUB not in opers_c
+
+
 def test_delayed_resilver_start_marks_all_online_devices_when_scan_still_active(monkeypatch):
   old_cache_dict = config.cache_dict
   old_config_dict = config.config_dict

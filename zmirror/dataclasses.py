@@ -131,7 +131,7 @@ def state_corresponds_to_request(state, request):
   raise ValueError(f"unmapped request/state correspondence for request type: {request}")
 
 def operation_corresponds_to_request(oper, request):
-  return oper.value == request.value
+  return zfs_operation_for_request.get(request) == oper
 
 
 
