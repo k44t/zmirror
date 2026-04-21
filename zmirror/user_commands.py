@@ -512,6 +512,14 @@ LIST_DEFAULT_KEYS = ["hrid", "last_online", "last_update", "update_overdue", "la
 LIST_KEYS = ["id", "hrid", "state", "parent", "depth", "last_online", "last_update", "update_overdue", "available_update_overdue", "update_interval", "available_update_interval", "last_trim", "trim_overdue", "trim_interval", "last_scrub", "scrub_overdue", "scrub_interval", "errors", "operations"]
 
 
+def validate_list_columns(columns, arg_name):
+  invalid = [column for column in columns if column not in LIST_KEYS]
+  if invalid:
+    valid = ", ".join(LIST_KEYS)
+    bad = ", ".join(invalid)
+    raise ValueError(f"unknown {arg_name}: {bad}. valid columns: {valid}")
+
+
 def make_list_command(op: Operation, overdue=False):
   def do(args):
     b = StringBuilder()
@@ -551,8 +559,13 @@ def make_list_command(op: Operation, overdue=False):
       return
 
     keys = list(args.keys)
+    validate_list_columns(keys, "keys")
     add_columns = getattr(args, "add_columns", None)
     remove_columns = getattr(args, "remove_columns", None)
+    if add_columns:
+      validate_list_columns(add_columns, "add_columns")
+    if remove_columns:
+      validate_list_columns(remove_columns, "remove_columns")
     if add_columns:
       for col in add_columns:
         if col not in keys:

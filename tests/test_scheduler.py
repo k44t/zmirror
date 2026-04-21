@@ -7,7 +7,7 @@ from kpyutils.scheduler import Scheduler, _next_after_any, parse_schedule, parse
 from zmirror import config
 from zmirror.dataclasses import ZMirror
 import zmirror.entities as entities
-from zmirror.user_commands import LIST_DEFAULT_KEYS, LIST_KEYS
+from zmirror.user_commands import LIST_DEFAULT_KEYS, LIST_KEYS, validate_list_columns
 
 
 def test_parse_weekday_ranges_supports_wraparound():
@@ -55,8 +55,15 @@ def test_parse_schedule_requires_times_list():
 def test_available_update_fields_not_in_default_list_output():
   assert "available_update_overdue" not in LIST_DEFAULT_KEYS
   assert "available_update_interval" not in LIST_DEFAULT_KEYS
+  assert "state" in LIST_KEYS
+  assert "status" not in LIST_KEYS
   assert "available_update_overdue" in LIST_KEYS
   assert "available_update_interval" in LIST_KEYS
+
+
+def test_validate_list_columns_rejects_unknown_names():
+  with pytest.raises(ValueError, match="unknown keys: status"):
+    validate_list_columns(["status"], "keys")
 
 
 def test_regular_status_scheduler_defaults_to_every_ten_minutes():
