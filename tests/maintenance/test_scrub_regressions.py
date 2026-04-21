@@ -115,3 +115,24 @@ def test_successful_scrub_can_trigger_offline_handler():
   assert_commands([
     "zpool offline zmirror-sysfs zmirror-sysfs-s"
   ])
+
+
+def test_load_initial_state_uses_disappeared_flow_for_stale_operations(monkeypatch):
+  s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+  cache = cached(s)
+  cache.state.what = EntityState.ACTIVE
+  cache.operations = [
+    Since(Operation.SCRUB),
+    Since(Operation.TRIM),
+    Since(Operation.RESILVER),
+  ]
+
+  monkeypatch.setattr(config, "get_zpool_backing_device_state", lambda _pool, _dev: (EntityState.ACTIVE, set()))
+
+  state = s.load_initial_state()
+
+  assert state == EntityState.ACTIVE
+  assert not since_in(Operation.SCRUB, cache.operations)
+  assert not since_in(Operation.TRIM, cache.operations)
+  assert not since_in(Operation.RESILVER, cache.operations)
+  assert_commands([])

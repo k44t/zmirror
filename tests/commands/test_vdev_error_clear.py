@@ -1,7 +1,9 @@
+import logging
+
 from zmirror.daemon import handle, update_vdev_error_state
 from zmirror import commands
-from zmirror.entities import find_or_create_cache, refresh_all_vdev_error_state_from_status
-from zmirror.dataclasses import Crypt, ZDev, ZPool, EntityState, RequestType, Request, entity_id_string
+from zmirror.entities import finalize_init, find_or_create_cache, refresh_all_vdev_error_state_from_status
+from zmirror.dataclasses import Crypt, ZDev, ZPool, ZMirror, EntityState, Operation, RequestType, Request, Since, entity_id_string, since_in
 from zmirror import config
 
 
@@ -398,6 +400,67 @@ def test_refresh_all_vdev_error_state_from_status_uses_vdev_state_as_error(monke
   finally:
     config.cache_dict = old_cache_dict
     config.zfs_blockdevs = old_blockdevs
+
+
+def test_refresh_all_vdev_error_state_from_status_reconciles_operations(monkeypatch, caplog):
+  old_cache_dict = config.cache_dict
+  old_blockdevs = config.zfs_blockdevs
+  old_config_dict = config.config_dict
+  try:
+    config.cache_dict = {}
+    config.config_dict = {}
+    config.zfs_blockdevs = {"tank": {"disk1": object()}}
+
+    zdev = ZDev(pool="tank", name="disk1")
+    config.config_dict[entity_id_string(zdev)] = zdev
+    cache = find_or_create_cache(ZDev, pool="tank", name="disk1")
+    cache.state.what = EntityState.ACTIVE
+    cache.operations = [Since(Operation.SCRUB), Since(Operation.TRIM)]
+
+    monkeypatch.setattr(
+      config,
+      "get_zpool_status",
+      lambda pool: _snapshot_with_one_vdev(pool, "disk1", state="ONLINE", read="0", write="0", cksum="0"),
+    )
+
+    with caplog.at_level(logging.INFO, logger="zmirror"):
+      refresh_all_vdev_error_state_from_status()
+
+    assert not since_in(Operation.SCRUB, cache.operations)
+    assert not since_in(Operation.TRIM, cache.operations)
+    text = "\n".join(caplog.messages)
+    assert "scrub disappeared from status" in text
+    assert "trim disappeared from status" in text
+  finally:
+    config.cache_dict = old_cache_dict
+    config.config_dict = old_config_dict
+    config.zfs_blockdevs = old_blockdevs
+
+
+def test_finalize_init_logs_active_operations(caplog):
+  old_cache_dict = config.cache_dict
+  old_config_dict = config.config_dict
+  old_config_root = config.config_root
+  try:
+    config.cache_dict = {}
+    config.config_dict = {}
+    config.config_root = ZMirror(update_interval="4 weeks", trim_interval="4 weeks", scrub_interval="4 weeks")
+
+    zdev = ZDev(pool="tank", name="disk1")
+    config.config_dict[entity_id_string(zdev)] = zdev
+    cache = find_or_create_cache(ZDev, pool="tank", name="disk1")
+    cache.state.what = EntityState.ACTIVE
+    cache.operations = [Since(Operation.SCRUB), Since(Operation.TRIM)]
+
+    with caplog.at_level(logging.INFO, logger="zmirror"):
+      finalize_init(zdev, None, None)
+
+    text = "\n".join(caplog.messages)
+    assert "ACTIVE (active operations: scrub, trim)" in text
+  finally:
+    config.cache_dict = old_cache_dict
+    config.config_dict = old_config_dict
+    config.config_root = old_config_root
 
 
 def test_status_update_does_not_set_pool_errors_for_admin_offline_degraded_pool():

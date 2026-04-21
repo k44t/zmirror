@@ -1738,6 +1738,12 @@ def handle_resilver_finished(cache):
   uncached_operation_handle_by_name(cache, "resilver_finished")
 
 
+def handle_update_disappeared(cache):
+  cache_log_info(cache, "update disappeared from status")
+  since_remove(Operation.RESILVER, cache.operations)
+  uncached_operation_handle_by_name(cache, "update_disappeared")
+
+
 def handle_scrub_started(cache):
   cache_log_info(cache, "scrub started")
   since_insert_if_not_in(Since(Operation.SCRUB, inaccurate_now()), cache.operations)
@@ -1761,6 +1767,12 @@ def handle_scrub_finished(cache, successful_scrub=False):
   uncached(cache, do)
 
 
+def handle_scrub_disappeared(cache):
+  cache_log_info(cache, "scrub disappeared from status")
+  since_remove(Operation.SCRUB, cache.operations)
+  uncached_operation_handle_by_name(cache, "scrub_disappeared")
+
+
 
 def handle_trim_started(cache):
   cache_log_info(cache, "trim started")
@@ -1778,6 +1790,12 @@ def handle_trim_finished(cache):
   def do(entity):
     entity.handle_trim_finished()
   uncached(cache, do)
+
+
+def handle_trim_disappeared(cache):
+  cache_log_info(cache, "trim disappeared from status")
+  since_remove(Operation.TRIM, cache.operations)
+  uncached_operation_handle_by_name(cache, "trim_disappeared")
 
 
 def handle_scrub_canceled(cache):
@@ -1929,9 +1947,12 @@ class ZDev(Onlineable, Embedded, Entity):
   on_scrub_succeeded: list = field(default_factory=list)
   on_scrub_failed: list = field(default_factory=list)
   on_scrub_finished: list = field(default_factory=list)
+  on_scrub_disappeared: list = field(default_factory=list)
   on_scrub_canceled: list = field(default_factory=list)
+  on_trim_disappeared: list = field(default_factory=list)
   on_trim_canceled: list = field(default_factory=list)
   on_resilvered: list = field(default_factory=list)
+  on_update_disappeared: list = field(default_factory=list)
 
   scrub_interval: str = None
   trim_interval: str = None
@@ -2172,7 +2193,14 @@ class ZDev(Onlineable, Embedded, Entity):
     cache = cached(self)
     for org_oper in cache.operations.copy():
       if org_oper.what not in opers:
-        since_remove(org_oper.what, cache.operations)
+        if org_oper.what == Operation.SCRUB and is_online_state(cache.state.what):
+          handle_scrub_disappeared(cache)
+        elif org_oper.what == Operation.TRIM and is_online_state(cache.state.what):
+          handle_trim_disappeared(cache)
+        elif org_oper.what == Operation.RESILVER and is_online_state(cache.state.what):
+          handle_update_disappeared(cache)
+        else:
+          since_remove(org_oper.what, cache.operations)
     for oper in opers:
       if not since_in(oper, cache.operations):
         cache.operations.append(Since(oper, None))
@@ -2192,6 +2220,9 @@ class ZDev(Onlineable, Embedded, Entity):
     succeed_request(self, RequestType.CANCEL_SCRUB)
     run_event_handlers(self, "scrub_canceled")
 
+  def handle_scrub_disappeared(self):
+    run_event_handlers(self, "scrub_disappeared")
+
   def handle_scrub_finished(self, successful_scrub=False):
     succeed_request(self, RequestType.SCRUB)
     if successful_scrub:
@@ -2209,8 +2240,14 @@ class ZDev(Onlineable, Embedded, Entity):
     succeed_request(self, RequestType.CANCEL_TRIM)
     run_event_handlers(self, "trim_canceled")
 
+  def handle_trim_disappeared(self):
+    run_event_handlers(self, "trim_disappeared")
+
   def handle_trim_finished(self):
     run_event_handlers(self, "trimmed")
+
+  def handle_update_disappeared(self):
+    run_event_handlers(self, "update_disappeared")
 
   def enact_offline(self):
     return commands.add_script(f"zpool offline {self.pool} {self.dev_name()}", unless_redundant = True)

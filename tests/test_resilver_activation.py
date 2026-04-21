@@ -1,8 +1,8 @@
 from zmirror import config
-from zmirror.daemon import DelayedResilverStartCheckEvent, _clear_pending_resilver_start_check, _handle_delayed_resilver_start, _reliable_resilver_targets, _resilver_activation_targets
+from zmirror.daemon import DelayedResilverStartCheckEvent, _clear_pending_resilver_start_check, _handle_delayed_resilver_start, _reconcile_status_operations, _reliable_resilver_targets, _resilver_activation_targets
 from zmirror.entities import find_or_create_cache
 from zmirror.entities import get_zpool_backing_device_state
-from zmirror.dataclasses import EntityState, Operation, ZDev, handle_resilver_started, since_in
+from zmirror.dataclasses import EntityState, Operation, Since, ZDev, handle_resilver_started, since_in
 
 
 def _snapshot(pool, scan_function, scan_state, devices):
@@ -143,6 +143,17 @@ def test_get_zpool_backing_device_state_marks_scrub_active_for_online_devices(mo
   assert Operation.SCRUB not in opers_c
 
 
+def test_get_zpool_backing_device_state_does_not_mark_canceled_scrub_active(monkeypatch):
+  status = _snapshot("tank", "SCRUB", "CANCELED", {
+    "a": {"state": "ONLINE"},
+  })
+  monkeypatch.setattr(config, "get_zpool_status", lambda _pool: status)
+
+  _state_a, opers_a = get_zpool_backing_device_state("tank", "a")
+
+  assert Operation.SCRUB not in opers_a
+
+
 def test_delayed_resilver_start_marks_all_online_devices_when_scan_still_active(monkeypatch):
   old_cache_dict = config.cache_dict
   old_config_dict = config.config_dict
@@ -210,3 +221,86 @@ def test_delayed_resilver_start_does_not_fallback_when_pool_already_has_updating
     config.cache_dict = old_cache_dict
     config.config_dict = old_config_dict
     config.zfs_blockdevs = old_blockdevs
+
+
+def test_reconcile_status_operations_removes_disappeared_operations():
+  old_cache_dict = config.cache_dict
+  old_config_dict = config.config_dict
+  old_zfs_blockdevs = config.zfs_blockdevs
+  try:
+    config.cache_dict = {}
+    config.config_dict = {}
+    config.zfs_blockdevs = {"tank": {"a": object()}}
+    zdev_a = ZDev(pool="tank", name="a")
+    config.config_dict[entity_id_string(zdev_a)] = zdev_a
+    cache_a = find_or_create_cache(ZDev, pool="tank", name="a")
+    cache_a.state.what = EntityState.ACTIVE
+    cache_a.operations = [
+      Since(Operation.SCRUB),
+      Since(Operation.TRIM),
+      Since(Operation.RESILVER),
+    ]
+
+    snap = _collect(_snapshot("tank", "NONE", "FINISHED", {
+      "a": {"state": "ONLINE"},
+    }))
+
+    assert _reconcile_status_operations(snap) is True
+    assert not since_in(Operation.SCRUB, cache_a.operations)
+    assert not since_in(Operation.TRIM, cache_a.operations)
+    assert not since_in(Operation.RESILVER, cache_a.operations)
+  finally:
+    config.cache_dict = old_cache_dict
+    config.config_dict = old_config_dict
+    config.zfs_blockdevs = old_zfs_blockdevs
+
+
+def test_reconcile_status_operations_adds_scrub_and_trim_only_for_status_online_devices():
+  old_cache_dict = config.cache_dict
+  old_zfs_blockdevs = config.zfs_blockdevs
+  try:
+    config.cache_dict = {}
+    config.zfs_blockdevs = {"tank": {"a": object(), "b": object()}}
+    cache_a = find_or_create_cache(ZDev, pool="tank", name="a")
+    cache_b = find_or_create_cache(ZDev, pool="tank", name="b")
+    cache_a.state.what = cache_b.state.what = EntityState.ACTIVE
+
+    snap = _collect(_snapshot("tank", "SCRUB", "SCANNING", {
+      "a": {"state": "ONLINE", "operations": ["trim"]},
+      "b": {"state": "OFFLINE", "operations": ["trim"]},
+    }))
+
+    assert _reconcile_status_operations(snap) is True
+    assert since_in(Operation.SCRUB, cache_a.operations)
+    assert since_in(Operation.TRIM, cache_a.operations)
+    assert not since_in(Operation.SCRUB, cache_b.operations)
+    assert not since_in(Operation.TRIM, cache_b.operations)
+  finally:
+    config.cache_dict = old_cache_dict
+    config.zfs_blockdevs = old_zfs_blockdevs
+
+
+def test_reconcile_status_operations_removes_canceled_scrub():
+  old_cache_dict = config.cache_dict
+  old_config_dict = config.config_dict
+  old_zfs_blockdevs = config.zfs_blockdevs
+  try:
+    config.cache_dict = {}
+    config.config_dict = {}
+    config.zfs_blockdevs = {"tank": {"a": object()}}
+    zdev_a = ZDev(pool="tank", name="a")
+    config.config_dict[entity_id_string(zdev_a)] = zdev_a
+    cache_a = find_or_create_cache(ZDev, pool="tank", name="a")
+    cache_a.state.what = EntityState.ACTIVE
+    cache_a.operations = [Since(Operation.SCRUB)]
+
+    snap = _collect(_snapshot("tank", "SCRUB", "CANCELED", {
+      "a": {"state": "ONLINE"},
+    }))
+
+    assert _reconcile_status_operations(snap) is True
+    assert not since_in(Operation.SCRUB, cache_a.operations)
+  finally:
+    config.cache_dict = old_cache_dict
+    config.config_dict = old_config_dict
+    config.zfs_blockdevs = old_zfs_blockdevs

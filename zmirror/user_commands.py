@@ -26,6 +26,20 @@ from tabulate import tabulate
 from ._version import __version__
 
 
+ANSI_RESET = "\033[0m"
+ENTITY_TYPE_ANSI = {
+  "disk": "\033[36m",
+  "part": "\033[93m",
+  "zpool": "\033[34m",
+  "zdev": "\033[32m",
+  "zvol": "\033[35m",
+  "crypt": "\033[33m",
+  "mirror": "\033[91m",
+  "zmirror": "\033[95m",
+}
+ENTITY_TYPE_COLOR_REGEX = re.compile(r'(^|[ \u2800])(disk|part|zpool|zdev|zvol|crypt|mirror|zmirror)(?=[:|])')
+
+
 
 
 def request(rqst, typ, enactment_level = sys.maxsize, **identifiers):
@@ -37,6 +51,31 @@ def request(rqst, typ, enactment_level = sys.maxsize, **identifiers):
   result.enact_hierarchy()
   request_root.add_dependency(result)
   return result
+
+
+def colorize_entity_type_tokens(text):
+  if not isinstance(text, str) or "\033[" in text:
+    return text
+
+  def repl(match):
+    prefix = match.group(1)
+    entity_type = match.group(2)
+    color = ENTITY_TYPE_ANSI.get(entity_type)
+    if color is None:
+      return match.group(0)
+    return f"{prefix}{color}{entity_type}{ANSI_RESET}"
+
+  return ENTITY_TYPE_COLOR_REGEX.sub(repl, text)
+
+
+def colorize_list_cell(key, value):
+  if key not in {"id", "hrid", "parent"}:
+    return value
+  return colorize_entity_type_tokens(value)
+
+
+def should_colorize_list_output(args):
+  return getattr(args, "color", False) or sys.stdout.isatty()
 
 
 def request_overdue(op: Operation, entity):
@@ -520,6 +559,22 @@ def validate_list_columns(columns, arg_name):
     raise ValueError(f"unknown {arg_name}: {bad}. valid columns: {valid}")
 
 
+def validate_boundary_types(type_names, arg_name):
+  invalid = [type_name for type_name in type_names if type_name not in TYPE_FOR_NAME]
+  if invalid:
+    valid = ", ".join(sorted([type_name for type_name in TYPE_FOR_NAME.keys() if type_name is not None]))
+    bad = ", ".join(invalid)
+    raise ValueError(f"unknown {arg_name}: {bad}. valid types: {valid}")
+
+
+def zdevs_for_pool(zpool_name):
+  result = []
+  for entity in config.config_dict.values():
+    if isinstance(entity, ZDev) and entity.pool == zpool_name:
+      result.append(entity)
+  return result
+
+
 def make_list_command(op: Operation, overdue=False):
   def do(args):
     b = StringBuilder()
@@ -544,6 +599,8 @@ def make_list_command(op: Operation, overdue=False):
         r["hierarchy"] = True
       if args.graph:
         r["graph"] = True
+      if getattr(args, "boundaries", None) is not None:
+        r["boundaries"] = args.boundaries
       if args.include_available_update_overdue:
         r["include_available_update_overdue"] = True
       
@@ -595,6 +652,7 @@ def make_list_command(op: Operation, overdue=False):
           del item["depth"]
       sys.stdout.write(json.dumps(items))
     else:
+      use_color = should_colorize_list_output(args)
       for item in items:
         item_indent_depth = int(item.get("depth", 0) or 0)
         for key in keys:
@@ -621,6 +679,8 @@ def make_list_command(op: Operation, overdue=False):
               val = f"{to_kd(val)}"
           if item_indent_depth > 0 and len(keys) > 0 and key == keys[0]:
             val = f"{'\u2800\u2800' * item_indent_depth}{val}"
+          if use_color:
+            val = colorize_list_cell(key, val)
           item[key] = val
 
         if "depth" in item and "depth" not in keys:
@@ -803,6 +863,14 @@ def handle_list_command(command, stream):
     if not isinstance(graph, bool):
       raise ValueError("`graph` must be a bool")
 
+  boundary_types = {ZPool}
+  if "boundaries" in command:
+    boundaries = command["boundaries"]
+    if not isinstance(boundaries, list):
+      raise ValueError("`boundaries` must be a list")
+    validate_boundary_types(boundaries, "boundaries")
+    boundary_types = {get_type_for_name(type_name) for type_name in boundaries}
+
   sort_attr = None
   if "sort" in command:
     sort_attr = command["sort"]
@@ -915,10 +983,9 @@ def handle_list_command(command, stream):
         if isinstance(entity, ZDev):
           pool = config.find_config(ZPool, name=entity.pool)
           add(pool, mode_down)
-        elif isinstance(entity, ZPool) and is_root:
-          if entity.name in config.zfs_blockdevs:
-            for zdev in config.zfs_blockdevs[entity.name].values():
-              add(zdev, mode_down)
+        elif isinstance(entity, ZPool):
+          for zdev in zdevs_for_pool(entity.name):
+            add(zdev, mode_down)
 
       dedup = []
       refs = set()
@@ -995,7 +1062,7 @@ def handle_list_command(command, stream):
       if mode == mode_up_only:
         add(getattr(entity, "parent", None), mode_up_only)
       else:
-        if isinstance(entity, ZPool) and not is_root:
+        if type(entity) in boundary_types and not is_root:
           return []
 
         content = getattr(entity, "content", None)
@@ -1010,10 +1077,9 @@ def handle_list_command(command, stream):
         if isinstance(entity, ZDev):
           pool = config.find_config(ZPool, name=entity.pool)
           add(pool, mode_down)
-        elif isinstance(entity, ZPool) and is_root:
-          if entity.name in config.zfs_blockdevs:
-            for zdev in config.zfs_blockdevs[entity.name].values():
-              add(zdev, mode_down)
+        elif isinstance(entity, ZPool):
+          for zdev in zdevs_for_pool(entity.name):
+            add(zdev, mode_down)
 
       dedup = []
       refs = set()

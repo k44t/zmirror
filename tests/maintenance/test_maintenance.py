@@ -195,6 +195,67 @@ class Tests():
     assert any(row["id"] == entity_id_string(s) for row in rows)
 
 
+  def test_list_graph_uses_zpool_as_default_boundary(self):
+
+    s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    a = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+
+    stream = io.StringIO()
+    user_commands.handle_list_command({
+      "command": "list",
+      "graph": True,
+      "ids": [entity_id_string(s)],
+    }, stream)
+
+    rows = json.loads(stream.getvalue())
+    ids = {row["id"] for row in rows}
+
+    assert entity_id_string(s) in ids
+    assert entity_id_string(a) not in ids
+
+
+  def test_list_graph_empty_boundaries_traverses_through_zpool(self):
+
+    s = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-s"]
+    a = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+
+    stream = io.StringIO()
+    user_commands.handle_list_command({
+      "command": "list",
+      "graph": True,
+      "ids": [entity_id_string(s)],
+      "boundaries": [],
+    }, stream)
+
+    rows = json.loads(stream.getvalue())
+    ids = {row["id"] for row in rows}
+
+    assert entity_id_string(s) in ids
+    assert entity_id_string(a) in ids
+
+
+  def test_list_graph_respects_explicit_zdev_boundary(self):
+
+    zpool = config.config_dict["zpool|name:zmirror-sysfs"]
+    a = config.config_dict["zdev|pool:zmirror-sysfs|name:zmirror-sysfs-a"]
+    disk_a = a.parent.parent.parent
+
+    stream = io.StringIO()
+    user_commands.handle_list_command({
+      "command": "list",
+      "graph": True,
+      "ids": [entity_id_string(zpool)],
+      "boundaries": ["zpool", "zdev"],
+    }, stream)
+
+    rows = json.loads(stream.getvalue())
+    ids = {row["id"] for row in rows}
+
+    assert entity_id_string(zpool) in ids
+    assert entity_id_string(a) in ids
+    assert entity_id_string(disk_a) not in ids
+
+
 
 
 

@@ -191,6 +191,55 @@ def _apply_resilver_finish_from_snapshot(snapshot):
   return handled
 
 
+def _reconcile_status_operations(snapshot):
+  if snapshot is None:
+    return False
+
+  handled = False
+  zpool = snapshot["zpool"]
+  devices = snapshot.get("devices", {})
+  scrubbing = False
+  scan = snapshot.get("pool", {}).get("scan_stats", {}) if isinstance(snapshot.get("pool"), dict) else {}
+  if isinstance(scan, dict):
+    scan_function = str(scan.get("function", "")).upper()
+    scan_state = str(scan.get("state", "")).upper()
+    scrubbing = scan_function == "SCRUB" and scan_state not in {"FINISHED", "NONE", "CANCELED", "CANCELLED", "-", ""}
+  resilver_targets = _reliable_resilver_targets(snapshot)
+
+  for dev in config.zfs_blockdevs.get(zpool, {}).keys():
+    cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
+    if not is_online_state(cache.state.what):
+      continue
+
+    status = devices.get(dev)
+    status_online = status is not None and status.get("state") == "ONLINE"
+
+    scrub_active = status_online and scrubbing
+    if scrub_active:
+      if not since_in(Operation.SCRUB, cache.operations):
+        cache.operations.append(Since(Operation.SCRUB, None))
+        handled = True
+    elif since_in(Operation.SCRUB, cache.operations):
+      handle_scrub_disappeared(cache)
+      handled = True
+
+    trim_active = status_online and bool(status.get("trimming")) if status is not None else False
+    if trim_active:
+      if not since_in(Operation.TRIM, cache.operations):
+        cache.operations.append(Since(Operation.TRIM, None))
+        handled = True
+    elif since_in(Operation.TRIM, cache.operations):
+      handle_trim_disappeared(cache)
+      handled = True
+
+    update_active = status_online and dev in resilver_targets
+    if not update_active and since_in(Operation.RESILVER, cache.operations):
+      handle_update_disappeared(cache)
+      handled = True
+
+  return handled
+
+
 def _handle_zdev_error_signal(cache, new_state):
   if new_state not in {"FAULTED", "REMOVED", "UNAVAIL"}:
     return False
@@ -257,6 +306,7 @@ def _handle_regular_status_check(event):
     if pool_snapshot is not None:
       checked = True
     handled = _apply_resilver_start_from_snapshot(pool_snapshot) or handled
+    handled = _reconcile_status_operations(pool_snapshot) or handled
     update_vdev_error_state(pool_snapshot)
   return handled or checked
 
@@ -343,6 +393,7 @@ def _collect_pool_status_snapshot(zpool, zpool_status=None):
       "cksum": cksum_errors,
       "scan_processed": vdev.get("scan_processed"),
       "resilvering": "resilver" in operations_text,
+      "trimming": "trim" in operations_text,
       "errors": str(vdev.get("state", "")).upper() != "ONLINE" or _counter_nonzero(read_errors) or _counter_nonzero(write_errors) or _counter_nonzero(cksum_errors),
     }
 
@@ -506,6 +557,7 @@ def handle(env):
       else:
         for dev, status in pool_snapshot["devices"].items():
           cache = find_or_create_cache(ZDev, pool=zpool, name=dev)
+          cache_online = is_online_state(cache.state.what)
           if status["state"] == "ONLINE":
 
             found_online = True
@@ -520,13 +572,18 @@ def handle(env):
               log.info(f"zdev {cache.pool}:{cache.name}: scrubbing started")
               handle_scrub_started(cache)
               event_handled = True
-            elif zevent == "scrub_abort":
+            elif zevent == "scrub_abort" and cache_online:
               log.info(f"zdev {cache.pool}:{cache.name}: scrubbing cancelled")
               handle_scrub_canceled(cache)
               event_handled = True
             elif zevent == "pool_import":
               log.debug(f"zdev {cache.pool}:{cache.name}: pool imported, device online")
               handle_onlined(cache)
+              event_handled = True
+
+          elif zevent == "scrub_abort" and cache_online:
+              log.info(f"zdev {cache.pool}:{cache.name}: scrubbing cancelled")
+              handle_scrub_canceled(cache)
               event_handled = True
 
       if zevent == "pool_import" or zevent == "pool_create":

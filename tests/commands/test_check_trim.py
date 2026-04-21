@@ -22,6 +22,22 @@ def test_enable_trim_parser_wiring():
   assert args.func == user_commands.handle_enable_trim_command
 
 
+def test_list_boundaries_parser_wiring():
+  parser = make_arg_parser()
+
+  default_args = parser.parse_args(["list", "--graph"])
+  assert default_args.boundaries == ["zpool"]
+
+  explicit_args = parser.parse_args(["list", "--graph", "--boundaries", "zpool", "zdev"])
+  assert explicit_args.boundaries == ["zpool", "zdev"]
+
+  empty_args = parser.parse_args(["list", "--graph", "--boundaries"])
+  assert empty_args.boundaries == []
+
+  color_args = parser.parse_args(["list", "--color"])
+  assert color_args.color is True
+
+
 def test_check_trim_prints_command_transcript(monkeypatch):
   calls = []
 

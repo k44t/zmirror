@@ -7,7 +7,9 @@ from kpyutils.scheduler import Scheduler, _next_after_any, parse_schedule, parse
 from zmirror import config
 from zmirror.dataclasses import ZMirror
 import zmirror.entities as entities
-from zmirror.user_commands import LIST_DEFAULT_KEYS, LIST_KEYS, validate_list_columns
+from argparse import Namespace
+
+from zmirror.user_commands import LIST_DEFAULT_KEYS, LIST_KEYS, ANSI_RESET, colorize_entity_type_tokens, should_colorize_list_output, validate_list_columns, validate_boundary_types
 
 
 def test_parse_weekday_ranges_supports_wraparound():
@@ -64,6 +66,30 @@ def test_available_update_fields_not_in_default_list_output():
 def test_validate_list_columns_rejects_unknown_names():
   with pytest.raises(ValueError, match="unknown keys: status"):
     validate_list_columns(["status"], "keys")
+
+
+def test_validate_boundary_types_rejects_unknown_names():
+  with pytest.raises(ValueError, match="unknown boundaries: nope"):
+    validate_boundary_types(["nope"], "boundaries")
+
+
+def test_colorize_entity_type_tokens_only_colors_matching_tokens():
+  text = "zdev|pool:tank parent zpool|name:tank xzdev|no crypt:name \u2800\u2800part|name:sda1"
+
+  colored = colorize_entity_type_tokens(text)
+
+  assert f"\033[32mzdev{ANSI_RESET}|pool:tank" in colored
+  assert f" \033[34mzpool{ANSI_RESET}|name:tank" in colored
+  assert "xzdev|no" in colored
+  assert f" \033[33mcrypt{ANSI_RESET}:name" in colored
+  assert f"\u2800\u2800\033[93mpart{ANSI_RESET}|name:sda1" in colored
+
+
+def test_should_colorize_list_output_respects_force_flag(monkeypatch):
+  monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+
+  assert should_colorize_list_output(Namespace(color=True)) is True
+  assert should_colorize_list_output(Namespace(color=False)) is False
 
 
 def test_regular_status_scheduler_defaults_to_every_ten_minutes():

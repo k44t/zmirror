@@ -104,6 +104,7 @@ def make_arg_parser():
   list_args_parser.add_argument("--add-columns", "--extra-columns", dest="add_columns", nargs='+', default=None, help="append additional columns to the default output")
   list_args_parser.add_argument("--remove-columns", nargs='+', default=None, help="remove columns from the output")
   list_args_parser.add_argument("--no_headers", action="store_true", default=False, help="do not print headers when outputting a table")
+  list_args_parser.add_argument("--color", action="store_true", default=False, help="force colorized list output even when stdout is not a tty")
   list_args_parser.add_argument("--format", choices=TABLE_FORMATS, default=argparse.SUPPRESS, help="either `json` or one of the formats defined by the tabulate library (see https://https://pypi.org/project/tabulate/#description)")
   list_args_parser.add_argument("--sort", choices=LIST_KEYS, help="the key (column) to sort for")
   list_args_parser.add_argument("--groups", type=lambda s: s.split(','), default=None, help="limit the entities to the groups given")
@@ -112,6 +113,7 @@ def make_arg_parser():
   list_args_parser.add_argument("--id-regex", type=str, default=None, help="limit the entities to ids matching this regex")
   list_args_parser.add_argument("--hierarchy", action="store_true", default=False, help="expand matched entities to related hierarchy (parents/children plus zpool<->zdev) and indent output")
   list_args_parser.add_argument("--graph", action="store_true", default=False, help="display matched entities as graph roots, scoped by traversal direction")
+  list_args_parser.add_argument("--boundaries", nargs='*', default=["zpool"], help="entity types where graph traversal stops for non-root nodes; pass no values to disable boundaries")
   list_args_parser.add_argument("--include-available-update-overdue", action="store_true", default=False, help="when listing overdue updates, also include devices overdue by available_update_interval")
 
 

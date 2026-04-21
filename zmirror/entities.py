@@ -184,6 +184,7 @@ def refresh_all_vdev_error_state_from_status():
 
   for zpool in config.zfs_blockdevs.keys():
     snapshot = daemon_module._collect_pool_status_snapshot(zpool)
+    daemon_module._reconcile_status_operations(snapshot)
     daemon_module.update_vdev_error_state(snapshot)
 
 def finalize_init(entity, _parent, _ignored):
@@ -198,14 +199,9 @@ def finalize_init(entity, _parent, _ignored):
     if is_present_or_online_state(cache.state.what):
       statstr = f"{human_readable_id(entity)}: {cache.state.what.name}"
       if hasattr(cache, "operations"):
-        for i, op in enumerate(cache.operations):
-          if i == 0:
-            statstr += " (active operations: "
-          else:
-            stastr += ", "
-          statstr += op.what.name.lower()
-          if i == 0:
-            statstr += ")"
+        operation_names = [op.what.name.lower() for op in cache.operations]
+        if operation_names:
+          statstr += f" (active operations: {', '.join(operation_names)})"
       log.info(statstr)
     if hasattr(entity, "finalize_init"):
       entity.finalize_init()
@@ -603,8 +599,9 @@ def get_zpool_backing_device_state(zpool, dev):
   scan = pool_data.get("scan_stats", {}) if isinstance(pool_data, dict) else {}
   scan_function = str(scan.get("function", "")).upper()
   scan_state = str(scan.get("state", "")).upper()
-  scrubbing = scan_function == "SCRUB" and scan_state not in {"FINISHED", "NONE", "-", ""}
-  resilvering = scan_function == "RESILVER" and scan_state not in {"FINISHED", "NONE", "-", ""}
+  inactive_scan_states = {"FINISHED", "NONE", "CANCELED", "CANCELLED", "-", ""}
+  scrubbing = scan_function == "SCRUB" and scan_state not in inactive_scan_states
+  resilvering = scan_function == "RESILVER" and scan_state not in inactive_scan_states
   resilver_targets = set()
   if online_with_explicit_resilver:
     resilver_targets = set(online_with_explicit_resilver)
