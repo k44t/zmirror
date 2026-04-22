@@ -1,4 +1,5 @@
 from datetime import datetime
+import io
 import queue
 
 import pytest
@@ -9,7 +10,8 @@ from zmirror.dataclasses import ZMirror
 import zmirror.entities as entities
 from argparse import Namespace
 
-from zmirror.user_commands import LIST_DEFAULT_KEYS, LIST_KEYS, ANSI_RESET, colorize_entity_type_tokens, should_colorize_list_output, validate_list_columns, validate_boundary_types
+from zmirror.user_commands import LIST_DEFAULT_KEYS, LIST_KEYS, ANSI_LIGHT_BLUE, ANSI_ORANGE, ANSI_RESET, colorize_entity_type_tokens, colorize_list_cell, make_list_command, should_colorize_list_output, validate_list_columns, validate_boundary_types
+from tabulate import tabulate
 
 
 def test_parse_weekday_ranges_supports_wraparound():
@@ -90,6 +92,76 @@ def test_should_colorize_list_output_respects_force_flag(monkeypatch):
 
   assert should_colorize_list_output(Namespace(color=True)) is True
   assert should_colorize_list_output(Namespace(color=False)) is False
+
+
+def test_colorize_list_cell_colors_special_tokens():
+  colored = colorize_list_cell("state", "#now yes no nil #never \u2800\u2800#system-reminder")
+
+  assert f"{ANSI_ORANGE}#now{ANSI_RESET}" in colored
+  assert f"{ANSI_ORANGE}#never{ANSI_RESET}" in colored
+  assert f"\u2800\u2800{ANSI_ORANGE}#system-reminder{ANSI_RESET}" in colored
+  assert f"{ANSI_LIGHT_BLUE}yes{ANSI_RESET}" in colored
+  assert f"{ANSI_LIGHT_BLUE}no{ANSI_RESET}" in colored
+  assert f"{ANSI_LIGHT_BLUE}nil{ANSI_RESET}" in colored
+
+
+def test_special_token_coloring_survives_full_table_render():
+  table = tabulate([["#now", "nil"]], headers=["last_online", "last_update"], tablefmt="plain")
+  colored = colorize_list_cell("state", table)
+
+  assert f"{ANSI_ORANGE}#now{ANSI_RESET}" in colored
+  assert f"{ANSI_LIGHT_BLUE}nil{ANSI_RESET}" in colored
+
+
+def test_special_token_coloring_matches_tokens_after_table_separators():
+  colored = colorize_list_cell("state", "|#now|nil|yes|no|")
+
+  assert f"|{ANSI_ORANGE}#now{ANSI_RESET}|" in colored
+  assert f"|{ANSI_LIGHT_BLUE}nil{ANSI_RESET}|" in colored
+  assert f"{ANSI_LIGHT_BLUE}yes{ANSI_RESET}" in colored
+  assert f"{ANSI_LIGHT_BLUE}no{ANSI_RESET}" in colored
+
+
+def test_make_list_command_colors_ki_symbols_in_last_columns(monkeypatch):
+  payload = [{
+    "hrid": "zdev: theo-a-main (theo)",
+    "last_online": {"_type": "Ki-Symbol", "_name": "now"},
+    "last_update": {"_type": "Ki-Symbol", "_name": "now"},
+  }]
+
+  def fake_make_send_daemon_wrapper(_fn, stream):
+    def do(_args):
+      stream.write(__import__("json").dumps(payload))
+    return do
+
+  stdout = io.StringIO()
+  args = Namespace(
+    socket_path="/tmp/noop",
+    func=None,
+    keys=["hrid", "last_online", "last_update"],
+    add_columns=None,
+    remove_columns=None,
+    format="plain",
+    no_headers=False,
+    color=True,
+    types=None,
+    sort=None,
+    groups=None,
+    ids=None,
+    id_regex=None,
+    hierarchy=False,
+    graph=False,
+    boundaries=["zpool"],
+    include_available_update_overdue=False,
+  )
+
+  monkeypatch.setattr("zmirror.user_commands.make_send_daemon_wrapper", fake_make_send_daemon_wrapper)
+  monkeypatch.setattr("sys.stdout", stdout)
+
+  make_list_command(None)(args)
+
+  rendered = stdout.getvalue()
+  assert f"{ANSI_ORANGE}#now{ANSI_RESET}" in rendered
 
 
 def test_regular_status_scheduler_defaults_to_every_ten_minutes():

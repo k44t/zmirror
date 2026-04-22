@@ -27,17 +27,21 @@ from ._version import __version__
 
 
 ANSI_RESET = "\033[0m"
+ANSI_ORANGE = "\033[1;31m"
+ANSI_LIGHT_BLUE = "\033[1;94m"
 ENTITY_TYPE_ANSI = {
-  "disk": "\033[36m",
-  "part": "\033[93m",
-  "zpool": "\033[34m",
-  "zdev": "\033[32m",
-  "zvol": "\033[35m",
-  "crypt": "\033[33m",
-  "mirror": "\033[91m",
-  "zmirror": "\033[95m",
+  "disk": "\033[1;36m",
+  "part": "\033[1;93m",
+  "zpool": "\033[1;34m",
+  "zdev": "\033[1;32m",
+  "zvol": "\033[1;35m",
+  "crypt": "\033[1;33m",
+  "mirror": "\033[1;91m",
+  "zmirror": "\033[1;95m",
 }
 ENTITY_TYPE_COLOR_REGEX = re.compile(r'(^|[ \u2800])(disk|part|zpool|zdev|zvol|crypt|mirror|zmirror)(?=[:|])')
+HASHTAG_TOKEN_COLOR_REGEX = re.compile(r'(?<![A-Za-z0-9_])(#[A-Za-z_-]+)(?![A-Za-z0-9_-])')
+YES_NO_COLOR_REGEX = re.compile(r'(?<![A-Za-z0-9_])(yes|no|nil)(?![A-Za-z0-9_])', re.IGNORECASE)
 
 
 
@@ -68,10 +72,20 @@ def colorize_entity_type_tokens(text):
   return ENTITY_TYPE_COLOR_REGEX.sub(repl, text)
 
 
+def colorize_special_tokens(text):
+  if not isinstance(text, str):
+    return text
+
+  text = HASHTAG_TOKEN_COLOR_REGEX.sub(lambda match: f"{ANSI_ORANGE}{match.group(1)}{ANSI_RESET}", text)
+  text = YES_NO_COLOR_REGEX.sub(lambda match: f"{ANSI_LIGHT_BLUE}{match.group(1)}{ANSI_RESET}", text)
+  return text
+
+
 def colorize_list_cell(key, value):
-  if key not in {"id", "hrid", "parent"}:
-    return value
-  return colorize_entity_type_tokens(value)
+  value = colorize_special_tokens(value)
+  if key in {"id", "hrid", "parent"}:
+    value = colorize_entity_type_tokens(value)
+  return value
 
 
 def should_colorize_list_output(args):
@@ -730,6 +744,9 @@ def make_list_command(op: Operation, overdue=False):
         table = tabulate(table_rows, headers=headers, tablefmt=table_format, **tabulate_kwargs)
       else:
         table = tabulate(table_rows, tablefmt=table_format, **tabulate_kwargs)
+
+      if use_color:
+        table = colorize_special_tokens(table)
 
 
       sys.stdout.write(table)
